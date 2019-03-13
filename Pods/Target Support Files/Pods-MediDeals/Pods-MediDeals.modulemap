@@ -1,0 +1,6 @@
+framework module Pods_MediDeals {
+  umbrella header "Pods-MediDeals-umbrella.h"
+
+  export *
+  module * { export * }
+}
