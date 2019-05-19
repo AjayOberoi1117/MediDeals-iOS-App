@@ -25,8 +25,8 @@ class Register_ViewController: UIViewController {
         super.viewDidLoad()
         Utilities.HideLeftSideMenu()
         Utilities.HideRightSideMenu()
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtPassword.attributedPlaceholder = NSAttributedString(string:"PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+//        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+//        txtPassword.attributedPlaceholder = NSAttributedString(string:"PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         txtBusinessName.attributedPlaceholder = NSAttributedString(string:"BUSINESS NAME", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         //txtAccountType.attributedPlaceholder = NSAttributedString(string:"ACCOUNT TYPE", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         txtShopNO.attributedPlaceholder = NSAttributedString(string:"SHOP NO./PLOT NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
@@ -34,7 +34,7 @@ class Register_ViewController: UIViewController {
         txtCity.attributedPlaceholder = NSAttributedString(string:"CITY", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         txtLicenceNO.attributedPlaceholder = NSAttributedString(string:"LICENCE NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         txtGSTNO.attributedPlaceholder = NSAttributedString(string:"GST NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtContactNO.attributedPlaceholder = NSAttributedString(string:"CONTACT NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+//        txtContactNO.attributedPlaceholder = NSAttributedString(string:"CONTACT NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         
         AccType = ["WholeSeller","Retailer","PCD Company","Third Party Manufacture","FMCG","Doctor"]
        
@@ -67,7 +67,7 @@ class Register_ViewController: UIViewController {
     
    
     func validations() {
-        if self.txtBusinessName.text == "" && self.txtAccountType.text == "" && self.txtShopNO.text == "" && self.txtStreetName.text == "" && self.txtLicenceNO.text == "" && self.txtGSTNO.text == "" && self.txtContactNO.text == "" && self.txtEmail.text == "" && self.txtPassword.text == ""{
+        if self.txtBusinessName.text == "" && self.txtAccountType.text == "" && self.txtShopNO.text == "" && self.txtStreetName.text == "" && self.txtLicenceNO.text == "" && self.txtGSTNO.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter all fields", viewController: self)
         }
         else if txtBusinessName.text == "" {
@@ -88,26 +88,9 @@ class Register_ViewController: UIViewController {
         else if txtGSTNO.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter your GST number", viewController: self)
         }
-        else if txtContactNO.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your contact number", viewController: self)
-        }
-        else if txtEmail.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your email", viewController: self)
-        }
-            
-        else if (isValidEmail(testStr: self.txtEmail.text!) == false)
-        {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please enter the valid email", viewController: self)
-        }
-            
-        else if txtPassword.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your password", viewController: self)
-            
-        }else if (txtPassword.text?.count)! < 6 {
-            Utilities.ShowAlertView2(title: "Alert", message: "Password should be greater than six characters", viewController: self)
-        }
+       
         else {
-            emailValidation2()
+            self.registerAPI()
         }
     }
     func emailValidation2(){

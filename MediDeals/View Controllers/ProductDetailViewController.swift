@@ -74,7 +74,7 @@ class ProductDetailViewController: UIViewController {
                 {
                     self.title = (data.value(forKey: "title") as! String)
                     self.lblTitleName.text = "Max Retail Price: Rs " + "\(data.value(forKey: "old_price") as! String)"
-                    self.disPrice.text = "Discount Price: Rs " + "\(data.value(forKey: "price") as! String)"
+                    self.disPrice.text = "Discounted Price:  Rs " + "\(data.value(forKey: "price") as! String)"
                     self.quantity.text = "Minimum Order Quantity: " + "\(data.value(forKey: "min_quantity") as! String)"
                     self.disPercentage.text = "Discount: " + "\(data.value(forKey: "discount") as! String)" + "%"
                     self.category.text = "Categories: " + "\(String(describing: data.value(forKey: "cat_name") as! String))"
@@ -103,7 +103,7 @@ class ProductDetailViewController: UIViewController {
     func addtoCartApi(){
         self.addLoadingIndicator()
         self.startAnim()
-        let params = ["user_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
                       "product_id" : self.productId ,
                       "quantity": self.min_quantity]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.add_Cart.caseValue,parameters: params) { (response) in

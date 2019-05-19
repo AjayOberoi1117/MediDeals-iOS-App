@@ -135,14 +135,16 @@ open class LIHSliderViewController: UIViewController, LIHSliderItemDelegate {
                 self.currentIndex = 0
             })
         } else {
+            if [self.contentViewController(atIndex: self.currentIndex+1)] != nil{
             self.pageController.setViewControllers([self.contentViewController(atIndex: self.currentIndex+1)], direction: UIPageViewControllerNavigationDirection.forward, animated: true, completion: { (complete) -> Void in
                 self.currentIndex = self.currentIndex + 1
             })
+            }
         }
     }
     
     
-    
+
     fileprivate func contentViewController(atIndex index: Int) -> LIHSliderItemViewController! {
         if self.slider.sliderImages.count == 0 || index >= self.slider.sliderImages.count {
             self.pageControl.isHidden = true

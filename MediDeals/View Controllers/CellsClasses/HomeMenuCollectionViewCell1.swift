@@ -12,5 +12,8 @@ class HomeMenuCollectionViewCell1: UICollectionViewCell {
     @IBOutlet var originalPrice: UILabel!
     @IBOutlet var discountPrice: UILabel!
     @IBOutlet var discountPercent: UILabel!
+    @IBOutlet weak var titleName: UILabel!
+    @IBOutlet weak var brandName: UILabel!
+    @IBOutlet weak var buyNowBtn: UIButton!
     
 }

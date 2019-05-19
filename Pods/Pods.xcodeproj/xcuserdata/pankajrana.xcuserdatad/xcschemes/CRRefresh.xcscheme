@@ -14,10 +14,10 @@
             buildForArchiving = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1C44D6615E754C129D3C449212AC1716"
-               BlueprintName = "FBSDKLoginKit"
+               BlueprintIdentifier = "7504E742BF9156F50620315062EA61B8"
+               BlueprintName = "CRRefresh"
                ReferencedContainer = "container:Pods.xcodeproj"
-               BuildableName = "FBSDKLoginKit.framework">
+               BuildableName = "CRRefresh.framework">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>

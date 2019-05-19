@@ -36,6 +36,7 @@ class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLoca
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         stateSpinner.delegate = self
         citySpinner.delegate = self
         locationManager.delegate = self

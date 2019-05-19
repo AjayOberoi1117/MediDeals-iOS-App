@@ -12,17 +12,25 @@ import UIKit
 class FilterViewController: UIViewController,LBZSpinnerDelegate {
     func spinnerChoose(_ spinner: LBZSpinner, index: Int, value: String) {
         var spinnerName = ""
-        if spinner == brandSpinner { spinnerName = "brandSpinner" }
+        if spinner == brandSpinner { spinnerName = "brandSpinner"
+            selectedBrand = value
+        }
         if spinner == stateSpinner {
             print("Spinner : \(spinnerName) : { Index : \(index) - \(value) }")
             self.selectedState_id = "\(self.state_idArry[index])"
+            selectedState = value
             self.getCityAPI()
         }
-        if spinner == citySpinner { spinnerName = "citySpinner" }
+        if spinner == citySpinner { spinnerName = "citySpinner"
+            selectedCity = value
+            self.FilterProduct_API()
+        }
       
     }
     
 
+   
+    @IBOutlet weak var silder: UISlider!
     @IBOutlet weak var lblPrice: UILabel!
     @IBOutlet weak var brandSpinner: LBZSpinner!
     @IBOutlet weak var stateSpinner: LBZSpinner!
@@ -41,11 +49,17 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
     @IBOutlet var eighthImage: UIImageView!
     @IBOutlet var ninethImage: UIImageView!
     
+    var getAllpothicData = [getAllopathicProducts]()
     var brand_name = NSArray()
     var states_name = NSArray()
     var city_name = NSArray()
     var state_idArry = NSArray()
     var selectedState_id = ""
+    var sliderVal = ""
+    var discountVal = ""
+    var selectedBrand = ""
+    var selectedState = ""
+    var selectedCity = ""
     override func viewDidLoad(){
         super.viewDidLoad()
         self.navigationController?.isNavigationBarHidden = false
@@ -72,10 +86,10 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
     }
     @IBAction func SliderValueChange(_ sender: UISlider) {
         self.lblPrice.text = String(format: "Price:      Rs. 10 - Rs. %i",Int(sender.value))
-        
+        sliderVal = "\(Int(sender.value))"
     }
     @IBAction func firstBtn(_ sender: UIButton){
-        
+        discountVal = "90"
         self.firstImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -87,6 +101,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
      }
     @IBAction func secondBtn(_ sender: UIButton){
+        discountVal = "80"
         self.firstImage.image = #imageLiteral(resourceName: "unselect")
         self.secondImage.image = #imageLiteral(resourceName: "select")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -99,6 +114,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         
     }
     @IBAction func thirdBtn(_ sender: UIButton){
+        discountVal = "70"
         self.thirdImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.firstImage.image = #imageLiteral(resourceName: "unselect")
@@ -111,6 +127,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         
     }
     @IBAction func forthBtn(_ sender: UIButton){
+        discountVal = "60"
         self.forthImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -124,6 +141,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
     }
     
     @IBAction func fifthBtn(_ sender: UIButton){
+        discountVal = "50"
         self.fifthImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -136,6 +154,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         
     }
     @IBAction func sixth(_ sender: UIButton){
+        discountVal = "40"
         self.sixthImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -148,6 +167,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         
     }
     @IBAction func seventhBtn(_ sender: UIButton){
+        discountVal = "30"
         self.seventhImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -160,6 +180,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
     }
     
     @IBAction func eighthBtn(_ sender: UIButton){
+        discountVal = "20"
         self.eighthImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -171,6 +192,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
     }
     @IBAction func ninethBtn(_ sender: UIButton){
+        discountVal = "10"
         self.ninethImage.image = #imageLiteral(resourceName: "select")
         self.secondImage.image = #imageLiteral(resourceName: "unselect")
         self.thirdImage.image = #imageLiteral(resourceName: "unselect")
@@ -244,6 +266,8 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
                 print(self.city_name[index!])
                 self.cityName.text = (self.city_name[index!] as! String)
                 //self.selectedState_id = (self.city_name[index!] as! String)
+                
+                
             }
         }
         for i in 0 ..< self.city_name.count { controller.addAction(UIAlertAction(title: (self.city_name[i] as! String), style: .default, handler: closure))
@@ -291,5 +315,63 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         }
         controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
+    }
+    
+
+    //MARK: FilterProduct_API
+    func FilterProduct_API(){
+//        self.addLoadingIndicator()
+//        self.startAnim()
+        let params = ["vendor_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+                      "cat_id": SingletonVariables.sharedInstace.cat_id,
+                      "minPrice": sliderVal,
+                      "maxPrice": "500",
+                      "search": txtSearchProduct.text!,
+                      "discount": discountVal,
+                      "brand": selectedBrand,
+                      "state":selectedState,
+                      "city": selectedCity]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.search.caseValue,parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            }else{
+                if let data = (dic.value(forKey: "record") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    if data.count == 0{
+                        self.stopAnim()
+                        Utilities.ShowAlertView2(title: "Alert", message: "No Records Found!", viewController: self)
+                    }else{
+                        self.getAllpothicData = [getAllopathicProducts]()
+                        for index in 0..<data.count
+                        {
+                            self.getAllpothicData.append(getAllopathicProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "brand_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                            
+                        }
+//                        self.dummyArry = [String]()
+//                        for index1 in 0..<self.getAllpothicData.count{
+//                            let a = self.getAllpothicData[index1].product_status
+//                            if a == "already_added"{
+//                                self.dummyArry.append("1")
+//                            }else{
+//                                self.dummyArry.append("0")
+//                            }
+//                        }
+//                        self.stopAnim()
+//                        UIView.transition(with: self.tableViewData,
+//                                          duration: 0.35,
+//                                          options: .transitionFlipFromLeft,
+//                                          animations: { self.tableViewData.reloadData() })
+                        
+                        // self.tableViewData.reloadData()
+                        
+                    }
+                }
+            }
+        }
     }
 }

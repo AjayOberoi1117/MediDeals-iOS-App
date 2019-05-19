@@ -18,5 +18,6 @@ class SingletonVariables: NSObject {
     }()
     
     var _jobId = NSNumber()
-    var PilotId = NSNumber()
+    var cat_id = ""
+    
 }

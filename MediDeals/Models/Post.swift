@@ -72,7 +72,17 @@ struct getProfile
         self.user_type = _user_type
     }
 }
-
+struct getHomeProducts{
+    var product_id :String
+    var title :String
+    var old_price : String
+    var price :String
+    var discount :String
+    var code : String
+    var brandName : String
+    var min_quantity:String
+    var product_status: String
+}
 
 struct getAllopathicProducts{
     var product_id :String
@@ -92,8 +102,6 @@ struct getCartListing
     var price: String
     var quantity: String
     var total: String
-    
-  
 }
 
  

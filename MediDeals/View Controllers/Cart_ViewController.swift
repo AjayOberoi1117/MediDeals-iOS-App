@@ -59,7 +59,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         // Dispose of any resources that can be recreated.
     }
     @IBAction func checkoutBtn(_ sender: UIButton) {
-      
+      self.sague()
         let ids = self.productIdsArray.joined(separator: ",")
         let finalQuantity = self.newminQuantitiy.joined(separator: ",")
         self.editCartApi(prodID: ids ,quantity: finalQuantity)
@@ -86,7 +86,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
  
     @IBAction func btnMinus(_ sender: UIButton){
         countValue = Int(self.newminQuantitiy[sender.tag])!
-        if countValue > Int(minQuantitiy[sender.tag])!
+        if countValue > Int(minQuantitiy[sender.tag]) ?? 0
         {
             countValue -= 1
             cell.lblValue.text = "\(countValue)"
@@ -139,7 +139,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
     func getCartApi(){
         self.addLoadingIndicator()
         self.startAnim()
-        let params = ["user_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
                       ]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.get_cart.caseValue,parameters: params) { (response) in
             print(response)
@@ -155,7 +155,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
             } else {
                    self.stopAnim()
                 self.emptyCartImage.isHidden = true
-                if let data = (dic.value(forKey: "record") as? NSArray)?.mutableCopy() as? NSMutableArray
+                if let data = (dic.value(forKeyPath: "record.data") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
                     self.minQuantitiy = [String]()
                     self.newminQuantitiy = [String]()
@@ -172,11 +172,17 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
 //                    for
                    
                     self.totalPrice.text = "Total: Rs."
-                        + "\(dic.value(forKey: "total") as! String)"
-                    self.grandToTal = Float(dic.value(forKey: "total") as! String)!
+                        + "\(dic.value(forKeyPath: "record.total") as! String)"
+                    self.grandToTal = Float(dic.value(forKeyPath: "record.total") as! String)!
                     self.SubTotal.text = "SubTotal: Rs."
-                        + "\(dic.value(forKey: "subtotal") as! String)"
+                        + "\(dic.value(forKeyPath: "record.subtotal") as! String)"
                     self.stopAnim()
+                    
+                   // UIView.transition(with: self.cartTableView,
+//                                      duration: 0.35,
+//                                      options: .transitionCrossDissolve,
+//                                      animations: { self.cartTableView.reloadData() })
+                    
                     self.cartTableView.reloadData()
                  }
             }
@@ -185,7 +191,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
     func editCartApi(prodID:String,quantity:String){
         self.addLoadingIndicator()
         self.startAnim()
-        let params = ["user_id": UserDefaults.standard.value(forKey: "USER_ID") as! String, "product_id": prodID,"quantity": quantity]
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "product_id": prodID,"quantity": quantity]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.edit_cart.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
@@ -199,7 +205,9 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
                 if self.checkAction == "back"{
                     self.navigationController?.popViewController(animated: true)
                 }else{
-                    self.sague()}
+                    self.sague()
+                    
+                }
             }
         }
     }
@@ -213,7 +221,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
     func deletCartApi(prodID:String){
         self.addLoadingIndicator()
         self.startAnim()
-        let params = ["user_id": UserDefaults.standard.value(forKey: "USER_ID") as! String, "product_id": prodID]
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "product_id": prodID]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.delete_cart.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
@@ -249,6 +257,29 @@ extension Cart_ViewController : UITableViewDelegate, UITableViewDataSource{
         cell.quantity.text = "Minimum Order Quantity: " + self.getCartData[indexPath.row].quantity
         return cell
     }
+    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        
+        //MARK:- Fade transition Animation
+//        cell.alpha = 0
+//        UIView.animate(withDuration: 0.33) {
+//            cell.alpha = 1
+//        }
+        
+        //MARK:- Curl transition Animation
+//         cell.layer.transform = CATransform3DScale(CATransform3DIdentity, 1, -1, -1)
+//
+//         UIView.animate(withDuration: 1.0) {
+//          cell.layer.transform = CATransform3DIdentity
+//        }
+        
+        //MARK:- Frame Translation Animation
+//        cell.layer.transform = CATransform3DTranslate(CATransform3DIdentity, -cell.frame.width, 1, 1)
+//
+//         UIView.animate(withDuration: 0.33) {
+//          cell.layer.transform = CATransform3DIdentity
+//         }
+    }
+    
     
 //    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
 //        return true

@@ -13,6 +13,7 @@ import CRRefresh
 @available(iOS 11.0, *)
 class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerDelegate{
     
+    @IBOutlet weak var lblTxt: UILabel!
     @IBOutlet weak var AccTypeCollView: UICollectionView!
     fileprivate var sliderVc1: LIHSliderViewController!
     @IBOutlet weak var slider1Container: UIView!
@@ -22,6 +23,9 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     var AddImagesArry = [UIImage]()
     var cell1 = HomeMenuCollectionViewCell1()
     var cell2 = HomeMenuCollectionViewCell2()
+    var getHotDealsData = [getHomeProducts]()
+    var getMostDiscountedData = [getHomeProducts]()
+    var getNewProductsData = [getHomeProducts]()
     var locationManager = CLLocationManager()
     var lat = Float()
     var longi = Float()
@@ -36,13 +40,18 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     var latArray = NSArray()
     var lngArray = NSArray()
     var titleName = [String]()
+    var titleCat = [String]()
     var imagesArry = [UIImage]()
+    var tagVal = Int()
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        
         Utilities.HideRightSideMenu()
         self.navigationController?.isNavigationBarHidden = false
         AddImagesArry = [#imageLiteral(resourceName: "image1"),#imageLiteral(resourceName: "image2"),#imageLiteral(resourceName: "image3")]
         titleName = ["Allopathic", "Ayurvedic", "FMCG","PCD/3rd Party","Surgical Goods","Generics"]
+        titleCat = ["1", "2", "3","4","5","6"]
         self.imagesArry = [UIImage(named: "Allopathic"),UIImage(named: "ayurvedic"),UIImage(named: "customer (1)"),UIImage(named: "pharmacy"),UIImage(named: "Surgical"),UIImage(named: "generic")] as! [UIImage]
         titleArry = ["HOT DEALS","MOST DISCOUNTED","LATEST PRODUCTS"]
         let images: [UIImage] = [UIImage(named: "silder1")!,UIImage(named: "silder2")!,UIImage(named: "silder3")!]
@@ -53,25 +62,26 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         self.addChildViewController(self.sliderVc1)
         self.view.addSubview(self.sliderVc1.view)
         self.sliderVc1.didMove(toParentViewController: self)
-      
-        HomeTableView.cr.addHeadRefresh(animator: SlackLoadingAnimator()) { [weak self] in
-            /// start refresh
-            /// Do anything you want...
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
-                /// Stop refresh when your job finished, it will reset refresh footer if completion is true
-                self?.HomeTableView.cr.endHeaderRefresh()
-            })
+        
+        self.lblTxt.startAnimation()
+        self.getHomeData_Api()
+        
+        self.HomeTableView.cr.addHeadRefresh(animator: SlackLoadingAnimator()) { [weak self] in
+            // start refresh
+            // Do anything you want...
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                            /// Stop refresh when your job finished, it will reset refresh footer if completion is true
+                            self?.HomeTableView.cr.endHeaderRefresh()
+                        })
         }
-         HomeTableView.cr.beginHeaderRefresh()
+        HomeTableView.cr.beginHeaderRefresh()
+        
     }
     @IBAction func cartReview(_ sender: UIBarButtonItem) {
         let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
         self.navigationController?.pushViewController(vc, animated: true)
     }
     
-    @objc func methodOfReceivedNotification() {
-        //self.deviceID_Api()
-    }
     func itemPressedAtIndex(index: Int) {
         print("index \(index) is pressed")
     }
@@ -94,9 +104,15 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         locationManager.startUpdatingLocation()
         
-        // Register to receive notification
-        NotificationCenter.default.addObserver(self, selector: #selector(Home_ViewController.methodOfReceivedNotification), name: NSNotification.Name(rawValue: "DEVICETOKEN_NOTI"), object: nil)
+       
     }
+    
+    @IBAction func buyNow(_ sender: UIButton) {
+        
+    }
+    
+    
+    
     func initTimeZone() {
         timeZone = NSTimeZone.local as NSTimeZone
         timeZoneVal = timeZone.name
@@ -210,14 +226,15 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         }
     }
     
-    func deviceID_Api(){
-         self.addLoadingIndicator()
-         self.startAnim()
-        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String,
-                       "device_type": "I",
-                       "device_id":UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String]
+    
+    func getHomeData_Api(){
+//        self.addLoadingIndicator()
+//       self.startAnim()
+
+        HomeTableView.cr.beginHeaderRefresh()
+        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String]
         print(params)
-        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.update_device_id.caseValue, parameters: params) { (response) in
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.home.caseValue, parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
             print(dic)
@@ -228,8 +245,53 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
             }
             else
             {
-               self.stopAnim()
-             }
+                self.stopAnim()
+                self.getHotDealsData = [getHomeProducts]()
+                self.getMostDiscountedData = [getHomeProducts]()
+                self.getNewProductsData = [getHomeProducts]()
+                
+                // get hot deals Arrays ...
+                if let data = (dic.value(forKey: "hotDealsProducts") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    for index in 0..<data.count
+                    {
+                        self.getHotDealsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                     }
+                }
+                
+                // get Most Discounted Arrays ...
+                if let data = (dic.value(forKey: "getMostDiscounted") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    for index in 0..<data.count
+                    {
+                        self.getMostDiscountedData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                    }
+                }
+                
+                // get new products Arrays ...
+                if let data = (dic.value(forKey: "getNewProducts") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    for index in 0..<data.count
+                    {
+                        self.getNewProductsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                    }
+                }
+                
+                
+                
+//                UIView.transition(with: self.HomeTableView,
+//                                  duration: 0.35,
+//                                  options: .transitionFlipFromLeft,
+//                                  animations: { self.HomeTableView.reloadData() })
+                
+                 self.HomeTableView.reloadData()
+               
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                    /// Stop refresh when your job finished, it will reset refresh footer if completion is true
+                    self.HomeTableView.cr.endHeaderRefresh()
+                })
+                
+            }
             
         }
     }
@@ -247,7 +309,9 @@ extension Home_ViewController : UITableViewDelegate, UITableViewDataSource{
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
             if let cell1 = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? HomeMenuTableViewCell1 {
                 cell1.lblTitle.text = titleArry[indexPath.row]
-               // cell1.collectionViewFirst.tag = indexPath.row
+                self.HomeTableView.tag = indexPath.row
+                self.tagVal = self.HomeTableView.tag
+                cell1.collectionViewFirst.reloadData()
                 return cell1
             }
          return UITableViewCell()
@@ -273,21 +337,28 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
         if collectionView == AccTypeCollView{
             return titleName.count
         }else{
-        if section == 0 {
-            return 4
-        } else{
-            return AddImagesArry.count
-      }
+            if self.getHotDealsData.count != 0{
+                if section == 0 {
+                    //                if tagVal == 0 {
+                    //                    return self.getHotDealsData.count
+                    //                }else if tagVal == 1 {
+                    //                    return self.getMostDiscountedData.count
+                    //                }else if tagVal == 2 {
+                    //                    return self.getNewProductsData.count
+                    //                }else{
+                    return 4
+                    //}
+                    
+                } else{
+                    return AddImagesArry.count
+                }
+            }else{
+                return 0
+            }
         }
-   
+        
     }
-    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        if collectionView == AccTypeCollView
-        {}else{
-        let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
-        self.navigationController?.pushViewController(vc, animated: true)
-        }
-    }
+    
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         if collectionView == AccTypeCollView
         {
@@ -305,20 +376,90 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                 
             } else {
                 cell1 = collectionView.dequeueReusableCell(withReuseIdentifier: "cell1", for: indexPath as IndexPath) as! HomeMenuCollectionViewCell1
-                let newStringStrike = cell1.originalPrice.text
-                let attributeString = NSMutableAttributedString(string: newStringStrike!)
-                attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
-                cell1.originalPrice.attributedText = attributeString
-                //          cell1.discountPercent.startBlink()
+               
+                if tagVal == 0{
+                    cell1.titleName.text = self.getHotDealsData[indexPath.row].title
+                    cell1.brandName.text = self.getHotDealsData[indexPath.row].brandName
+                    cell1.discountPrice.text = "Rs " + self.getHotDealsData[indexPath.row].price
+                    let newStringStrike =  "Rs " + self.getHotDealsData[indexPath.row].old_price
+                    let attributeString = NSMutableAttributedString(string: newStringStrike)
+                    attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+                    cell1.originalPrice.attributedText = attributeString
+                    let d = Float(self.getHotDealsData[indexPath.row].discount)!.rounded(.towardZero)
+                    print("discount value is" , d)
+                    // cell1.discountPercent.startAnimation()
+                    cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
+                    
+
+                }else if tagVal == 1 {
+                    cell1.titleName.text = self.getMostDiscountedData[indexPath.row].title
+                    cell1.brandName.text = self.getMostDiscountedData[indexPath.row].brandName
+                    cell1.discountPrice.text = "Rs " + self.getMostDiscountedData[indexPath.row].price
+                    let newStringStrike =  "Rs " + self.getMostDiscountedData[indexPath.row].old_price
+                    let attributeString = NSMutableAttributedString(string: newStringStrike)
+                    attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+                    cell1.originalPrice.attributedText = attributeString
+                    let d = Float(self.getMostDiscountedData[indexPath.row].discount)!.rounded(.towardZero)
+                    print("discount value is" , d)
+                    // cell1.discountPercent.startAnimation()
+                    cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
+                    
+                }else if tagVal == 2 {
+                    cell1.titleName.text = self.getNewProductsData[indexPath.row].title
+                    cell1.brandName.text = self.getNewProductsData[indexPath.row].brandName
+                    cell1.discountPrice.text = "Rs " + self.getNewProductsData[indexPath.row].price
+                    let newStringStrike =  "Rs " + self.getNewProductsData[indexPath.row].old_price
+                    let attributeString = NSMutableAttributedString(string: newStringStrike)
+                    attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+                    cell1.originalPrice.attributedText = attributeString
+                    let d = Float(self.getNewProductsData[indexPath.row].discount)!.rounded(.towardZero)
+                    print("discount value is" , d)
+                    // cell1.discountPercent.startAnimation()
+                    cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
+                }
+                
                 return cell1
             }
         }
         return UICollectionViewCell()
     }
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        if collectionView == AccTypeCollView
+        {
+            let vc = self.storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+            vc.titleName = self.titleName[indexPath.row]
+            vc.catID = self.titleCat[indexPath.row]
+            
+            self.navigationController?.pushViewController(vc, animated: true)
+        }else{
+            
+            if indexPath.section == 0 {
+                if tagVal == 0 {
+                    let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+                    vc.selectedProductID = self.getHotDealsData[indexPath.row].product_id
+                    self.navigationController?.pushViewController(vc, animated: true)
+                }else if tagVal == 1 {
+                    let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+                    vc.selectedProductID = self.getMostDiscountedData[indexPath.row].product_id
+                    self.navigationController?.pushViewController(vc, animated: true)
+                }else if tagVal == 2 {
+                    let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+                    vc.selectedProductID = self.getNewProductsData[indexPath.row].product_id
+                    self.navigationController?.pushViewController(vc, animated: true)
+                }else{
+                    
+                }
+                
+            }
+            
+        }
+    }
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         if indexPath.section == 1{
         } else {
-            cell1.discountPercent.startAnimation()
+            if self.getHotDealsData.count != 0{
+                cell1.discountPercent.startAnimation()
+            }
           }
     }
    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {

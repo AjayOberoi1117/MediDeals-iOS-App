@@ -17,7 +17,6 @@ pod 'PasswordTextField'
 pod 'LIHImageSlider'
 pod 'FBSDKLoginKit'
 pod 'CRRefresh'
-
   # Pods for MediDeals
 
 end

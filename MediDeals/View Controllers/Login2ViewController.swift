@@ -138,13 +138,15 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
     }
     @IBAction func login_act(_ sender: UIButton) {
         //self.validations()
-        let vc = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
-        if self.checkTxtAct == "number"{
-        vc.phnNumber = txtEmail.text!
-        }else{
-            vc.phnNumber = "+91 - 1231231231"
-        }
-        self.navigationController?.pushViewController(vc, animated: false)
+        loginAPI()
+        
+//        let vc = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
+//        if self.checkTxtAct == "number"{
+//        vc.phnNumber = txtEmail.text!
+//        }else{
+//            vc.phnNumber = "+91 - 1231231231"
+//        }
+//        self.navigationController?.pushViewController(vc, animated: false)
     }
     @IBAction func sendPassAct(_ sender: UIButton) {
         if txtForgotEmil.text == "" {
@@ -167,6 +169,45 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
         return emailTest.evaluate(with: self.txtForgotEmil.text)
         
     }
+    
+    func loginAPI(){
+    showProgress()
+        let a = txtEmail.text!.replacingOccurrences(of: "- ", with: " ")
+        let toArray = a.components(separatedBy: " ")
+        let countryCode = toArray[0]
+        let phn = toArray[1]
+        let params = [ "contact_no" : phn,
+                       "country_code" : countryCode]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.newLogin.caseValue, parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.hideProgress()
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            }
+            else
+            {
+                self.hideProgress()
+                self.stopAnim()
+                let secondViewController = self.storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
+                secondViewController.checkSagueActon = "yes"
+                let user_id = "\(dic.value(forKeyPath: "id") as! String)"
+                // let user_accessToken = dic.value(forKeyPath: "token") as! String
+                UserDefaults.standard.set(user_id, forKey: "USER_ID")
+                //UserDefaults.standard.set(user_accessToken, forKey: "TOKEN")
+                UserDefaults.standard.synchronize()
+                self.navigationController?.pushViewController(secondViewController, animated: true)
+                
+            }
+            
+        }
+    }
+    
+    
+    
     @IBAction func forgotPassword(_ sender: UIButton){
         forgotPwdView.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
         UIView.animate(withDuration: 0.9, // your duration

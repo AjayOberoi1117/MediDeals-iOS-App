@@ -52,8 +52,8 @@ extension MyAccountViewController : UICollectionViewDelegate,UICollectionViewDat
         return UICollectionViewCell()
     }
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let vc = self.storyboard?.instantiateViewController(withIdentifier: "ChooseCategoryVC") as! ChooseCategoryVC
-        self.navigationController?.pushViewController(vc, animated: true)
+//        let vc = self.storyboard?.instantiateViewController(withIdentifier: "ChooseCategoryVC") as! ChooseCategoryVC
+//        self.navigationController?.pushViewController(vc, animated: true)
     }
  
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {

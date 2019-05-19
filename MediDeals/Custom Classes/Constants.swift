@@ -21,11 +21,20 @@ let SECOND_COLOR = UIColor(red: 41/255.0, green: 191/255.0, blue: 83/255.0, alph
 let THIRD_COLOR = UIColor(red: 249/255.0, green: 173/255.0, blue: 45/255.0, alpha: 1.0)
 let FOURTH_COLOR = UIColor(red: 232/255.0, green: 68/255.0, blue: 65/255.0, alpha: 1.0)
 let baseUrl = "http://medideals.co.in/cdg/medideals/Api"
+//"http://medideals.co.in/cdg/medideals/Api/"
 public enum APIEndPoint
 {
     public enum userCase {
         case userRegister
         case userLogin
+        
+        case newRegister
+        case newLogin
+        case verifyOtp
+        case resendOtp
+        
+        
+        
         case forgotPassword
         case SocialLogin
         case getProfile
@@ -44,9 +53,19 @@ public enum APIEndPoint
         case get_cart
         case edit_cart
         case delete_cart
+        case search
+        case home
         var caseValue: String{
             switch self{
             case .userRegister:               return "/register"
+                
+            case .newRegister:                return "/newRegister"
+            case .newLogin:                   return "/newLogin"
+            case .verifyOtp:                  return "/verifyOtp"
+            case .resendOtp:                  return "/resendOtp"
+                
+                
+                
             case .userLogin:                  return "/login"
             case .forgotPassword:             return "/forgot_password"
             case .SocialLogin:                return "/SocialLogin"
@@ -66,7 +85,8 @@ public enum APIEndPoint
             case .get_cart:                   return "/get_cart"
             case .edit_cart:                  return "/edit_cart"
             case .delete_cart:                return "/delete_cart"
-                
+            case .home:                       return "/home"
+            case .search:                     return "/search"
             }
         }
     }

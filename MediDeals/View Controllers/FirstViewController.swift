@@ -21,6 +21,9 @@ class FirstViewController: UIViewController,UIScrollViewDelegate , UIPageViewCon
     var descriptionArr = [String]()
    override func viewDidLoad() {
         super.viewDidLoad()
+    // Register to receive notification
+    NotificationCenter.default.addObserver(self, selector: #selector(FirstViewController.methodOfReceivedNotification), name: NSNotification.Name(rawValue: "DEVICETOKEN_NOTI"), object: nil)
+    
         Utilities.HideLeftSideMenu()
         Utilities.HideRightSideMenu()
         self.navigationController?.isNavigationBarHidden = true
@@ -37,7 +40,32 @@ class FirstViewController: UIViewController,UIScrollViewDelegate , UIPageViewCon
     UserDefaults.standard.synchronize()
         // Do any additional setup after loading the view.
     }
-
+    @objc func methodOfReceivedNotification() {
+        self.deviceID_Api()
+    }
+    func deviceID_Api(){
+//        self.addLoadingIndicator()
+//        self.startAnim()
+        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String,
+                       "device_type": "I",
+                       "device_id":UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String]
+        print(params)
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.update_device_id.caseValue, parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            }
+            else
+            {
+                self.stopAnim()
+            }
+            
+        }
+    }
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.

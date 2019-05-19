@@ -2,4 +2,70 @@
 <Bucket
    type = "0"
    version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MediDeals/View Controllers/MenuViewController.swift"
+            timestampString = "575278558.378883"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "154"
+            endingLineNumber = "154"
+            landmarkName = "AllopathicPrductApi(cat_id:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MediDeals/View Controllers/MenuViewController.swift"
+            timestampString = "575278558.379262"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "153"
+            endingLineNumber = "153"
+            landmarkName = "AllopathicPrductApi(cat_id:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "MediDeals.MenuViewController.AllopathicPrductApi(cat_id: Swift.String) -&gt; ()"
+                  moduleName = "MediDeals"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Volumes/JYOTI/MediDeals26MARCH,2019/MediDeals/View%20Controllers/MenuViewController.swift"
+                  timestampString = "575278558.420746"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "153"
+                  endingLineNumber = "153"
+                  offsetFromSymbolStart = "908">
+               </Location>
+               <Location
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (Any) -&gt; () in MediDeals.MenuViewController.AllopathicPrductApi(cat_id: Swift.String) -&gt; ()"
+                  moduleName = "MediDeals"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Volumes/JYOTI/MediDeals26MARCH,2019/MediDeals/View%20Controllers/MenuViewController.swift"
+                  timestampString = "575278558.42266"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "154"
+                  endingLineNumber = "154"
+                  offsetFromSymbolStart = "118">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
 </Bucket>
