@@ -32,7 +32,7 @@ public enum APIEndPoint
         case newLogin
         case verifyOtp
         case resendOtp
-        
+        case addInformation
         
         
         case forgotPassword
@@ -63,7 +63,7 @@ public enum APIEndPoint
             case .newLogin:                   return "/newLogin"
             case .verifyOtp:                  return "/verifyOtp"
             case .resendOtp:                  return "/resendOtp"
-                
+            case .addInformation:             return "/addInformation"
                 
                 
             case .userLogin:                  return "/login"

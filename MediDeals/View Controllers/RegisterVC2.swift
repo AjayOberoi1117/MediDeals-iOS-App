@@ -24,11 +24,12 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
         txtUserName.attributedPlaceholder = NSAttributedString(string:"User name", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         //self.forgotPwdView.isHidden = true
         txtMobile.attributedPlaceholder = NSAttributedString(string:"Mobile", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"Email (optional)", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtEmail.attributedPlaceholder = NSAttributedString(string:"Email", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         //txtPassword.attributedPlaceholder = NSAttributedString(string:"Password", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         
         // Do any additional setup after loading the view.
     }
+    
     @IBAction func signUpBtn(_ sender: DesignableButton) {
         if self.txtEmail.text != ""{
             if (isValidEmail1(testStr: self.txtEmail.text!) == false)
@@ -39,8 +40,7 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
                 RegisterAPI()
             }
         }else{
-            self.txtEmail.text = "Email (optional)"
-            RegisterAPI()
+           Utilities.ShowAlertView2(title: "Alert", message: "Please enter the valid email", viewController: self)
         }
         
 //    let vc = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController

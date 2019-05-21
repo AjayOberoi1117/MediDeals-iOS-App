@@ -186,19 +186,16 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
             {
                 self.hideProgress()
                 self.stopAnim()
-                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                Utilities.ShowAlertView2(title: "Alert", message: "It seems you are not registered, Kindly register yourself first", viewController: self)
             }
             else
             {
                 self.hideProgress()
                 self.stopAnim()
-                let secondViewController = self.storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
-                secondViewController.checkSagueActon = "yes"
-                let user_id = "\(dic.value(forKeyPath: "id") as! String)"
-                // let user_accessToken = dic.value(forKeyPath: "token") as! String
+                let secondViewController = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
+                secondViewController.phnNumber = self.txtEmail.text!
+                let user_id = "\(dic.value(forKeyPath: "user_id") as! String)"
                 UserDefaults.standard.set(user_id, forKey: "USER_ID")
-                //UserDefaults.standard.set(user_accessToken, forKey: "TOKEN")
-                UserDefaults.standard.synchronize()
                 self.navigationController?.pushViewController(secondViewController, animated: true)
                 
             }

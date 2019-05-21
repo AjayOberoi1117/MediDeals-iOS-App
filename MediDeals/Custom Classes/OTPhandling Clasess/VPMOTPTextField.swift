@@ -53,7 +53,7 @@ class VPMOTPTextField: UITextField {
     }
     
     func initalizeUI(forFieldType type: VPMOTPView.DisplayType) {
-        switch type {
+        switch type{
         case .circular:
             layer.cornerRadius = bounds.size.width / 2
         case .square:
@@ -65,7 +65,7 @@ class VPMOTPTextField: UITextField {
         }
         
         // Basic UI setup
-        if type != .diamond && type != .underlinedBottom {
+        if type != .diamond && type != .underlinedBottom{
             layer.borderColor = borderColor.cgColor
             layer.borderWidth = borderWidth
         }
@@ -74,7 +74,7 @@ class VPMOTPTextField: UITextField {
         textAlignment = .center
     }
     
-    override func deleteBackward() {
+    override func deleteBackward(){
         super.deleteBackward()
         
         _ = delegate?.textField?(self, shouldChangeCharactersIn: NSMakeRange(0, 0), replacementString: "")

@@ -18,7 +18,8 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     fileprivate var sliderVc1: LIHSliderViewController!
     @IBOutlet weak var slider1Container: UIView!
     @IBOutlet weak var HomeTableView: UITableView!
-    var checkSagueActon = ""
+    var getProfileData = [getProfile]()
+    var checkSagueActon = String()
     var titleArry = [String]()
     var AddImagesArry = [UIImage]()
     var cell1 = HomeMenuCollectionViewCell1()
@@ -45,8 +46,6 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     var tagVal = Int()
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        
         Utilities.HideRightSideMenu()
         self.navigationController?.isNavigationBarHidden = false
         AddImagesArry = [#imageLiteral(resourceName: "image1"),#imageLiteral(resourceName: "image2"),#imageLiteral(resourceName: "image3")]
@@ -65,6 +64,10 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         
         self.lblTxt.startAnimation()
         self.getHomeData_Api()
+        
+        if UserDefaults.standard.value(forKey: "USER_ID") != nil{
+            self.getProfileAPI()
+        }
         
         self.HomeTableView.cr.addHeadRefresh(animator: SlackLoadingAnimator()) { [weak self] in
             // start refresh
@@ -232,7 +235,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
 //       self.startAnim()
 
         HomeTableView.cr.beginHeaderRefresh()
-        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String]
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String]
         print(params)
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.home.caseValue, parameters: params) { (response) in
             print(response)
@@ -290,6 +293,36 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                     /// Stop refresh when your job finished, it will reset refresh footer if completion is true
                     self.HomeTableView.cr.endHeaderRefresh()
                 })
+                
+            }
+            
+        }
+    }
+    
+    func getProfileAPI(){
+        let params = [ "vendor_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+        ]
+        print(params)
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.getProfile.caseValue, parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.hideProgress()
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            }
+            else
+            {
+                self.hideProgress()
+                self.stopAnim()
+                
+                let records = dic.value(forKey: "record") as! NSDictionary
+                let number = records.value(forKey: "contact_no") as! String
+                let email = records.value(forKey: "email") as! String
+                    UserDefaults.standard.set(email, forKey: "PROFILE_EMAIL")
+                    UserDefaults.standard.set(number, forKey: "PROFILE_NAME")
                 
             }
             

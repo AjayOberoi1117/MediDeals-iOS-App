@@ -35,13 +35,19 @@ class FirstViewController: UIViewController,UIScrollViewDelegate , UIPageViewCon
         self.offSet = 0
         pageController.numberOfPages = self.headingArr.count
     
-    UserDefaults.standard.set("51", forKey: "USER_ID")
-    //UserDefaults.standard.set(user_accessToken, forKey: "TOKEN")
-    UserDefaults.standard.synchronize()
+    
         // Do any additional setup after loading the view.
     }
     @objc func methodOfReceivedNotification() {
-        self.deviceID_Api()
+        if UserDefaults.standard.value(forKey: "USER_ID") == nil
+        {
+            print("user are not logged in...")
+        }
+        else
+        {
+            self.deviceID_Api()
+        }
+        
     }
     func deviceID_Api(){
 //        self.addLoadingIndicator()

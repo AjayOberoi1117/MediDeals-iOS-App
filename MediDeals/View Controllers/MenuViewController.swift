@@ -201,7 +201,7 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
     func AllopathicPrductApi(cat_id:String){
          self.addLoadingIndicator()
         self.startAnim()
-        let params = ["vendor_id": UserDefaults.standard.value(forKey: "USER_ID") as! String, "cat_id": cat_id]
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "cat_id": cat_id]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.get_cat_products.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary

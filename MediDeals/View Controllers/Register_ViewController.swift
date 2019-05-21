@@ -67,14 +67,11 @@ class Register_ViewController: UIViewController {
     
    
     func validations() {
-        if self.txtBusinessName.text == "" && self.txtAccountType.text == "" && self.txtShopNO.text == "" && self.txtStreetName.text == "" && self.txtLicenceNO.text == "" && self.txtGSTNO.text == "" {
+        if self.txtBusinessName.text == "" && self.txtShopNO.text == "" && self.txtStreetName.text == "" && self.txtLicenceNO.text == "" && self.txtGSTNO.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter all fields", viewController: self)
         }
         else if txtBusinessName.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter your business name", viewController: self)
-        }
-        else if txtAccountType.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please choose your account type", viewController: self)
         }
         else if txtShopNO.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter your shop no/plot no", viewController: self)
@@ -82,12 +79,15 @@ class Register_ViewController: UIViewController {
         else if txtStreetName.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter your street name", viewController: self)
         }
-        else if txtLicenceNO.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your licence number", viewController: self)
+        else if txtCity.text == "" {
+            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your city name", viewController: self)
         }
-        else if txtGSTNO.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your GST number", viewController: self)
-        }
+//        else if txtLicenceNO.text == "" {
+//            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your licence number", viewController: self)
+//        }
+//        else if txtGSTNO.text == "" {
+//            Utilities.ShowAlertView2(title: "Alert", message: "Please enter your GST number", viewController: self)
+//        }
        
         else {
             self.registerAPI()
@@ -114,26 +114,24 @@ class Register_ViewController: UIViewController {
     }
     
     @IBAction func registerAction(_ sender: UIButton) {
-        //self.validations()
-        self.sague()
+        self.validations()
+        
     }
     func registerAPI(){
-        //self.showProgress()
-        self.addLoadingIndicator()
-        self.startAnim()
-        let params = ["firm_name":txtBusinessName.text!,
-                    "user_type":txtAccountType.text!,
-                    "firm_address1":txtShopNO.text!,
+        self.showProgress()
+        
+        let params = ["user_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+                      "user_type":SingletonVariables.sharedInstace.accountType,
+                      "cat_id":SingletonVariables.sharedInstace.AccountCategory,
+                      "firm_name":txtBusinessName.text!,
+                      "firm_address1":txtShopNO.text!,
                     "firm_address2":txtStreetName.text!,
                     "firm_address3":txtCity.text!,
                     "drug_licence":txtLicenceNO.text!,
-                    "gst_number":txtGSTNO.text!,
-                    "contact_no":txtContactNO.text!,
-                    "email":txtEmail.text!,
-                    "password":txtPassword.text! ]
+                    "gst_number":txtGSTNO.text!]
         
         print(params)
-        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.userRegister.caseValue, parameters: params) { (response) in
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.addInformation.caseValue, parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
             print(dic)
@@ -150,9 +148,6 @@ class Register_ViewController: UIViewController {
                 let alert = UIAlertController(title: "Message", message: "Register successfully done", preferredStyle: UIAlertControllerStyle.alert)
                 alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: {action -> Void in
                     print("action are work....")
-                    let user_id = "\(dic.value(forKeyPath: "id") as! String)"
-                    UserDefaults.standard.set(user_id, forKey: "USER_ID")
-                    UserDefaults.standard.synchronize()
                     self.sague()
                     
                 }))

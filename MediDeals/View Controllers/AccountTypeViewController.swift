@@ -41,8 +41,9 @@ class AccountTypeViewController: UIViewController {
         if selectedArry.count > 2{
             Utilities.ShowAlertView2(title: "Alert", message: "Please choose one or maximum two account types to proceed further", viewController: self)
         }else{
-        let vc = self.storyboard?.instantiateViewController(withIdentifier: "ChooseCategoryVC") as! ChooseCategoryVC
-        self.navigationController?.pushViewController(vc, animated: true)
+            let vc = self.storyboard?.instantiateViewController(withIdentifier: "ChooseCategoryVC") as! ChooseCategoryVC
+            SingletonVariables.sharedInstace.accountType = selectedArry[0] as! String
+            self.navigationController?.pushViewController(vc, animated: true)
         }
     }
     

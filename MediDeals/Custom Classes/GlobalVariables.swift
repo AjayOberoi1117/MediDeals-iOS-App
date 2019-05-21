@@ -17,7 +17,7 @@ class SingletonVariables: NSObject {
         return singletonObject
     }()
     
-    var _jobId = NSNumber()
+    var accountType = ""
+    var AccountCategory = ""
     var cat_id = ""
-    
 }

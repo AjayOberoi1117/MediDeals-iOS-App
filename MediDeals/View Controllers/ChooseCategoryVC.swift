@@ -12,23 +12,31 @@ class ChooseCategoryVC: UIViewController {
     @IBOutlet weak var collectionView: UICollectionView!
     
     var titleName = [String]()
+    var titleIDs = [String]()
     var imagesArry = [UIImage]()
     var selectedArry = NSMutableArray()
+    var selectedIDArry = NSMutableArray()
+
     var dummyArry = NSMutableArray()
     override func viewDidLoad() {
         super.viewDidLoad()
         titleName = ["Allopathic", "Ayurvedic", "FMCG","PCD/3rd Party","Surgical Goods","Generics"]
+        titleIDs = ["1","2","3","4","5","6"]
         self.imagesArry = [UIImage(named: "Allopathi"),UIImage(named: "ayurvedi"),UIImage(named: "customer"),UIImage(named: "pharmac"),UIImage(named: "Surgica"),UIImage(named: "generi")] as! [UIImage]
         // Do any additional setup after loading the view.
         self.proccedFutherBtn.isHidden = true
         self.dummyArry = NSMutableArray()
         self.selectedArry = NSMutableArray()
+        self.selectedIDArry = NSMutableArray()
         for _ in 0..<self.titleName.count{
             self.dummyArry.add("0")
         }
     }
     @IBAction func proccedFurther(_ sender: DesignableButton) {
         let vc = self.storyboard?.instantiateViewController(withIdentifier: "Register_ViewController") as! Register_ViewController
+        print(selectedIDArry)
+        let a = selectedIDArry.componentsJoined(by: ",")
+        SingletonVariables.sharedInstace.AccountCategory = a
         self.navigationController?.pushViewController(vc, animated: true)
      
     }
@@ -70,9 +78,11 @@ extension ChooseCategoryVC : UICollectionViewDelegate,UICollectionViewDataSource
         if dummyArry[indexPath.row] as! String == "0"{
             self.dummyArry.replaceObject(at: indexPath.row, with: "1")
             selectedArry.add(titleName[indexPath.row])
+            selectedIDArry.add(titleIDs[indexPath.row])
         }else{
             self.dummyArry.replaceObject(at: indexPath.row, with: "0")
             selectedArry.remove(titleName[indexPath.row])
+            selectedIDArry.add(titleIDs[indexPath.row])
         }
         print(dummyArry)
         print(selectedArry)

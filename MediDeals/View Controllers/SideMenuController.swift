@@ -12,6 +12,7 @@ import SDWebImage
 @available(iOS 11.0, *)
 class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDataSource {
 
+    @IBOutlet weak var loginView: UIView!
     @IBOutlet var SideMenuTable: UITableView!
     @IBOutlet var profileImage: UIImageView!
     @IBOutlet var _lblName: UILabel!
@@ -34,17 +35,13 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
         // Do any additional setup after loading the view.
     }
     override func viewWillAppear(_ animated: Bool) {
-        if UserDefaults.standard.value(forKey: "PROFILENAME") != nil && UserDefaults.standard.value(forKey: "PROFILEEMAIL")  != nil{
-            self._lblName.text = (UserDefaults.standard.value(forKey: "PROFILENAME") as! String)
-            self._lblEmail.text = (UserDefaults.standard.value(forKey: "PROFILEEMAIL") as! String)
-//            let a = (UserDefaults.standard.value(forKey: "PROFILEIMAGE") as! String)
-//            let url = NSURL(string: a)
-//            self.profileImage.sd_setImage(with: url! as URL, placeholderImage: #imageLiteral(resourceName: "man-user"))
-//            self.profileImage.layer.cornerRadius = self.profileImage.frame.size.height / 2
-//            self.profileImage.layer.borderColor = IMAGEBORDER_COLOR.cgColor
-//            self.profileImage.layer.borderWidth = 3
-//            self.profileImage.clipsToBounds = true
-       }else{}
+        if UserDefaults.standard.value(forKey: "PROFILE_NAME") != nil && UserDefaults.standard.value(forKey: "PROFILE_EMAIL")  != nil{
+            self._lblName.text = (UserDefaults.standard.value(forKey: "PROFILE_NAME") as! String)
+            self._lblEmail.text = (UserDefaults.standard.value(forKey: "PROFILE_EMAIL") as! String)
+            self.loginView.isHidden = true
+       }else{
+            self.loginView.isHidden = false
+        }
     }
     
     @IBAction func logInButton(_ sender: UIButton) {
