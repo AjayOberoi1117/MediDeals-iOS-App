@@ -216,12 +216,29 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
     
     func clearData(){
         UserDefaults.standard.removeObject(forKey: "PROFILEIMAGE")
-        UserDefaults.standard.removeObject(forKey: "PROFILEEMAIL")
-        UserDefaults.standard.removeObject(forKey: "PROFILENAME")
+        UserDefaults.standard.removeObject(forKey: "PROFILE_EMAIL")
+        UserDefaults.standard.removeObject(forKey: "PROFILE_NAME")
         UserDefaults.standard.removeObject(forKey: "USER_ID")
         UserDefaults.standard.synchronize()
-        LogoutFunction()
+        logoutApi()
      }
+    
+    func logoutApi(){
+        let params = ["user_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String, "login_status": "2"]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.logout.caseValue,parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            } else {
+                self.stopAnim()
+                self.LogoutFunction()
+            }
+        }
+    }
 }
 class SideMenuTableCell: UITableViewCell {
     @IBOutlet var labelOutlet: UILabel!

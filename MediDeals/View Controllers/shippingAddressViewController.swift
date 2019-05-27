@@ -9,12 +9,18 @@
 import UIKit
 import MapKit
 @available(iOS 11.0, *)
-class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLocationManagerDelegate {
+class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLocationManagerDelegate,UITextFieldDelegate {
     
     @IBOutlet weak var stateSpinner: LBZSpinner!
     @IBOutlet weak var citySpinner: LBZSpinner!
     @IBOutlet var countryName: UITextField!
-   
+    @IBOutlet weak var txtBusinessName: UITextField!
+    @IBOutlet weak var txtEmail: UITextField!
+    @IBOutlet weak var txtPhn: UITextField!
+    @IBOutlet weak var txtPostalCode: UITextField!
+    @IBOutlet weak var txtHouseNO: UITextField!
+    @IBOutlet weak var street: UITextField!
+    
     var locationManager = CLLocationManager()
     var lat = Float()
     var longi = Float()
@@ -22,21 +28,42 @@ class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLoca
     var city_name = NSArray()
     var state_idArry = NSArray()
     var selectedState_id = ""
-    
+    var selectedState = ""
+    var selectedCity = ""
     func spinnerChoose(_ spinner: LBZSpinner, index: Int, value: String) {
          var spinnerName = ""
         if spinner == stateSpinner {
             print("Spinner : \(spinnerName) : { Index : \(index) - \(value) }")
             self.selectedState_id = "\(self.state_idArry[index])"
-            self.getCityAPI()
+            if self.street.text == ""{
+                Utilities.ShowAlertView2(title: "Alert", message: "Please enter Colony/Street/locality first", viewController: self)
+            }else{
+                    self.selectedState = value
+                 self.getCityAPI()
+            }
+           
         }
-        if spinner == citySpinner { spinnerName = "citySpinner" }
+        if spinner == citySpinner {
+            spinnerName = "citySpinner"
+            if selectedState == ""{
+                Utilities.ShowAlertView2(title: "Alert", message: "Please choose state first", viewController: self)
+            }else{
+            self.selectedCity = value
+            SingletonVariables.sharedInstace.ShippingAddress.updateValue("\(self.street.text! + "," + selectedCity + "," + selectedCity + "," + self.countryName.text!)" , forKey: "locality")
+            SingletonVariables.sharedInstace.checkShippingAddress = "yes"
+            }
+        }
     }
   
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+        txtPhn.delegate = self
+        txtEmail.delegate = self
+        txtHouseNO.delegate = self
+        txtPostalCode.delegate = self
+        txtBusinessName.delegate = self
+        street.delegate = self
         stateSpinner.delegate = self
         citySpinner.delegate = self
         locationManager.delegate = self
@@ -159,15 +186,77 @@ class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLoca
         // Dispose of any resources that can be recreated.
     }
     
-
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
+func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+    if textField == self.txtBusinessName{
+       
+     }
+    else if textField == self.txtEmail{
+        if self.txtBusinessName.text == ""{
+            Utilities.ShowAlertView2(title: "Alert", message: "Please enter business name first", viewController: self)
+        }else{
+        
+            //SingletonVariables.sharedInstace.ShippingAddress.updateValue(UserDefaults.standard.value(forKey: "USER_ID") as! String, forKey: "user_id")
+            SingletonVariables.sharedInstace.ShippingAddress.updateValue(self.txtBusinessName.text!, forKey: "firm_name")
+        }
     }
-    */
-
+    else if textField == self.txtPhn{
+        if self.txtEmail.text == ""{
+            Utilities.ShowAlertView2(title: "Alert", message: "Please enter email first", viewController: self)
+        }else{
+            if (isValidEmail(testStr: self.txtEmail.text!) == false)
+            {
+                Utilities.ShowAlertView2(title: "Alert", message: "Please enter valid email", viewController: self)
+            }else{
+                
+                let length = (txtPhn.text?.count)! - range.length + string.count
+                print("lenght",length)
+                if length == 1{
+                    let num : String = self.formatNumber(mobileNo: txtPhn.text!)
+                    txtPhn.text = "+91- " + num
+                }
+                SingletonVariables.sharedInstace.ShippingAddress.updateValue(self.txtEmail.text!, forKey: "email")
+            }
+        }
+    }
+    else if textField == self.txtPostalCode{
+        if self.txtPhn.text == ""{
+            Utilities.ShowAlertView2(title: "Alert", message: "Please enter Phone number first", viewController: self)
+        }else{
+             SingletonVariables.sharedInstace.ShippingAddress.updateValue(self.txtPhn.text!, forKey: "contact_no")
+         }
+    }
+    else if textField == self.txtHouseNO{
+        if self.txtPostalCode.text == ""{
+            Utilities.ShowAlertView2(title: "Alert", message: "Please enter Postal code first", viewController: self)
+        }else{
+            if txtPostalCode.text!.count < 6 ||  txtPostalCode.text!.count > 6{
+                Utilities.ShowAlertView2(title: "Alert", message: "Please enter six digits postal code", viewController: self)
+            }else{
+                SingletonVariables.sharedInstace.ShippingAddress.updateValue(self.txtPostalCode.text!, forKey: "post_code")
+            }
+            
+        }
+    }
+    else if textField == self.street{
+        
+    }
+   
+    return true
+    }
+    
+    func formatNumber(mobileNo: String) -> String{
+        var str : NSString = mobileNo as NSString
+        str = str.replacingOccurrences(of: "+91- ", with: "") as NSString
+        return str as String
+    }
+    
+    func isValidEmail(testStr:String) -> Bool
+    {
+        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+        
+        let emailTest = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
+        
+        return emailTest.evaluate(with: testStr)
+        
+    }
 }

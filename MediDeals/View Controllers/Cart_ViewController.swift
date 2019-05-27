@@ -10,11 +10,14 @@ import UIKit
 @available(iOS 11.0, *)
 class Cart_ViewController: UIViewController , UITextFieldDelegate{
     @IBOutlet weak var emptyCartImage: UIImageView!
+    @IBOutlet weak var hiddenView: UIView!
     @IBOutlet var totalPrice: UILabel!
+    @IBOutlet weak var popUpView: UIView!
     @IBOutlet var deleteBtn: UIButton!
     @IBOutlet weak var SubTotal: UILabel!
     @IBOutlet var activityIndicator: UIActivityIndicatorView!
     @IBOutlet weak var cartTableView: UITableView!
+      var tapGesture = UITapGestureRecognizer()
     var cell = Cart_TableViewCell()
     var getCartData = [getCartListing]()
     var quantityArray = [String]()
@@ -26,10 +29,15 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
     var playTime = Timer()
     var strLabel = UILabel()
     var checkAction = ""
+    var login_status = ""
     //let id = self.getCartData[sender.tag].product_id
    let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.hiddenView.isHidden = true
+        self.popUpView.isHidden = true
+        self.hiddenView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTappedOnCircularView1)))
+        
         self.activityIndicator.isHidden =  true
         countValue = 1
         self.getCartApi()
@@ -38,20 +46,36 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
       //®  self.cartTableView.reloadData(effect: .LeftAndRight)
         // Do any additional setup after loading the view.
     }
+    @objc func didTappedOnCircularView1(){
+        print("someone tap me...")
+        hiddenView.isHidden = true
+        popUpView.isHidden = true
+    }
     @IBAction func deleteCartBtn(_ sender: UIButton){
         let id = self.getCartData[sender.tag].product_id
         self.deletCartApi(prodID: id)
     }
     
     @IBAction func backBtn(_ sender: UIBarButtonItem){
-        if getCartData.count != 0{
-        let ids = self.productIdsArray.joined(separator: ",")
-        let finalQuantity = self.newminQuantitiy.joined(separator: ",")
-        checkAction = "back"
-        self.editCartApi(prodID: ids ,quantity: finalQuantity)
-        }else{
+//        if getCartData.count != 0{
+//            //1771-12
+////        let ids = self.productIdsArray.joined(separator: ",")
+////        let finalQuantity = self.newminQuantitiy.joined(separator: ",")
+//            var newArr = [String]()
+//            for index in 0..<self.productIdsArray.count{
+//                let a = self.productIdsArray[index]
+//                let b = self.newminQuantitiy[index]
+//                let c = a + "-" + b
+//                print(c)
+//                newArr.append(c)
+//            }
+//            print(newArr)
+//            checkAction = "back"
+//            let d = newArr.joined(separator: ",")
+//            self.editCartApi(prodID: d)
+//        }else{
             self.navigationController?.popViewController(animated: true)
-        }
+//        }
     }
     
     override func didReceiveMemoryWarning() {
@@ -59,10 +83,41 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         // Dispose of any resources that can be recreated.
     }
     @IBAction func checkoutBtn(_ sender: UIButton) {
-      self.sague()
-        let ids = self.productIdsArray.joined(separator: ",")
-        let finalQuantity = self.newminQuantitiy.joined(separator: ",")
-        self.editCartApi(prodID: ids ,quantity: finalQuantity)
+//
+//        var newArr = [String]()
+//        for index in 0..<self.productIdsArray.count{
+//            let a = self.productIdsArray[index]
+//            let b = self.newminQuantitiy[index]
+//            let c = a + "-" + b
+//            print(c)
+//            newArr.append(c)
+//        }
+//        print(newArr)
+//        checkAction = "back"
+//        let d = newArr.joined(separator: ",")
+//        self.editCartApi(prodID: d)
+        
+        
+        if self.login_status == "2"{
+            UIView.animate(withDuration: 0.3, delay: 0, options: UIView.AnimationOptions.curveEaseOut, animations: {
+                self.hiddenView.isHidden = false
+                self.popUpView.isHidden = false
+                self.view.layoutIfNeeded()
+                
+            }, completion: nil)
+            
+        }else{
+            self.sague()
+        }
+        
+    }
+    @IBAction func regiserbtn(_ sender: UIButton) {
+        let vc = self.storyboard?.instantiateViewController(withIdentifier: "RegisterVC2") as! RegisterVC2
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    @IBAction func loginBtn(_ sender: UIButton) {
+        let vc = self.storyboard?.instantiateViewController(withIdentifier: "Login2ViewController") as! Login2ViewController
+        self.navigationController?.pushViewController(vc, animated: true)
     }
     @IBAction func btnPlus(_ sender: UIButton){
         countValue = Int(self.newminQuantitiy[sender.tag])!
@@ -154,11 +209,13 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
                 self.cartTableView.reloadData()
             } else {
                    self.stopAnim()
+                self.login_status = "\(dic.value(forKeyPath: "record.login_status") as! NSNumber)"
                 self.emptyCartImage.isHidden = true
                 if let data = (dic.value(forKeyPath: "record.data") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
                     self.minQuantitiy = [String]()
                     self.newminQuantitiy = [String]()
+                    self.productIdsArray = [String]()
                     self.getCartData = [getCartListing]()
                     
                     for index in 0..<data.count
@@ -188,10 +245,10 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
             }
         }
     }
-    func editCartApi(prodID:String,quantity:String){
+    func editCartApi(prodID:String){
         self.addLoadingIndicator()
         self.startAnim()
-        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "product_id": prodID,"quantity": quantity]
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "product_id": prodID]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.edit_cart.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary

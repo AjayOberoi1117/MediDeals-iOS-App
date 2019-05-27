@@ -9,7 +9,7 @@
 import UIKit
 import CRRefresh
 @available(iOS 11.0, *)
-class MenuViewController: UIViewController,UISearchBarDelegate{
+class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDelegate{
     @IBOutlet weak var searchView: UIView!
     @IBOutlet weak var TableViewTopConstraints: NSLayoutConstraint!
     @IBOutlet weak var searchProductTxt: UISearchBar!
@@ -17,6 +17,7 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
     @IBOutlet var tableViewData: UITableView!
     @IBOutlet weak var searchBtn: UIButton!
     @IBOutlet weak var filterBtn: UIButton!
+    var params = [String:String]()
     var cell1 = MenuTableViewCell()
     var dummyArry = [String]()
     var productStatusArr = [String]()
@@ -34,12 +35,16 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
     var search_text:String!
     var isSearchActive: Bool = false
     var isSearch = "no"
+    var pageno = Int()
+    var totalPage = Int()
+    var checkClick = ""
     override func viewDidLoad() {
         super.viewDidLoad()
         //Utilities.AttachSideMenuController()
         searchProductTxt.delegate = self
         searchView.isHidden = true
         TableViewTopConstraints.constant = 0
+        pageno = 1
         fliterMenuViewController = storyboard!.instantiateViewController(withIdentifier: "FilterViewController") as! FilterViewController
         let topBarHeight = UIApplication.shared.statusBarFrame.size.height +
             (self.navigationController?.navigationBar.frame.height ?? 0.0)
@@ -48,13 +53,9 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
         BlackView.backgroundColor = UIColor.black.withAlphaComponent(0.5)
         self.view.addSubview(BlackView)
         BlackView.isHidden = true
-         self.CallFn()
+        
         // Do any additional setup after loading the view.
         
-       
-    }
-    
-    override func viewDidAppear(_ animated: Bool) {
         tableViewData.cr.addHeadRefresh(animator: SlackLoadingAnimator()) { [weak self] in
             /// start refresh
             /// Do anything you want...
@@ -63,7 +64,13 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
                 self?.tableViewData.cr.endHeaderRefresh()
             })
         }
-       // tableViewData.cr.beginHeaderRefresh()
+         tableViewData.cr.beginHeaderRefresh()
+        
+        self.CallFn()
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        
     }
     @IBAction func searchBtn(_ sender: Any) {
         if isSearch == "no"{
@@ -171,9 +178,13 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
         Utilities.LeftSideMenu()
     }
      @objc func MenuClick1(){
+        checkClick = "yes"
+        print(SingletonVariables.sharedInstace.FilterDic)
         openAndCloseMenu()
+         CallFn()
     }
     @objc func MenuClick2(){
+        
         openAndCloseMenu()
     }
     
@@ -197,21 +208,64 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
     @IBAction func menuAct(_ sender: UIBarButtonItem){
         Utilities.LeftSideMenu()
     }
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if ((tableViewData.contentOffset.y + tableViewData.frame.size.height) >= tableViewData.contentSize.height)
+        {
+            pageno = pageno+1
+            if totalPage >= pageno{
+                self.CallFn()
+            }
+            
+            tableViewData.cr.addFootRefresh(animator: NormalFooterAnimator()) { [weak self] in
+                /// start refresh
+                /// Do anything you want...
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                    /// Stop refresh when your job finished, it will reset refresh footer if completion is true
+                    
+                })
+            }
+            
+//            UIView.transition(with: self.tableViewData,
+//                              duration: 0.35,
+//                              options: .transitionFlipFromLeft,
+//                              animations: { self.tableViewData.reloadData() })
+        }
+    }
+    
     //MARK: AllopathicProduct_API
     func AllopathicPrductApi(cat_id:String){
-         self.addLoadingIndicator()
-        self.startAnim()
-        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "cat_id": cat_id]
-        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.get_cat_products.caseValue,parameters: params) { (response) in
+        tableViewData.cr.beginHeaderRefresh()
+        
+        if checkClick == "yes"{
+           params = SingletonVariables.sharedInstace.FilterDic
+        }else{
+         params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
+                      "cat_id": cat_id,
+                      "minPrice": "1",
+                      "maxPrice": "5000",
+                      "search": "",
+                      "discount": "",
+                      "brand": "",
+                      "state":"",
+                      "city": "",
+                      "page_no": "\(pageno)"]
+        }
+        
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.search.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
             print(dic)
+            self.totalPage = (dic.value(forKey: "totalpage") as! NSString).integerValue
             if (dic.value(forKey: "status") as? String == "0")
             {
                 self.stopAnim()
-                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                //Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                self.tableViewData.cr.endHeaderRefresh()
+                self.tableViewData.cr.removeFooter()
             }else{
-                if let data = (dic.value(forKey: "record") as? NSArray)?.mutableCopy() as? NSMutableArray
+                self.tableViewData.cr.endHeaderRefresh()
+                self.tableViewData.cr.removeFooter()
+                if let data = (dic.value(forKey: "result") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
                     if data.count == 0{
                         self.stopAnim()
@@ -223,7 +277,7 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
                         self.getAllpothicData = [getAllopathicProducts]()
                         for index in 0..<data.count
                         {
-                            self.getAllpothicData.append(getAllopathicProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "brand_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                            self.getAllpothicData.append(getAllopathicProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
                             
                         }
                         self.dummyArry = [String]()
@@ -236,12 +290,12 @@ class MenuViewController: UIViewController,UISearchBarDelegate{
                             }
                         }
                         self.stopAnim()
-                        UIView.transition(with: self.tableViewData,
-                                          duration: 0.35,
-                                          options: .transitionFlipFromLeft,
-                                          animations: { self.tableViewData.reloadData() })
+//                        UIView.transition(with: self.tableViewData,
+//                                          duration: 0.35,
+//                                          options: .transitionFlipFromLeft,
+//                                          animations: { self.tableViewData.reloadData() })
                         
-                       // self.tableViewData.reloadData()
+                        self.tableViewData.reloadData()
                         
                     }
                 }
@@ -389,18 +443,18 @@ extension MenuViewController : UITableViewDelegate, UITableViewDataSource{
         
     }
     
-    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath){
-        //let cell1 = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as! MenuTableViewCell
-        cell1.discountPercent.startAnimation()
-        
-        //MARK:- Curl transition Animation
-        cell.layer.transform = CATransform3DScale(CATransform3DIdentity, 1, -1, -1)
-        
-        UIView.animate(withDuration: 1.0) {
-            cell.layer.transform = CATransform3DIdentity
-        }
-    }
-    
+//    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath){
+//        //let cell1 = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as! MenuTableViewCell
+//        cell1.discountPercent.startAnimation()
+//
+//        //MARK:- Curl transition Animation
+//        cell.layer.transform = CATransform3DScale(CATransform3DIdentity, 1, -1, -1)
+//
+//        UIView.animate(withDuration: 1.0) {
+//            cell.layer.transform = CATransform3DIdentity
+//        }
+//    }
+//
     
    
     

@@ -58,7 +58,7 @@ class ProductDetailViewController: UIViewController {
     func getProductdetailApi(){
         self.addLoadingIndicator()
         self.startAnim()
-        let params = ["vendor_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
                       "product_id" : self.selectedProductID ]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.get_product_detail.caseValue,parameters: params) { (response) in
             print(response)

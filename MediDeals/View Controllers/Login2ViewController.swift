@@ -24,6 +24,7 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
     var checkTxtAct = ""
     override func viewDidLoad() {
         super.viewDidLoad()
+        Utilities.HideLeftSideMenu()
         txtEmail.delegate = self
         self.EmailView.isHidden = true
         self.sendOTPBtn.isHidden = false
@@ -132,6 +133,7 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
        // forgotPwdView.isHidden = true
     }
     override func viewWillAppear(_ animated: Bool) {
+        Utilities.HideLeftSideMenu()
         self.navigationController?.isNavigationBarHidden = true
         //  self.logo.layer.cornerRadius = self.logo.frame.size.height / 2
         // self.logo.clipsToBounds = true
@@ -186,13 +188,15 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
             {
                 self.hideProgress()
                 self.stopAnim()
-                Utilities.ShowAlertView2(title: "Alert", message: "It seems you are not registered, Kindly register yourself first", viewController: self)
+                SingletonVariables.sharedInstace.loginStatus = "no"
+                Utilities.ShowAlertView2(title: "Alert", message: "It seems you are not member of Medideals, Kindly register yourself first", viewController: self)
             }
             else
             {
                 self.hideProgress()
                 self.stopAnim()
                 let secondViewController = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
+                SingletonVariables.sharedInstace.loginStatus = "yes"
                 secondViewController.phnNumber = self.txtEmail.text!
                 let user_id = "\(dic.value(forKeyPath: "user_id") as! String)"
                 UserDefaults.standard.set(user_id, forKey: "USER_ID")

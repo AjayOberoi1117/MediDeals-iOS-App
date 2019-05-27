@@ -19,6 +19,7 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
     var checkTxtAct = ""
     override func viewDidLoad() {
         super.viewDidLoad()
+        Utilities.HideLeftSideMenu()
         txtMobile.delegate = self
         signUpBtn.isHidden = true
         txtUserName.attributedPlaceholder = NSAttributedString(string:"User name", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
@@ -30,6 +31,9 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
         // Do any additional setup after loading the view.
     }
     
+    override func viewWillAppear(_ animated: Bool) {
+        Utilities.HideLeftSideMenu()
+    }
     @IBAction func signUpBtn(_ sender: DesignableButton) {
         if self.txtEmail.text != ""{
             if (isValidEmail1(testStr: self.txtEmail.text!) == false)

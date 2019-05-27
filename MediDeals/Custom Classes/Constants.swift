@@ -33,7 +33,7 @@ public enum APIEndPoint
         case verifyOtp
         case resendOtp
         case addInformation
-        
+        case logout
         
         case forgotPassword
         case SocialLogin
@@ -64,7 +64,7 @@ public enum APIEndPoint
             case .verifyOtp:                  return "/verifyOtp"
             case .resendOtp:                  return "/resendOtp"
             case .addInformation:             return "/addInformation"
-                
+            case .logout:                     return "/logout"
                 
             case .userLogin:                  return "/login"
             case .forgotPassword:             return "/forgot_password"

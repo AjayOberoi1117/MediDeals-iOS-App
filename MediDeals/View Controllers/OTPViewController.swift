@@ -79,10 +79,14 @@ class OTPViewController: UIViewController,VPMOTPViewDelegate {
             {
                 self.hideProgress()
                 self.stopAnim()
-                let vc = self.storyboard?.instantiateViewController(withIdentifier: "AccountTypeViewController") as! AccountTypeViewController
-               
-                self.navigationController?.pushViewController(vc, animated: true)
-                
+                if SingletonVariables.sharedInstace.loginStatus == "yes"{
+                    let vc = self.storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
+                    vc.checkSagueActon = "yes"
+                    self.navigationController?.pushViewController(vc, animated: true)
+                }else{
+                    let vc = self.storyboard?.instantiateViewController(withIdentifier: "AccountTypeViewController") as! AccountTypeViewController
+                    self.navigationController?.pushViewController(vc, animated: true)
+                }
             }
             
         }

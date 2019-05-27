@@ -61,6 +61,12 @@ class CheckOutViewController: UIViewController  {
             self.firstlineView.isHidden = true
             self.secondLineView.isHidden = false
             self.thirdLineView.isHidden = true
+            
+            if SingletonVariables.sharedInstace.checkShippingAddress == "yes"{
+                print(SingletonVariables.sharedInstace.ShippingAddress)
+            }else{
+                
+            }
         }else if bottomBtn.titleLabel?.text == "NEXT - PROCEED TO PAYMENT"{
             bottomBtn.setTitle("NEXT - CONTINUE SHOPPING", for: .normal)
             self.firstView.isHidden = true

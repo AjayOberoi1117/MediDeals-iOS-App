@@ -16,8 +16,27 @@ class SingletonVariables: NSObject {
         let singletonObject = SingletonVariables()
         return singletonObject
     }()
-    
+    var loginStatus = ""
     var accountType = ""
     var AccountCategory = ""
     var cat_id = ""
+    var checkShippingAddress = ""
+    var ShippingAddress = ["user_id": "",
+                           "firm_name": "",
+                           "email": "",
+                           "contact_no": "",
+                           "post_code": "",
+                           "house_no": "",
+                           "locality": "",
+                           "payment_type":"cashOnDelivery",
+                           "tranx_id": ""]
+    var FilterDic = ["vendor_id": "",
+                     "cat_id": "",
+                     "minPrice": "",
+                     "maxPrice": "500",
+                     "search": "",
+                     "discount": "",
+                     "brand": "",
+                     "state":"",
+                     "city": ""]
 }

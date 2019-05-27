@@ -9,21 +9,24 @@
 import UIKit
 
 @available(iOS 11.0, *)
-class FilterViewController: UIViewController,LBZSpinnerDelegate {
+class FilterViewController: UIViewController,LBZSpinnerDelegate,UITextFieldDelegate {
     func spinnerChoose(_ spinner: LBZSpinner, index: Int, value: String) {
         var spinnerName = ""
         if spinner == brandSpinner { spinnerName = "brandSpinner"
             selectedBrand = value
+            SingletonVariables.sharedInstace.FilterDic.updateValue(selectedBrand, forKey: "brand")
         }
         if spinner == stateSpinner {
             print("Spinner : \(spinnerName) : { Index : \(index) - \(value) }")
             self.selectedState_id = "\(self.state_idArry[index])"
             selectedState = value
+            SingletonVariables.sharedInstace.FilterDic.updateValue(selectedState, forKey: "state")
             self.getCityAPI()
         }
         if spinner == citySpinner { spinnerName = "citySpinner"
             selectedCity = value
-            self.FilterProduct_API()
+            SingletonVariables.sharedInstace.FilterDic.updateValue(selectedCity, forKey: "city")
+           /// self.FilterProduct_API()
         }
       
     }
@@ -67,6 +70,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         brandSpinner.delegate = self
         stateSpinner.delegate = self
         citySpinner.delegate = self
+        txtSearchProduct.delegate = self
         if brandSpinner.selectedIndex == LBZSpinner.INDEX_NOTHING {
             print("NOTHING VALUE")
             brandSpinner.text = "Select Brand"
@@ -84,9 +88,20 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         getStatesAPI()
         // Do any additional setup after loading the view.
     }
+   
+    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+        print(txtSearchProduct.text as Any)
+        SingletonVariables.sharedInstace.FilterDic.updateValue(UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, forKey: "device_id")
+    SingletonVariables.sharedInstace.FilterDic.updateValue(SingletonVariables.sharedInstace.cat_id, forKey: "cat_id")
+        
+        SingletonVariables.sharedInstace.FilterDic.updateValue(txtSearchProduct.text!, forKey: "search")
+        return true
+    }
+    
     @IBAction func SliderValueChange(_ sender: UISlider) {
         self.lblPrice.text = String(format: "Price:      Rs. 10 - Rs. %i",Int(sender.value))
         sliderVal = "\(Int(sender.value))"
+        SingletonVariables.sharedInstace.FilterDic.updateValue(sliderVal, forKey: "minPrice")
     }
     @IBAction func firstBtn(_ sender: UIButton){
         discountVal = "90"
@@ -99,6 +114,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
      }
     @IBAction func secondBtn(_ sender: UIButton){
         discountVal = "80"
@@ -111,7 +127,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
-        
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     @IBAction func thirdBtn(_ sender: UIButton){
         discountVal = "70"
@@ -124,7 +140,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
-        
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     @IBAction func forthBtn(_ sender: UIButton){
         discountVal = "60"
@@ -137,7 +153,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
-        
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     
     @IBAction func fifthBtn(_ sender: UIButton){
@@ -151,7 +167,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
-        
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     @IBAction func sixth(_ sender: UIButton){
         discountVal = "40"
@@ -164,7 +180,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
-        
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     @IBAction func seventhBtn(_ sender: UIButton){
         discountVal = "30"
@@ -177,6 +193,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.firstImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     
     @IBAction func eighthBtn(_ sender: UIButton){
@@ -190,6 +207,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.firstImage.image = #imageLiteral(resourceName: "unselect")
         self.ninethImage.image = #imageLiteral(resourceName: "unselect")
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     @IBAction func ninethBtn(_ sender: UIButton){
         discountVal = "10"
@@ -202,6 +220,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
         self.seventhImage.image = #imageLiteral(resourceName: "unselect")
         self.eighthImage.image = #imageLiteral(resourceName: "unselect")
         self.firstImage.image = #imageLiteral(resourceName: "unselect")
+        SingletonVariables.sharedInstace.FilterDic.updateValue(discountVal, forKey: "discount")
     }
     
     
@@ -340,7 +359,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
                 self.stopAnim()
                 Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
             }else{
-                if let data = (dic.value(forKey: "record") as? NSArray)?.mutableCopy() as? NSMutableArray
+                if let data = (dic.value(forKey: "result") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
                     if data.count == 0{
                         self.stopAnim()
@@ -349,7 +368,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate {
                         self.getAllpothicData = [getAllopathicProducts]()
                         for index in 0..<data.count
                         {
-                            self.getAllpothicData.append(getAllopathicProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "brand_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                            self.getAllpothicData.append(getAllopathicProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
                             
                         }
 //                        self.dummyArry = [String]()

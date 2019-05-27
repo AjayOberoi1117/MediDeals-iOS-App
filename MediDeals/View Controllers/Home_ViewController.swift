@@ -67,6 +67,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         
         if UserDefaults.standard.value(forKey: "USER_ID") != nil{
             self.getProfileAPI()
+            self.deviceID_Api()
         }
         
         self.HomeTableView.cr.addHeadRefresh(animator: SlackLoadingAnimator()) { [weak self] in
@@ -79,6 +80,30 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         }
         HomeTableView.cr.beginHeaderRefresh()
         
+    }
+    
+    func deviceID_Api(){
+        //        self.addLoadingIndicator()
+        //        self.startAnim()
+        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String,
+                       "device_type": "I",
+                       "device_id":UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String]
+        print(params)
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.update_device_id.caseValue, parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            }
+            else
+            {
+                self.stopAnim()
+            }
+            
+        }
     }
     @IBAction func cartReview(_ sender: UIBarButtonItem) {
         let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
