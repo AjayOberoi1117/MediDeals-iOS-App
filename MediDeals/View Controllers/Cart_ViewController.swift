@@ -9,6 +9,7 @@
 import UIKit
 @available(iOS 11.0, *)
 class Cart_ViewController: UIViewController , UITextFieldDelegate{
+    @IBOutlet weak var bootomConstraints: NSLayoutConstraint!
     @IBOutlet weak var emptyCartImage: UIImageView!
     @IBOutlet weak var hiddenView: UIView!
     @IBOutlet var totalPrice: UILabel!
@@ -58,9 +59,6 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
     
     @IBAction func backBtn(_ sender: UIBarButtonItem){
 //        if getCartData.count != 0{
-//            //1771-12
-////        let ids = self.productIdsArray.joined(separator: ",")
-////        let finalQuantity = self.newminQuantitiy.joined(separator: ",")
 //            var newArr = [String]()
 //            for index in 0..<self.productIdsArray.count{
 //                let a = self.productIdsArray[index]
@@ -83,32 +81,21 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         // Dispose of any resources that can be recreated.
     }
     @IBAction func checkoutBtn(_ sender: UIButton) {
-//
-//        var newArr = [String]()
-//        for index in 0..<self.productIdsArray.count{
-//            let a = self.productIdsArray[index]
-//            let b = self.newminQuantitiy[index]
-//            let c = a + "-" + b
-//            print(c)
-//            newArr.append(c)
-//        }
-//        print(newArr)
-//        checkAction = "back"
-//        let d = newArr.joined(separator: ",")
-//        self.editCartApi(prodID: d)
-        
-        
-        if self.login_status == "2"{
-            UIView.animate(withDuration: 0.3, delay: 0, options: UIView.AnimationOptions.curveEaseOut, animations: {
-                self.hiddenView.isHidden = false
-                self.popUpView.isHidden = false
-                self.view.layoutIfNeeded()
-                
-            }, completion: nil)
-            
-        }else{
-            self.sague()
+        var newArr = [String]()
+        for index in 0..<self.productIdsArray.count{
+            let a = self.productIdsArray[index]
+            let b = self.newminQuantitiy[index]
+            let c = a + "-" + b
+            print(c)
+            newArr.append(c)
         }
+        print(newArr)
+        checkAction = "back"
+        let d = newArr.joined(separator: ",")
+        self.editCartApi(prodID: d)
+        
+        
+
         
     }
     @IBAction func regiserbtn(_ sender: UIButton) {
@@ -127,10 +114,10 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         let singlePrice:Float = Float(self.getCartData[sender.tag].price)!
         self.grandToTal = grandToTal + singlePrice
         print(self.grandToTal)
-        self.totalPrice.text = "Total: Rs."
-            +  "\(self.grandToTal)"
-        self.SubTotal.text = "SubTotal: Rs."
-            + "\(self.grandToTal)"
+        let a = Double(self.grandToTal)
+        let b = String(format: "%.2f", a)
+        self.totalPrice.text = "Total: Rs." +  "\(b)"
+        self.SubTotal.text = "SubTotal: Rs." + "\(b)"
         cartTableView.reloadData()
      
                
@@ -150,10 +137,10 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
             let singlePrice:Float = Float(self.getCartData[sender.tag].price)!
             self.grandToTal = grandToTal - singlePrice
             print(self.grandToTal)
-            self.totalPrice.text = "Total: Rs."
-                +  "\(self.grandToTal)"
-            self.SubTotal.text = "SubTotal: Rs."
-                + "\(self.grandToTal)"
+            let a = Double(self.grandToTal)
+            let b = String(format: "%.2f", a)
+            self.totalPrice.text = "Total: Rs." +  "\(b)"
+            self.SubTotal.text = "SubTotal: Rs." + "\(b)"
         }
 
         cartTableView.reloadData()
@@ -161,33 +148,33 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         //self.editCartApi(prodID: id, quantity: "\(countValue)")
  }
     func textFieldDidBeginEditing(_ textField: UITextField) {
-      print(textField.tag)
-      
+     
         
     }
     func textFieldDidEndEditing(_ textField: UITextField) {
-        let productMinQ:Int = Int(self.newminQuantitiy[textField.tag])!
-        if textField.text != ""  {
-            if Int(textField.text!)! < productMinQ {
-                Utilities.ShowAlertView2(title: "Alert", message: "Order quantity must me greater than minimum order quantity ", viewController: self)
-            }else{
-                print(textField.tag)
-                let value = textField.text
-                self.newminQuantitiy[textField.tag] = "\(value ?? "")"
-                let singlePrice:Float = Float(self.getCartData[textField.tag].price)!
-                let productQuantity:Float = Float(self.newminQuantitiy[textField.tag])!
-                self.grandToTal = 0.0
-                let newTotal:Float = singlePrice * productQuantity
-                self.grandToTal = grandToTal + newTotal
-                print(self.grandToTal)
-                self.totalPrice.text = "Total: Rs."
-                    +  "\(self.grandToTal)"
-                self.SubTotal.text = "SubTotal: Rs."
-                    + "\(self.grandToTal)"
-            }
-        }else if textField.text == ""{
-            Utilities.ShowAlertView2(title: "Alert", message: "Please add some quantity", viewController: self)
+    print(textField.tag)
+    let productMinQ:Int = Int(self.minQuantitiy[textField.tag])!
+    if textField.text != ""  {
+        if Int(textField.text!)! < productMinQ {
+            Utilities.ShowAlertView2(title: "Alert", message: "Order quantity must me greater than minimum order quantity ", viewController: self)
+        }else{
+            print(textField.tag)
+            let value = textField.text
+             self.newminQuantitiy[textField.tag] = "\(value ?? "")"
+            let singlePrice:Float = Float(self.getCartData[textField.tag].price)!
+            let productQuantity:Float = Float(self.newminQuantitiy[textField.tag])!
+            self.grandToTal = 0.0
+            let newTotal:Float = singlePrice * productQuantity
+            self.grandToTal = grandToTal + newTotal
+            print(self.grandToTal)
+            let a = Double(self.grandToTal)
+            let b = String(format: "%.2f", a)
+            self.totalPrice.text = "Total: Rs." +  "\(b)"
+            self.SubTotal.text = "SubTotal: Rs." + "\(b)"
         }
+    }else if textField.text == ""{
+        Utilities.ShowAlertView2(title: "Alert", message: "Please add some quantity", viewController: self)
+    }
        
     }
     //MARK: GetProduct Cart API
@@ -220,7 +207,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
                     
                     for index in 0..<data.count
                     {
-                        self.getCartData.append(getCartListing(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title: "\((data[index] as AnyObject).value(forKey: "title") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", quantity: "\((data[index] as AnyObject).value(forKey: "min_quantity") ?? "")", total: "\((data[index] as AnyObject).value(forKey: "total") ?? "")"))
+                        self.getCartData.append(getCartListing(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title: "\((data[index] as AnyObject).value(forKey: "product_name") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", quantity: "\((data[index] as AnyObject).value(forKey: "min_quantity") ?? "")", total: "\((data[index] as AnyObject).value(forKey: "total") ?? "")"))
                         
                         self.minQuantitiy.append("\((data[index] as AnyObject).value(forKey: "min_quantity") ?? "")")
                         self.newminQuantitiy.append("\((data[index] as AnyObject).value(forKey: "quantity") ?? "")")
@@ -228,11 +215,14 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
                     }
 //                    for
                    
-                    self.totalPrice.text = "Total: Rs."
-                        + "\(dic.value(forKeyPath: "record.total") as! String)"
+                    let a = Double(dic.value(forKeyPath: "record.total") as! String)
+                    let b = String(format: "%.2f", a!)
+                    self.totalPrice.text = "Total: Rs." + "\(b)"
+                    
                     self.grandToTal = Float(dic.value(forKeyPath: "record.total") as! String)!
-                    self.SubTotal.text = "SubTotal: Rs."
-                        + "\(dic.value(forKeyPath: "record.subtotal") as! String)"
+                    let c = Double(dic.value(forKeyPath: "record.subtotal") as! String)
+                    let d = String(format: "%.2f", c!)
+                    self.SubTotal.text = "SubTotal: Rs." + "\(d)"
                     self.stopAnim()
                     
                    // UIView.transition(with: self.cartTableView,
@@ -246,9 +236,9 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         }
     }
     func editCartApi(prodID:String){
-        self.addLoadingIndicator()
-        self.startAnim()
-        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "product_id": prodID]
+//        self.addLoadingIndicator()
+//        self.startAnim()
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String, "record": prodID]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.edit_cart.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
@@ -259,12 +249,26 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
                 Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
             } else {
                 self.stopAnim()
-                if self.checkAction == "back"{
-                    self.navigationController?.popViewController(animated: true)
-                }else{
-                    self.sague()
+                
+                if self.login_status == "2"{
+                    //            UIView.animate(withDuration: 1, animations: {
+                    //                self.hiddenView.isHidden = false
+                    //                self.popUpView.isHidden = false
+                    //                self.bootomConstraints.constant = 35
+                    //            }, completion: nil)
                     
+                    UIView.animate(withDuration: 1, delay: 0, options: UIView.AnimationOptions.curveEaseOut, animations: {
+                        self.hiddenView.isHidden = false
+                        self.popUpView.isHidden = false
+                        self.view.layoutIfNeeded()
+                        
+                    }, completion: nil)
+                    
+                }else{
+                        self.sague()
                 }
+                
+               
             }
         }
     }

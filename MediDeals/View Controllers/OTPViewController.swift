@@ -15,6 +15,7 @@ class OTPViewController: UIViewController,VPMOTPViewDelegate {
     
     var phnNumber = ""
     var otpNumber = ""
+    var otpDigits = ""
     override func viewDidLoad() {
         super.viewDidLoad()
         self.navigationController?.isNavigationBarHidden = true
@@ -63,7 +64,7 @@ class OTPViewController: UIViewController,VPMOTPViewDelegate {
     
     func VerifyOTP_API(){
         showProgress()
-        let params = ["user_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String,
+        let params = ["user_id" : SingletonVariables.sharedInstace.userId,
                       "otp": self.otpNumber]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.verifyOtp.caseValue, parameters: params) { (response) in
             print(response)
@@ -82,6 +83,7 @@ class OTPViewController: UIViewController,VPMOTPViewDelegate {
                 if SingletonVariables.sharedInstace.loginStatus == "yes"{
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
                     vc.checkSagueActon = "yes"
+                    UserDefaults.standard.set(SingletonVariables.sharedInstace.userId, forKey: "USER_ID")
                     self.navigationController?.pushViewController(vc, animated: true)
                 }else{
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "AccountTypeViewController") as! AccountTypeViewController
@@ -93,7 +95,7 @@ class OTPViewController: UIViewController,VPMOTPViewDelegate {
     }
     func ResendOTP_API(){
         showProgress()
-        let params = ["user_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String]
+        let params = ["user_id" : SingletonVariables.sharedInstace.userId]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.resendOtp.caseValue, parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary

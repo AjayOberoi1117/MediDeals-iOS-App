@@ -44,6 +44,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     var titleCat = [String]()
     var imagesArry = [UIImage]()
     var tagVal = Int()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         Utilities.HideRightSideMenu()
@@ -78,7 +79,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                             self?.HomeTableView.cr.endHeaderRefresh()
                         })
         }
-        HomeTableView.cr.beginHeaderRefresh()
+       // HomeTableView.cr.beginHeaderRefresh()
         
     }
     
@@ -281,7 +282,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                 // get hot deals Arrays ...
                 if let data = (dic.value(forKey: "hotDealsProducts") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
-                    for index in 0..<data.count
+                    for index in 0..<data.count-4
                     {
                         self.getHotDealsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
                      }
@@ -290,7 +291,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                 // get Most Discounted Arrays ...
                 if let data = (dic.value(forKey: "getMostDiscounted") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
-                    for index in 0..<data.count
+                    for index in 0..<data.count-4
                     {
                         self.getMostDiscountedData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
                     }
@@ -299,7 +300,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                 // get new products Arrays ...
                 if let data = (dic.value(forKey: "getNewProducts") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
-                    for index in 0..<data.count
+                    for index in 0..<data.count-4
                     {
                         self.getNewProductsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
                     }
@@ -368,7 +369,9 @@ extension Home_ViewController : UITableViewDelegate, UITableViewDataSource{
             if let cell1 = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? HomeMenuTableViewCell1 {
                 cell1.lblTitle.text = titleArry[indexPath.row]
                 self.HomeTableView.tag = indexPath.row
-                self.tagVal = self.HomeTableView.tag
+                
+                cell1.collectionViewFirst.tag = indexPath.row
+                self.tagVal = cell1.collectionViewFirst.tag
                 cell1.collectionViewFirst.reloadData()
                 return cell1
             }
@@ -397,15 +400,15 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
         }else{
             if self.getHotDealsData.count != 0{
                 if section == 0 {
-                    //                if tagVal == 0 {
-                    //                    return self.getHotDealsData.count
-                    //                }else if tagVal == 1 {
-                    //                    return self.getMostDiscountedData.count
-                    //                }else if tagVal == 2 {
-                    //                    return self.getNewProductsData.count
-                    //                }else{
-                    return 4
-                    //}
+                    if tagVal == 0 {
+                        return self.getHotDealsData.count
+                    }else if tagVal == 1 {
+                        return self.getMostDiscountedData.count
+                    }else if tagVal == 2 {
+                        return self.getNewProductsData.count
+                    }else{
+                        return 4
+                    }
                     
                 } else{
                     return AddImagesArry.count
@@ -447,6 +450,14 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     print("discount value is" , d)
                     // cell1.discountPercent.startAnimation()
                     cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
+                    
+                    let product_status = self.getHotDealsData[indexPath.row].product_status
+                    if product_status == "already_added"{
+                        cell1.BuyNowlbl.backgroundColor = BUTTONSELECTION_COLOR
+                        
+                    }else{
+                        cell1.BuyNowlbl.backgroundColor = BUTTON_COLOR
+                    }
                     
 
                 }else if tagVal == 1 {
@@ -490,17 +501,17 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
             
             self.navigationController?.pushViewController(vc, animated: true)
         }else{
-            
+            //print(modelPurchase[collectionView.tag].listFlowPosition[indexPath.item])
             if indexPath.section == 0 {
-                if tagVal == 0 {
+                if collectionView.tag == 0 {
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
                     vc.selectedProductID = self.getHotDealsData[indexPath.row].product_id
                     self.navigationController?.pushViewController(vc, animated: true)
-                }else if tagVal == 1 {
+                }else if collectionView.tag == 1 {
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
                     vc.selectedProductID = self.getMostDiscountedData[indexPath.row].product_id
                     self.navigationController?.pushViewController(vc, animated: true)
-                }else if tagVal == 2 {
+                }else if collectionView.tag == 2 {
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
                     vc.selectedProductID = self.getNewProductsData[indexPath.row].product_id
                     self.navigationController?.pushViewController(vc, animated: true)

@@ -159,6 +159,7 @@ class Register_ViewController: UIViewController {
     }
     func sague(){
         let vc = self.storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
+        UserDefaults.standard.set(SingletonVariables.sharedInstace.userId, forKey: "USER_ID")
         vc.checkSagueActon = "yes"
         self.navigationController?.pushViewController(vc, animated: true)
     }

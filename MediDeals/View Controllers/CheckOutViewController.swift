@@ -48,6 +48,7 @@ class CheckOutViewController: UIViewController  {
     }
     @IBAction func bottomBtn(_ sender: UIButton){
         if  bottomBtn.titleLabel?.text == "NEXT - PAYMENT INFO"{
+            if SingletonVariables.sharedInstace.checkShippingAddress == "yes"{
             bottomBtn.setTitle("NEXT - PROCEED TO PAYMENT", for: .normal)
             self.firstView.isHidden = true
             self.secondView.isHidden = false
@@ -62,10 +63,9 @@ class CheckOutViewController: UIViewController  {
             self.secondLineView.isHidden = false
             self.thirdLineView.isHidden = true
             
-            if SingletonVariables.sharedInstace.checkShippingAddress == "yes"{
                 print(SingletonVariables.sharedInstace.ShippingAddress)
             }else{
-                
+                Utilities.ShowAlertView2(title: "Alert", message: "Please fill all inputs for shipping address", viewController: self)
             }
         }else if bottomBtn.titleLabel?.text == "NEXT - PROCEED TO PAYMENT"{
             bottomBtn.setTitle("NEXT - CONTINUE SHOPPING", for: .normal)

@@ -196,11 +196,24 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
                 self.hideProgress()
                 self.stopAnim()
                 let secondViewController = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
-                SingletonVariables.sharedInstace.loginStatus = "yes"
-                secondViewController.phnNumber = self.txtEmail.text!
-                let user_id = "\(dic.value(forKeyPath: "user_id") as! String)"
-                UserDefaults.standard.set(user_id, forKey: "USER_ID")
-                self.navigationController?.pushViewController(secondViewController, animated: true)
+               
+                let refreshAlert = UIAlertController(title: "OTP", message:  "\(dic.value(forKey: "otp") as! NSNumber)", preferredStyle: UIAlertControllerStyle.alert)
+                
+                refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
+                    print("Handle Ok logic here")
+                    
+                    SingletonVariables.sharedInstace.loginStatus = "yes"
+                    secondViewController.phnNumber = self.txtEmail.text!
+                    let user_id = "\(dic.value(forKeyPath: "user_id") as! String)"
+                    SingletonVariables.sharedInstace.userId = user_id
+//                    UserDefaults.standard.set(user_id, forKey: "USER_ID")
+                    self.navigationController?.pushViewController(secondViewController, animated: true)
+                    
+                }))
+                
+                self.present(refreshAlert, animated: true, completion: nil)
+          
+               
                 
             }
             

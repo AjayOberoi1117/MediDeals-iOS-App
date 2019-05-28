@@ -139,13 +139,27 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
                 self.hideProgress()
                 self.stopAnim()
                 let vc = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
-                vc.phnNumber = self.txtMobile.text!
-                let user_id = "\(dic.value(forKeyPath: "id") as! String)"
-                // let user_accessToken = dic.value(forKeyPath: "token") as! String
-                UserDefaults.standard.set(user_id, forKey: "USER_ID")
-                //UserDefaults.standard.set(user_accessToken, forKey: "TOKEN")
-                UserDefaults.standard.synchronize()
-                self.navigationController?.pushViewController(vc, animated: true)
+                
+                let refreshAlert = UIAlertController(title: "OTP", message:  "\(dic.value(forKey: "otp") as! NSNumber)", preferredStyle: UIAlertControllerStyle.alert)
+                
+                refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
+                    print("Handle Ok logic here")
+                    
+                    vc.phnNumber = self.txtMobile.text!
+                    let user_id = "\(dic.value(forKeyPath: "id") as! String)"
+                    SingletonVariables.sharedInstace.userId = user_id
+                    
+                    // let user_accessToken = dic.value(forKeyPath: "token") as! String
+//                    UserDefaults.standard.set(user_id, forKey: "USER_ID")
+//                    //UserDefaults.standard.set(user_accessToken, forKey: "TOKEN")
+//                    UserDefaults.standard.synchronize()
+                    self.navigationController?.pushViewController(vc, animated: true)
+                    
+                }))
+                
+                self.present(refreshAlert, animated: true, completion: nil)
+                
+                
                 
             }
             

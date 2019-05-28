@@ -641,7 +641,7 @@
                                 <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                             </view>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="gNh-bc-gEl">
-                                <rect key="frame" x="0.0" y="472" width="375" height="200"/>
+                                <rect key="frame" x="0.0" y="490" width="375" height="200"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="You are not a member of Medideals. Join us to place a order." textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="ZbL-tM-01S">
                                         <rect key="frame" x="37.666666666666657" y="29.999999999999996" width="300" height="40.666666666666657"/>
@@ -657,7 +657,7 @@
                                     </label>
                                     <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Gc7-np-rub" customClass="DesignableButton" customModule="MediDeals" customModuleProvider="target">
                                         <rect key="frame" x="30" y="128" width="150" height="50"/>
-                                        <color key="backgroundColor" red="0.2837831676" green="0.54586321120000003" blue="0.89342945809999996" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                        <color key="backgroundColor" red="0.24705882352941178" green="0.68235294117647061" blue="0.90980392156862744" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="go1-gk-hS0"/>
                                         </constraints>
@@ -675,7 +675,7 @@
                                     </button>
                                     <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="QwK-Op-5FJ" customClass="DesignableButton" customModule="MediDeals" customModuleProvider="target">
                                         <rect key="frame" x="195" y="128" width="150" height="50"/>
-                                        <color key="backgroundColor" red="0.2837831676" green="0.54586321120000003" blue="0.89342945809999996" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                        <color key="backgroundColor" red="0.24705882352941178" green="0.68235294117647061" blue="0.90980392156862744" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                         <state key="normal" title="REGISTER">
                                             <color key="titleColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                         </state>
@@ -707,14 +707,14 @@
                                 </constraints>
                             </view>
                             <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="empty_cart_800x600_dribbble" translatesAutoresizingMaskIntoConstraints="NO" id="6aE-h4-f9B">
-                                <rect key="frame" x="0.0" y="983" width="375" height="724"/>
+                                <rect key="frame" x="0.0" y="-17" width="375" height="724"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                             </imageView>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                         <constraints>
+                            <constraint firstItem="gNh-bc-gEl" firstAttribute="bottom" secondItem="Yap-jR-tV0" secondAttribute="bottom" id="0Vg-9y-eq6"/>
                             <constraint firstItem="6aE-h4-f9B" firstAttribute="width" secondItem="hQc-UB-du2" secondAttribute="width" id="1gE-1o-mh7"/>
-                            <constraint firstItem="gNh-bc-gEl" firstAttribute="bottom" secondItem="yTW-cV-5wN" secondAttribute="bottom" constant="-35" id="36G-Kv-8ng"/>
                             <constraint firstItem="yTW-cV-5wN" firstAttribute="centerY" secondItem="Yap-jR-tV0" secondAttribute="centerY" id="3yx-zx-fiN"/>
                             <constraint firstItem="gNh-bc-gEl" firstAttribute="width" secondItem="yTW-cV-5wN" secondAttribute="width" id="5dI-Bd-mTe"/>
                             <constraint firstItem="bSh-yn-kky" firstAttribute="centerX" secondItem="Yap-jR-tV0" secondAttribute="centerX" id="5lf-Ya-ICl"/>
@@ -729,7 +729,7 @@
                             <constraint firstItem="yTW-cV-5wN" firstAttribute="width" secondItem="hQc-UB-du2" secondAttribute="width" id="axf-G5-YE5"/>
                             <constraint firstItem="2Xu-oN-vwz" firstAttribute="centerX" secondItem="Yap-jR-tV0" secondAttribute="centerX" id="b20-yJ-2mb"/>
                             <constraint firstItem="6aE-h4-f9B" firstAttribute="centerX" secondItem="Yap-jR-tV0" secondAttribute="centerX" id="bko-ZB-703"/>
-                            <constraint firstItem="6aE-h4-f9B" firstAttribute="centerY" secondItem="Yap-jR-tV0" secondAttribute="centerY" constant="1000" id="uCM-IV-xgE"/>
+                            <constraint firstItem="6aE-h4-f9B" firstAttribute="centerY" secondItem="Yap-jR-tV0" secondAttribute="centerY" id="uCM-IV-xgE"/>
                             <constraint firstItem="6aE-h4-f9B" firstAttribute="height" secondItem="hQc-UB-du2" secondAttribute="height" id="y5H-td-jmS"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="Yap-jR-tV0"/>
@@ -1168,13 +1168,13 @@ Cg
                                                                 <rect key="frame" x="9.3333333333333428" y="63.999999999999993" width="356.33333333333326" height="78.333333333333314"/>
                                                                 <subviews>
                                                                     <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="bank" translatesAutoresizingMaskIntoConstraints="NO" id="ht5-rZ-oNr">
-                                                                        <rect key="frame" x="9.9999999999999964" y="17.999999999999996" width="42.666666666666657" height="42.666666666666657"/>
+                                                                        <rect key="frame" x="10" y="18.333333333333343" width="42" height="42"/>
                                                                         <constraints>
                                                                             <constraint firstAttribute="width" secondItem="ht5-rZ-oNr" secondAttribute="height" multiplier="1:1" id="hEb-gt-IQx"/>
                                                                         </constraints>
                                                                     </imageView>
                                                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="BANK TRANSFER" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="LSD-Bs-T5M">
-                                                                        <rect key="frame" x="62.666666666666657" y="20" width="285" height="17"/>
+                                                                        <rect key="frame" x="62" y="20" width="285" height="17"/>
                                                                         <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                                                         <nil key="textColor"/>
                                                                         <nil key="highlightedColor"/>
@@ -1186,7 +1186,7 @@ Cg
                                                                         </constraints>
                                                                     </imageView>
                                                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="(NEFT, IMPS, RTGS, UPI etc)" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="qQ9-zF-exM">
-                                                                        <rect key="frame" x="62.666666666666657" y="42" width="285" height="14.666666666666664"/>
+                                                                        <rect key="frame" x="62" y="42" width="285" height="14.666666666666664"/>
                                                                         <fontDescription key="fontDescription" type="system" pointSize="12"/>
                                                                         <color key="textColor" white="0.33333333333333331" alpha="1" colorSpace="calibratedWhite"/>
                                                                         <nil key="highlightedColor"/>
@@ -2748,6 +2748,7 @@ We will contact you shortly with confirmation.</string>
                                                                             </constraints>
                                                                             <size key="customSize" width="160" height="160"/>
                                                                             <connections>
+                                                                                <outlet property="BuyNowlbl" destination="5dv-uM-2Ck" id="oqo-jJ-hZu"/>
                                                                                 <outlet property="brandName" destination="VLA-O7-QI6" id="ImV-Wf-fJ7"/>
                                                                                 <outlet property="discountPercent" destination="Bdm-1Z-575" id="hN9-i4-fD5"/>
                                                                                 <outlet property="discountPrice" destination="VHf-qC-gBq" id="eMO-2O-G2M"/>

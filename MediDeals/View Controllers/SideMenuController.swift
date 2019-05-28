@@ -24,7 +24,11 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
     override func viewDidLoad()
     {
         super.viewDidLoad()
+        if UserDefaults.standard.value(forKey: "USER_ID") != nil{
         side_menu = ["Home","My Account","Allopathic", "Ayurvedic", "FMCG","PCD/3rd Party","Surgical Goods","Generics","Contact Us","Settings","Logout"]
+        }else{
+             side_menu = ["Home","My Account","Allopathic", "Ayurvedic", "FMCG","PCD/3rd Party","Surgical Goods","Generics","Contact Us","Settings"]
+        }
         for _ in 0..<side_menu.count{
             newArry.add("0")
         }
@@ -215,16 +219,12 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
     }
     
     func clearData(){
-        UserDefaults.standard.removeObject(forKey: "PROFILEIMAGE")
-        UserDefaults.standard.removeObject(forKey: "PROFILE_EMAIL")
-        UserDefaults.standard.removeObject(forKey: "PROFILE_NAME")
-        UserDefaults.standard.removeObject(forKey: "USER_ID")
-        UserDefaults.standard.synchronize()
+        
         logoutApi()
      }
     
     func logoutApi(){
-        let params = ["user_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String, "login_status": "2"]
+        let params = ["vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String, "login_status": "2"]
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.logout.caseValue,parameters: params) { (response) in
             print(response)
             let dic = response as! NSDictionary
@@ -235,6 +235,11 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
                 Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
             } else {
                 self.stopAnim()
+                UserDefaults.standard.removeObject(forKey: "PROFILEIMAGE")
+                UserDefaults.standard.removeObject(forKey: "PROFILE_EMAIL")
+                UserDefaults.standard.removeObject(forKey: "PROFILE_NAME")
+                UserDefaults.standard.removeObject(forKey: "USER_ID")
+                UserDefaults.standard.synchronize()
                 self.LogoutFunction()
             }
         }

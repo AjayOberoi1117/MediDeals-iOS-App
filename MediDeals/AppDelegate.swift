@@ -133,7 +133,7 @@ class AppDelegate: UIResponder,GIDSignInDelegate, UIApplicationDelegate,NVActivi
     }
     //MARK: Delegate used for failure case
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        UserDefaults.standard.set("6DF94241852968AD49898532F789D4257B30989850342818B60EE275C4DF6045", forKey: "DEVICETOKEN");
+        UserDefaults.standard.set("6DF94241852968AD49898532F789D4257B30989850342818B60EE2", forKey: "DEVICETOKEN");
         UserDefaults.standard.synchronize();
         
         // Define identifier
