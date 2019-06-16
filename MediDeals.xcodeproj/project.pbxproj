@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		18421E1022A7C9CF00932FE4 /* DashBoardVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18421E0F22A7C9CF00932FE4 /* DashBoardVC.swift */; };
+		18421E1222A7F62A00932FE4 /* AddProductsVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18421E1122A7F62A00932FE4 /* AddProductsVC.swift */; };
 		587FBF232220069900E68674 /* AccTypeCollectionViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587FBF222220069900E68674 /* AccTypeCollectionViewCell.swift */; };
 		589CCFFD22254D61001DCEB3 /* CRRefresh.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 589CCFFC22254D61001DCEB3 /* CRRefresh.framework */; };
 		589E7D1221F7406E00272857 /* LBZSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589E7D1121F7406D00272857 /* LBZSpinner.swift */; };
@@ -24,6 +26,10 @@
 		58D6697B221ADE0C009F3BA7 /* VPMOTPTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58D66979221ADE0C009F3BA7 /* VPMOTPTextField.swift */; };
 		58D6697D221AE381009F3BA7 /* AccountTypeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58D6697C221AE381009F3BA7 /* AccountTypeViewController.swift */; };
 		58EABDD82205A18B009C98C0 /* CustomActivityIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58EABDD72205A18A009C98C0 /* CustomActivityIndicatorView.swift */; };
+		652E594E22AD296300D55B02 /* MJBadgeBarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652E594D22AD296300D55B02 /* MJBadgeBarButton.swift */; };
+		652E595122AD3BFD00D55B02 /* ShowAllProductsVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 652E595022AD3BFD00D55B02 /* ShowAllProductsVC.swift */; };
+		653C727E22AB96BB004912A1 /* SubscriptionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653C727D22AB96BB004912A1 /* SubscriptionViewController.swift */; };
+		653C728022ABC99E004912A1 /* BankDetailsVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653C727F22ABC99E004912A1 /* BankDetailsVC.swift */; };
 		6581F59621D53A0C0064576A /* Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581F59121D53A0B0064576A /* Extension.swift */; };
 		6581F59721D53A0C0064576A /* DesignableClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581F59221D53A0C0064576A /* DesignableClass.swift */; };
 		6581F59821D53A0C0064576A /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581F59321D53A0C0064576A /* Utilities.swift */; };
@@ -38,14 +44,6 @@
 		6581F5AD21D53A8E0064576A /* PMDReachabilityWrapper.m in Sources */ = {isa = PBXBuildFile; fileRef = 6581F5AB21D53A8D0064576A /* PMDReachabilityWrapper.m */; };
 		6581F5AE21D53A8E0064576A /* Reachability.m in Sources */ = {isa = PBXBuildFile; fileRef = 6581F5AC21D53A8E0064576A /* Reachability.m */; };
 		6581F5B021D53AF10064576A /* Alamofire.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5AF21D53AF10064576A /* Alamofire.framework */; };
-		6581F5B221D53AF10064576A /* Bolts.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5B121D53AF10064576A /* Bolts.framework */; };
-		6581F5B421D53AF10064576A /* FacebookCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5B321D53AF10064576A /* FacebookCore.framework */; };
-		6581F5B621D53AF10064576A /* FacebookLogin.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5B521D53AF10064576A /* FacebookLogin.framework */; };
-		6581F5B821D53AF10064576A /* FBSDKCoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5B721D53AF10064576A /* FBSDKCoreKit.framework */; };
-		6581F5BA21D53AF10064576A /* FBSDKLoginKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5B921D53AF10064576A /* FBSDKLoginKit.framework */; };
-		6581F5BC21D53AF10064576A /* GoogleToolboxForMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5BB21D53AF10064576A /* GoogleToolboxForMac.framework */; };
-		6581F5BE21D53AF10064576A /* GTMOAuth2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5BD21D53AF10064576A /* GTMOAuth2.framework */; };
-		6581F5C021D53AF10064576A /* GTMSessionFetcher.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5BF21D53AF10064576A /* GTMSessionFetcher.framework */; };
 		6581F5C221D53AF10064576A /* IQKeyboardManagerSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5C121D53AF10064576A /* IQKeyboardManagerSwift.framework */; };
 		6581F5C421D53AF10064576A /* MMDrawerController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5C321D53AF10064576A /* MMDrawerController.framework */; };
 		6581F5C621D53AF10064576A /* NVActivityIndicatorView.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6581F5C521D53AF10064576A /* NVActivityIndicatorView.framework */; };
@@ -56,6 +54,10 @@
 		6581F5D021D53C190064576A /* Register_ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6581F5CF21D53C190064576A /* Register_ViewController.swift */; };
 		65A3C32421D8E16E004C6796 /* ContactUsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A3C32321D8E16E004C6796 /* ContactUsViewController.swift */; };
 		65A3C32821D8F54F004C6796 /* ProfileViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A3C32721D8F54F004C6796 /* ProfileViewController.swift */; };
+		65B7211422B5454F00EF3656 /* OrderReceivedVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B7211322B5454F00EF3656 /* OrderReceivedVC.swift */; };
+		65B7211622B55E1B00EF3656 /* EnquiryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B7211522B55E1B00EF3656 /* EnquiryViewController.swift */; };
+		65B7211822B561AF00EF3656 /* OrderPlacedViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B7211722B561AF00EF3656 /* OrderPlacedViewController.swift */; };
+		65B7211A22B562C000EF3656 /* ShowResponsesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B7211922B562C000EF3656 /* ShowResponsesViewController.swift */; };
 		65D326AB21D8B2F300C07396 /* LIHImageSlider.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65D326AA21D8B2F300C07396 /* LIHImageSlider.framework */; };
 		65D326AD21D8B32500C07396 /* Home_ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D326AC21D8B32500C07396 /* Home_ViewController.swift */; };
 		65D326AF21D8BF5300C07396 /* Allopathic_ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D326AE21D8BF5300C07396 /* Allopathic_ViewController.swift */; };
@@ -91,6 +93,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		18421E0F22A7C9CF00932FE4 /* DashBoardVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashBoardVC.swift; sourceTree = "<group>"; };
+		18421E1122A7F62A00932FE4 /* AddProductsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProductsVC.swift; sourceTree = "<group>"; };
 		370B30D13F6E14F90164CC78 /* Pods-MediDeals.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MediDeals.release.xcconfig"; path = "Pods/Target Support Files/Pods-MediDeals/Pods-MediDeals.release.xcconfig"; sourceTree = "<group>"; };
 		587FBF222220069900E68674 /* AccTypeCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccTypeCollectionViewCell.swift; sourceTree = "<group>"; };
 		589CCFFC22254D61001DCEB3 /* CRRefresh.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = CRRefresh.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +113,10 @@
 		58D66979221ADE0C009F3BA7 /* VPMOTPTextField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VPMOTPTextField.swift; sourceTree = "<group>"; };
 		58D6697C221AE381009F3BA7 /* AccountTypeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTypeViewController.swift; sourceTree = "<group>"; };
 		58EABDD72205A18A009C98C0 /* CustomActivityIndicatorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomActivityIndicatorView.swift; sourceTree = "<group>"; };
+		652E594D22AD296300D55B02 /* MJBadgeBarButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MJBadgeBarButton.swift; sourceTree = "<group>"; };
+		652E595022AD3BFD00D55B02 /* ShowAllProductsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowAllProductsVC.swift; sourceTree = "<group>"; };
+		653C727D22AB96BB004912A1 /* SubscriptionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionViewController.swift; sourceTree = "<group>"; };
+		653C727F22ABC99E004912A1 /* BankDetailsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankDetailsVC.swift; sourceTree = "<group>"; };
 		6581F59121D53A0B0064576A /* Extension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Extension.swift; sourceTree = "<group>"; };
 		6581F59221D53A0C0064576A /* DesignableClass.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DesignableClass.swift; sourceTree = "<group>"; };
 		6581F59321D53A0C0064576A /* Utilities.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
@@ -145,6 +153,10 @@
 		6581F5D121D53F7D0064576A /* MediDeals.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MediDeals.entitlements; sourceTree = "<group>"; };
 		65A3C32321D8E16E004C6796 /* ContactUsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactUsViewController.swift; sourceTree = "<group>"; };
 		65A3C32721D8F54F004C6796 /* ProfileViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewController.swift; sourceTree = "<group>"; };
+		65B7211322B5454F00EF3656 /* OrderReceivedVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderReceivedVC.swift; sourceTree = "<group>"; };
+		65B7211522B55E1B00EF3656 /* EnquiryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnquiryViewController.swift; sourceTree = "<group>"; };
+		65B7211722B561AF00EF3656 /* OrderPlacedViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderPlacedViewController.swift; sourceTree = "<group>"; };
+		65B7211922B562C000EF3656 /* ShowResponsesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowResponsesViewController.swift; sourceTree = "<group>"; };
 		65D326AA21D8B2F300C07396 /* LIHImageSlider.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = LIHImageSlider.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		65D326AC21D8B32500C07396 /* Home_ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Home_ViewController.swift; sourceTree = "<group>"; };
 		65D326AE21D8BF5300C07396 /* Allopathic_ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Allopathic_ViewController.swift; sourceTree = "<group>"; };
@@ -193,14 +205,6 @@
 				9AD9CA672212E91200880C53 /* CoreLocation.framework in Frameworks */,
 				65D326AB21D8B2F300C07396 /* LIHImageSlider.framework in Frameworks */,
 				6581F5B021D53AF10064576A /* Alamofire.framework in Frameworks */,
-				6581F5B221D53AF10064576A /* Bolts.framework in Frameworks */,
-				6581F5B421D53AF10064576A /* FacebookCore.framework in Frameworks */,
-				6581F5B621D53AF10064576A /* FacebookLogin.framework in Frameworks */,
-				6581F5B821D53AF10064576A /* FBSDKCoreKit.framework in Frameworks */,
-				6581F5BA21D53AF10064576A /* FBSDKLoginKit.framework in Frameworks */,
-				6581F5BC21D53AF10064576A /* GoogleToolboxForMac.framework in Frameworks */,
-				6581F5BE21D53AF10064576A /* GTMOAuth2.framework in Frameworks */,
-				6581F5C021D53AF10064576A /* GTMSessionFetcher.framework in Frameworks */,
 				6581F5C221D53AF10064576A /* IQKeyboardManagerSwift.framework in Frameworks */,
 				6581F5C421D53AF10064576A /* MMDrawerController.framework in Frameworks */,
 				6581F5C621D53AF10064576A /* NVActivityIndicatorView.framework in Frameworks */,
@@ -235,6 +239,23 @@
 			path = "OTPhandling Clasess";
 			sourceTree = "<group>";
 		};
+		652E594F22AD3B9800D55B02 /* MyAccount */ = {
+			isa = PBXGroup;
+			children = (
+				653C727D22AB96BB004912A1 /* SubscriptionViewController.swift */,
+				653C727F22ABC99E004912A1 /* BankDetailsVC.swift */,
+				9A8C707F21E35E49006057E6 /* MyAccountViewController.swift */,
+				18421E0F22A7C9CF00932FE4 /* DashBoardVC.swift */,
+				18421E1122A7F62A00932FE4 /* AddProductsVC.swift */,
+				652E595022AD3BFD00D55B02 /* ShowAllProductsVC.swift */,
+				65B7211322B5454F00EF3656 /* OrderReceivedVC.swift */,
+				65B7211522B55E1B00EF3656 /* EnquiryViewController.swift */,
+				65B7211722B561AF00EF3656 /* OrderPlacedViewController.swift */,
+				65B7211922B562C000EF3656 /* ShowResponsesViewController.swift */,
+			);
+			path = MyAccount;
+			sourceTree = "<group>";
+		};
 		6581F58D21D5397B0064576A /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -263,6 +284,7 @@
 				58BB0F632217FE0A009337C6 /* MontserratAlternates-Regular.otf */,
 				58BB0F642217FEC4009337C6 /* Montserrat-Bold.ttf */,
 				58BB0F662217FED0009337C6 /* Montserrat-Regular.ttf */,
+				652E594D22AD296300D55B02 /* MJBadgeBarButton.swift */,
 				58EABDD72205A18A009C98C0 /* CustomActivityIndicatorView.swift */,
 				589E7D1121F7406D00272857 /* LBZSpinner.swift */,
 				6581F59521D53A0C0064576A /* Constants.swift */,
@@ -278,6 +300,7 @@
 			isa = PBXGroup;
 			children = (
 				65D326B021D8C3C000C07396 /* CellsClasses */,
+				652E594F22AD3B9800D55B02 /* MyAccount */,
 				9AB0A76B2217F4050078D611 /* FirstViewController.swift */,
 				6581F59B21D53A310064576A /* SideMenuController.swift */,
 				6581F5CD21D53C070064576A /* Login_ViewController.swift */,
@@ -285,7 +308,6 @@
 				58D66975221AD408009F3BA7 /* OTPViewController.swift */,
 				6581F5CF21D53C190064576A /* Register_ViewController.swift */,
 				9A8C708321E36CF1006057E6 /* Helpers.swift */,
-				9A8C707F21E35E49006057E6 /* MyAccountViewController.swift */,
 				9AFFA6D1221EC3140011E980 /* RegisterVC2.swift */,
 				9AAC5BF721D9E07000057448 /* PrivacyPolicyViewController.swift */,
 				9AC17DDA21DCD47100F1875B /* ChangePasswordViewController.swift */,
@@ -419,7 +441,6 @@
 				9A18A0F821D510B6001DD6C5 /* Frameworks */,
 				9A18A0F921D510B6001DD6C5 /* Resources */,
 				8EAE18408EA60AAA84D36D19 /* [CP] Embed Pods Frameworks */,
-				979F914C4AF63062FCDAD6AA /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -504,15 +525,7 @@
 			inputPaths = (
 				"${SRCROOT}/Pods/Target Support Files/Pods-MediDeals/Pods-MediDeals-frameworks.sh",
 				"${BUILT_PRODUCTS_DIR}/Alamofire/Alamofire.framework",
-				"${BUILT_PRODUCTS_DIR}/Bolts/Bolts.framework",
 				"${BUILT_PRODUCTS_DIR}/CRRefresh/CRRefresh.framework",
-				"${BUILT_PRODUCTS_DIR}/FBSDKCoreKit/FBSDKCoreKit.framework",
-				"${BUILT_PRODUCTS_DIR}/FBSDKLoginKit/FBSDKLoginKit.framework",
-				"${BUILT_PRODUCTS_DIR}/FacebookCore/FacebookCore.framework",
-				"${BUILT_PRODUCTS_DIR}/FacebookLogin/FacebookLogin.framework",
-				"${BUILT_PRODUCTS_DIR}/GTMOAuth2/GTMOAuth2.framework",
-				"${BUILT_PRODUCTS_DIR}/GTMSessionFetcher/GTMSessionFetcher.framework",
-				"${BUILT_PRODUCTS_DIR}/GoogleToolboxForMac/GoogleToolboxForMac.framework",
 				"${BUILT_PRODUCTS_DIR}/IQKeyboardManagerSwift/IQKeyboardManagerSwift.framework",
 				"${BUILT_PRODUCTS_DIR}/LIHImageSlider/LIHImageSlider.framework",
 				"${BUILT_PRODUCTS_DIR}/MMDrawerController/MMDrawerController.framework",
@@ -524,15 +537,7 @@
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Alamofire.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Bolts.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CRRefresh.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FBSDKCoreKit.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FBSDKLoginKit.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FacebookCore.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FacebookLogin.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/GTMOAuth2.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/GTMSessionFetcher.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/GoogleToolboxForMac.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/IQKeyboardManagerSwift.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/LIHImageSlider.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/MMDrawerController.framework",
@@ -544,24 +549,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-MediDeals/Pods-MediDeals-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		979F914C4AF63062FCDAD6AA /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${SRCROOT}/Pods/Target Support Files/Pods-MediDeals/Pods-MediDeals-resources.sh",
-				"${PODS_ROOT}/GoogleSignIn/Resources/GoogleSignIn.bundle",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleSignIn.bundle",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-MediDeals/Pods-MediDeals-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		D8E2053285BC0455838019B8 /* [CP] Check Pods Manifest.lock */ = {
@@ -592,6 +579,7 @@
 				6581F5A121D53A4C0064576A /* WebServicesManager.swift in Sources */,
 				9A18A0FF21D510B6001DD6C5 /* AppDelegate.swift in Sources */,
 				6581F59621D53A0C0064576A /* Extension.swift in Sources */,
+				653C727E22AB96BB004912A1 /* SubscriptionViewController.swift in Sources */,
 				58EABDD82205A18B009C98C0 /* CustomActivityIndicatorView.swift in Sources */,
 				58D66974221AC531009F3BA7 /* Login2ViewController.swift in Sources */,
 				58D6697B221ADE0C009F3BA7 /* VPMOTPTextField.swift in Sources */,
@@ -614,11 +602,16 @@
 				9A2DE06D21E8BC05000BD53B /* FilterViewController.swift in Sources */,
 				9AC17DDB21DCD47100F1875B /* ChangePasswordViewController.swift in Sources */,
 				65D326AF21D8BF5300C07396 /* Allopathic_ViewController.swift in Sources */,
+				65B7211A22B562C000EF3656 /* ShowResponsesViewController.swift in Sources */,
 				6581F5A521D53A5B0064576A /* GetPostsResponse.swift in Sources */,
+				18421E1022A7C9CF00932FE4 /* DashBoardVC.swift in Sources */,
 				9A8C708221E35E82006057E6 /* AccountCollectionViewCell.swift in Sources */,
+				18421E1222A7F62A00932FE4 /* AddProductsVC.swift in Sources */,
 				9A2A215E21DCA4A200C1724B /* HomeMenuCollectionViewCell2.swift in Sources */,
+				65B7211822B561AF00EF3656 /* OrderPlacedViewController.swift in Sources */,
 				6581F59721D53A0C0064576A /* DesignableClass.swift in Sources */,
 				6581F59C21D53A310064576A /* SideMenuController.swift in Sources */,
+				652E595122AD3BFD00D55B02 /* ShowAllProductsVC.swift in Sources */,
 				587FBF232220069900E68674 /* AccTypeCollectionViewCell.swift in Sources */,
 				9AC17DED21DCE1E100F1875B /* Cart_TableViewCell.swift in Sources */,
 				58D66976221AD408009F3BA7 /* OTPViewController.swift in Sources */,
@@ -627,18 +620,22 @@
 				6581F5D021D53C190064576A /* Register_ViewController.swift in Sources */,
 				9A98DE2322031AC4003CA522 /* MenuViewController.swift in Sources */,
 				9AC17DEB21DCDC7C00F1875B /* Cart_ViewController.swift in Sources */,
+				65B7211622B55E1B00EF3656 /* EnquiryViewController.swift in Sources */,
 				6581F5AE21D53A8E0064576A /* Reachability.m in Sources */,
 				6581F59921D53A0C0064576A /* GlobalVariables.swift in Sources */,
 				65A3C32821D8F54F004C6796 /* ProfileViewController.swift in Sources */,
 				58D6697A221ADE0C009F3BA7 /* VPMOTPView.swift in Sources */,
 				9A2A215921DCA0EC00C1724B /* HomeMenuTableViewCell1.swift in Sources */,
 				9AAC5BF821D9E07000057448 /* PrivacyPolicyViewController.swift in Sources */,
+				653C728022ABC99E004912A1 /* BankDetailsVC.swift in Sources */,
 				6581F5AD21D53A8E0064576A /* PMDReachabilityWrapper.m in Sources */,
+				652E594E22AD296300D55B02 /* MJBadgeBarButton.swift in Sources */,
 				9A7EA34E2209AF2D00DBA875 /* CheckOutViewController.swift in Sources */,
 				9AFFA6D2221EC3140011E980 /* RegisterVC2.swift in Sources */,
 				9AAC5BFC21D9F81800057448 /* ProductDetailViewController.swift in Sources */,
 				6581F59A21D53A0C0064576A /* Constants.swift in Sources */,
 				9AAC5BFA21D9F00C00057448 /* SettingsViewController.swift in Sources */,
+				65B7211422B5454F00EF3656 /* OrderReceivedVC.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

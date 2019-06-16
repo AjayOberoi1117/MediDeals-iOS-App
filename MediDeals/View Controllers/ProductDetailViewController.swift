@@ -11,6 +11,7 @@ import UIKit
 @available(iOS 11.0, *)
 class ProductDetailViewController: UIViewController {
 
+    @IBOutlet weak var continueShoppingBtn: DesignableButton!
     @IBOutlet weak var addtoCart: DesignableButton!
     @IBOutlet weak var proImage: UIImageView!
     @IBOutlet weak var lblTitleName: UILabel!
@@ -24,32 +25,81 @@ class ProductDetailViewController: UIViewController {
     var min_quantity = ""
     var productId = ""
     var product_status = ""
+    var isComeFrom = ""
+    var btnBarBadge : MJBadgeBarButton!
     override func viewDidLoad() {
         super.viewDidLoad()
         Utilities.HideRightSideMenu()
-        
+        self.addtoCart.isHidden = true
+        self.continueShoppingBtn.isHidden = true
         // Do any additional setup after loading the view.
     }
     override func viewWillAppear(_ animated: Bool) {
         if selectedProductID != ""{
+            cartbtn()
+            self.getCartApi()
             getProductdetailApi()
         }else{
             
         }
     }
+    func cartbtn(){
+        let customButton = UIButton(type: UIButton.ButtonType.custom)
+        customButton.frame = CGRect(x: 0, y: 0, width: 35.0, height: 35.0)
+        customButton.addTarget(self, action: #selector(self.onBagdeButtonClick), for: .touchUpInside)
+        customButton.setImage(UIImage(named: "shopping-cart"), for: .normal)
+        
+        self.btnBarBadge = MJBadgeBarButton()
+        self.btnBarBadge.setup(customButton: customButton)
+        self.btnBarBadge.badgeValue = "0"
+        self.btnBarBadge.badgeOriginX = 20.0
+        self.btnBarBadge.badgeOriginY = -4
+        
+        self.navigationItem.rightBarButtonItem = self.btnBarBadge
+        
+    }
     
+    @objc func onBagdeButtonClick() {
+        print("button Clicked \(self.btnBarBadge.badgeValue)")
+        let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    @IBAction func contiShoppingAct(_ sender: DesignableButton) {
+        if isComeFrom == "home"{
+            self.navigationController?.popViewController(animated: true)
+        }else{
+            performPushSeguefromController(identifier: "Home_ViewController")
+        }
+    }
     @IBAction func addToCart(_ sender: DesignableButton) {
+       
         if self.product_status == "already_added"{
             let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
             vc.minQuantitiy =  [self.min_quantity]
             self.navigationController?.pushViewController(vc, animated: true)
         }else{
-             self.addtoCartApi()
+            self.addtoCartApi()
         }
-       
     }
     
-
+    func getCartApi(){
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
+        ]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.get_cart.caseValue,parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                
+            } else {
+                self.stopAnim()
+                let a = dic.value(forKey: "total_items") as! NSNumber
+                self.btnBarBadge.badgeValue = "\(Int(truncating: a))"
+            }
+        }
+    }
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
@@ -83,12 +133,14 @@ class ProductDetailViewController: UIViewController {
                     self.productId = data.value(forKey: "product_id") as! String
                     
                     self.product_status = data.value(forKey: "product_status") as! String
+                    self.addtoCart.isHidden = false
+                    self.continueShoppingBtn.isHidden = false
                     if self.product_status == "already_added"{
                         self.addtoCart.backgroundColor = BUTTONSELECTION_COLOR
-                        self.addtoCart.setTitle("Go to Cart", for: .normal)
+                        self.addtoCart.setTitle("GO TO CART", for: .normal)
                     }else{
                         self.addtoCart.backgroundColor = BUTTON_COLOR
-                        self.addtoCart.setTitle("Add to Cart", for: .normal)
+                        self.addtoCart.setTitle("ADD TO CART", for: .normal)
                     }
                 }
             }
@@ -116,15 +168,8 @@ class ProductDetailViewController: UIViewController {
                 Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
             } else {
                 self.stopAnim()
-                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "Continue", style: UIAlertActionStyle.default, handler: { action in
-                    self.dismiss(animated: true, completion: nil)
-                let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
-                    vc.minQuantitiy =  [self.min_quantity]
-                    self.navigationController?.pushViewController(vc, animated: true)
-                }))
-                self.present(alert, animated: true, completion: nil)
-                
+                self.getCartApi()
+                self.getProductdetailApi()
             }
         }
     }

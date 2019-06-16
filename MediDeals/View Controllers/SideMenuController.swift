@@ -147,7 +147,7 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
         {
             let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
             centerViewController.titleName = "PCD/3rd Party"
-            centerViewController.catID = "3"
+            centerViewController.catID = "4"
             let centnav = UINavigationController(rootViewController:centerViewController)
             let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
             appDelegate.centerContainer.centerViewController = centnav
@@ -158,7 +158,7 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
         {
             let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
             centerViewController.titleName = "Surgical Goods"
-            centerViewController.catID = "3"
+            centerViewController.catID = "5"
             let centnav = UINavigationController(rootViewController:centerViewController)
             let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
             appDelegate.centerContainer.centerViewController = centnav
@@ -169,7 +169,7 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
         {
             let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
             centerViewController.titleName = "Generics"
-            centerViewController.catID = "3"
+            centerViewController.catID = "6"
             let centnav = UINavigationController(rootViewController:centerViewController)
             let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
             appDelegate.centerContainer.centerViewController = centnav
@@ -192,7 +192,7 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
             appDelegate.centerContainer.centerViewController = centnav
             appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
         }
-        else if indexPath.row == 10{
+        else if indexPath.row == 12{
             let refreshAlert = UIAlertController(title: "Alert", message: "Are you sure you want to logout?", preferredStyle: UIAlertControllerStyle.alert)
 
             refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
@@ -235,6 +235,14 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
                 Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
             } else {
                 self.stopAnim()
+                SingletonVariables.sharedInstace.loginStatus = ""
+                SingletonVariables.sharedInstace.userProfileData = NSDictionary()
+                SingletonVariables.sharedInstace.userId = ""
+                SingletonVariables.sharedInstace.loginStatus = ""
+                SingletonVariables.sharedInstace.accountType = ""
+                SingletonVariables.sharedInstace.AccountCategory = ""
+                SingletonVariables.sharedInstace.cat_id = ""
+                SingletonVariables.sharedInstace.checkShippingAddress = ""
                 UserDefaults.standard.removeObject(forKey: "PROFILEIMAGE")
                 UserDefaults.standard.removeObject(forKey: "PROFILE_EMAIL")
                 UserDefaults.standard.removeObject(forKey: "PROFILE_NAME")

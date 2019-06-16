@@ -50,7 +50,7 @@ class ProfileViewController: UIViewController {
         self.submitBtn.isHidden = true
         
         editAction = ""
-        //getProfileAPI()
+        getProfileAPI()
     }
     
     @IBAction func leftMenu(_ sender: UIBarButtonItem) {

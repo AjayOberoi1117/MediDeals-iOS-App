@@ -9,7 +9,7 @@
 import UIKit
 
 @available(iOS 11.0, *)
-class FirstViewController: UIViewController,UIScrollViewDelegate , UIPageViewControllerDelegate {
+class FirstViewController: UIViewController,UIScrollViewDelegate, UIPageViewControllerDelegate {
     @IBOutlet var pageController: UIPageControl!
     @IBOutlet var sliderCollectionView: UICollectionView!
     @IBOutlet var shadowView: DesignableView!
@@ -19,6 +19,7 @@ class FirstViewController: UIViewController,UIScrollViewDelegate , UIPageViewCon
     var timer = Timer()
     var headingArr = [String]()
     var descriptionArr = [String]()
+    var visibleIndexPath: IndexPath? = nil
    override func viewDidLoad() {
         super.viewDidLoad()
     // Register to receive notification
@@ -183,6 +184,29 @@ extension FirstViewController : UICollectionViewDelegate , UICollectionViewDataS
      func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         
         return collectionView.frame.size
+    }
+    
+    func collectionView(_ collectionView: UICollectionView,
+                        willDisplay cell: UICollectionViewCell,
+                        forItemAt indexPath: IndexPath) {
+        
+//        cell.alpha = 0
+//        UIView.animate(withDuration: 0.8) {
+//            cell.alpha = 1
+//        }
+        
+    
+                
+                cell.contentView.alpha = 0.3
+                
+                cell.layer.transform = CATransform3DMakeScale(0.5, 0.5, 0.5)
+                
+                // Simple Animation
+                UIView.animate(withDuration: 0.5) {
+                    cell.contentView.alpha = 1
+                    cell.layer.transform = CATransform3DScale(CATransform3DIdentity, 1, 1, 1)
+                }
+        
     }
     
 }

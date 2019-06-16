@@ -7,12 +7,9 @@
 //
 
 import UIKit
-import FBSDKCoreKit
-import FBSDKLoginKit
-import GoogleSignIn
 
 @available(iOS 11.0, *)
-class Login_ViewController: UIViewController,GIDSignInUIDelegate {
+class Login_ViewController: UIViewController {
     @IBOutlet weak var txtEmail: UITextField!
     @IBOutlet var hiddenView: UIView!
     @IBOutlet weak var logo: UIImageView!
@@ -112,80 +109,7 @@ class Login_ViewController: UIViewController,GIDSignInUIDelegate {
         hiddenView.isHidden = false
         forgotPwdView.isHidden = false
     }
-    @IBAction func facebook_Clicked(_ sender: Any)
-    {
-        //Start @[@"public_profile", @"email", @"user_friends"]
-        let fbLoginManager : FBSDKLoginManager = FBSDKLoginManager()
-        fbLoginManager.logIn(withReadPermissions: ["email","public_profile"], from: self) { (result, error) -> Void in
-            if (error == nil){
-                let fbloginresult : FBSDKLoginManagerLoginResult = result!
-                if (result?.isCancelled)!{
-                    return
-                }
-                if(fbloginresult.grantedPermissions.contains("email"))
-                {
-                    self.getFBUserData()
-                }
-            }
-            else
-            {
-                print(error as Any)
-            }
-        }
-      //End
-    }
-    func getFBUserData()
-    {
-        if((FBSDKAccessToken.current()) != nil){
-            FBSDKGraphRequest(graphPath: "me", parameters: ["fields": "id, name, first_name, last_name,gender, picture.type(large), email,age_range,birthday"]).start(completionHandler: { (connection, result, error) -> Void in
-                if (error == nil){
-                    //everything works print the user data
-                    //                    name,email,gender,fb_id,image(optional),phone
-                    self.dictFb = (result as! NSDictionary)
-                    print(self.dictFb)
-                    self.logintype = "F"
-                    self.fb_id = self.dictFb.value(forKey: "id") as! String
-                    self.fb_email = self.dictFb.value(forKey: "email") as! String
-                    self.fb_firstname = self.dictFb.value(forKey: "first_name") as! String
-                    self.fb_lastname = self.dictFb.value(forKey: "last_name") as! String
-                    self.fb_userimage = self.dictFb.value(forKeyPath: "picture.data.url") as! String
-//                    self.sociallogin()
-                }
-            })
-        }
-        else{
-            DispatchQueue.main.asyncAfter(deadline: DispatchTime.now()) {
-                // self.stopAnimating()
-                Utilities.ShowAlertView(title: "Message", message: "Not successfully Login ", viewController: self)
-            }
-            
-        }
-    }
-    @IBAction func google_Clicked(_ sender: Any)
-    {
-        
-        //        Utilities.ShowAlertView(title: "Alert", message: "Functionality is Pending", viewController: self)
-        GIDSignIn.sharedInstance().uiDelegate = self
-        GIDSignIn.sharedInstance().signIn()
-        
-    }
-//    //MARK:SOCIAL_LOGIN_FB_API
-//    func sociallogin() {
-//        self.showProgress()
-//        let params = ["id": fb_id,
-//                      "login_type": logintype,
-//                      "email": fb_email,
-//                      "first_name": fb_firstname,
-//                      "last_name": fb_lastname,
-//                      "gender": fb_gender,
-//                      "user_image": fb_userimage ]
-//
-//        WebService.webService.social_loginApi(params: params as NSDictionary){ _ in
-//            self.hideProgress()
-//            self.sague()
-//
-//        }
-//    }
+    
     @IBAction func sendBtn(_ sender: UIButton) {
     }
     func sague(){

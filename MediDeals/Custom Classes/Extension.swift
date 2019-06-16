@@ -21,16 +21,12 @@ extension UIViewController: NVActivityIndicatorViewable
         let size = CGSize(width: 50, height:50)
         self.startAnimating(size, message:"Loading", messageFont: UIFont.systemFont(ofSize: 18.0), type: NVActivityIndicatorType.ballScaleRippleMultiple, color: UIColor.white, padding: 1, displayTimeThreshold: nil, minimumDisplayTime: nil)
     }
-
-    
-    // hide progress hud
+// hide progress hud
     func hideProgress() {
         // stop loader
         DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1.0) {
             self.stopAnimating() }
     }
-    
-
     func alert(title:String?,message:String?)
     {
         let alertView = UIAlertController(title: title, message: message, preferredStyle: .alert)
@@ -38,7 +34,11 @@ extension UIViewController: NVActivityIndicatorViewable
         present(alertView, animated: true, completion: nil)
     }
     
-   
+    //MARK: Push Segue ...
+    func performPushSeguefromController(identifier:String){
+        let vc = storyboard?.instantiateViewController(withIdentifier: identifier)
+        self.navigationController?.pushViewController(vc!, animated: true)
+    }
     
     
     

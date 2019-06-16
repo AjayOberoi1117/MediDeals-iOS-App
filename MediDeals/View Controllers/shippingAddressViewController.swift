@@ -63,6 +63,7 @@ class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLoca
         txtHouseNO.delegate = self
         txtPostalCode.delegate = self
         txtBusinessName.delegate = self
+        txtBusinessName.becomeFirstResponder()
         street.delegate = self
         stateSpinner.delegate = self
         citySpinner.delegate = self
@@ -78,7 +79,16 @@ class shippingAddressViewController: UIViewController ,LBZSpinnerDelegate,CLLoca
             print("NOTHING VALUE")
             citySpinner.text = "Select City"
         }
+        
+        print(SingletonVariables.sharedInstace.userProfileData)
+        txtPhn.text = "+91- " + (SingletonVariables.sharedInstace.userProfileData.value(forKey: "contact_no") as! String)
+        txtEmail.text = (SingletonVariables.sharedInstace.userProfileData.value(forKey: "email") as! String)
+        
+        txtBusinessName.text = (SingletonVariables.sharedInstace.userProfileData.value(forKey: "firm_name") as! String)
+        
          getStatesAPI()
+        
+        
 
         // Do any additional setup after loading the view.
     }

@@ -6,38 +6,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "MediDeals/View Controllers/Home_ViewController.swift"
-            timestampString = "580578095.189119"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "515"
-            endingLineNumber = "515"
-            landmarkName = "collectionView(_:willDisplay:forItemAt:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "MediDeals/View Controllers/Home_ViewController.swift"
-            timestampString = "580578095.189195"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "394"
-            endingLineNumber = "394"
-            landmarkName = "collectionView(_:numberOfItemsInSection:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
@@ -73,8 +41,8 @@
                   symbolName = "MediDeals.FilterViewController.FilterProduct_API() -&gt; ()"
                   moduleName = "MediDeals"
                   usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/Untitled%201/MediDealsApp/MediDeals-iOS-App-master/MediDeals/View%20Controllers/FilterViewController.swift"
-                  timestampString = "580755599.72969"
+                  urlString = "file:///Volumes/Untitled%201/MediDealsApp/MediDeals-iOS-latest%20june9/MediDeals/View%20Controllers/FilterViewController.swift"
+                  timestampString = "582311476.860149"
                   startingColumnNumber = "9223372036854775807"
                   endingColumnNumber = "9223372036854775807"
                   startingLineNumber = "353"
@@ -88,8 +56,8 @@
                   symbolName = "closure #1 (Any) -&gt; () in MediDeals.FilterViewController.FilterProduct_API() -&gt; ()"
                   moduleName = "MediDeals"
                   usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/Untitled%201/MediDealsApp/MediDeals-iOS-App-master/MediDeals/View%20Controllers/FilterViewController.swift"
-                  timestampString = "580755599.733073"
+                  urlString = "file:///Volumes/Untitled%201/MediDealsApp/MediDeals-iOS-latest%20june9/MediDeals/View%20Controllers/FilterViewController.swift"
+                  timestampString = "582311476.863444"
                   startingColumnNumber = "9223372036854775807"
                   endingColumnNumber = "9223372036854775807"
                   startingLineNumber = "354"
@@ -105,24 +73,8 @@
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "MediDeals/View Controllers/MenuViewController.swift"
-            timestampString = "580585537.614543"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "180"
-            endingLineNumber = "180"
-            landmarkName = "MenuClick1()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/CheckOutViewController.swift"
-            timestampString = "580755831.185567"
+            timestampString = "581094787.602245"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "70"
@@ -138,11 +90,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/shippingAddressViewController.swift"
-            timestampString = "580578095.189487"
+            timestampString = "581101727.627502"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "228"
-            endingLineNumber = "228"
+            startingLineNumber = "238"
+            endingLineNumber = "238"
             landmarkName = "textField(_:shouldChangeCharactersIn:replacementString:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -154,12 +106,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/Cart_ViewController.swift"
-            timestampString = "580751836.135234"
+            timestampString = "582304379.552277"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "255"
             endingLineNumber = "255"
-            landmarkName = "editCartApi(prodID:)"
+            landmarkName = "getCartApi()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -170,12 +122,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/Cart_ViewController.swift"
-            timestampString = "580751836.136229"
+            timestampString = "582304379.552384"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "154"
             endingLineNumber = "154"
-            landmarkName = "textFieldDidEndEditing(_:)"
+            landmarkName = "btnMinus(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -186,7 +138,23 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/CheckOutViewController.swift"
-            timestampString = "580755831.185799"
+            timestampString = "581094787.602555"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "66"
+            endingLineNumber = "66"
+            landmarkName = "bottomBtn(_:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MediDeals/View Controllers/CheckOutViewController.swift"
+            timestampString = "581094787.602604"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "49"
@@ -201,46 +169,14 @@
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "MediDeals/View Controllers/SideMenuController.swift"
-            timestampString = "580755831.185886"
+            filePath = "MediDeals/View Controllers/Home_ViewController.swift"
+            timestampString = "582304141.54342"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "228"
-            endingLineNumber = "228"
-            landmarkName = "logoutApi()"
+            startingLineNumber = "521"
+            endingLineNumber = "521"
+            landmarkName = "BuyNowBtn(_:)"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "MediDeals.SideMenuController.logoutApi() -&gt; ()"
-                  moduleName = "MediDeals"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/Untitled%201/MediDealsApp/MediDeals-iOS-App-master/MediDeals/View%20Controllers/SideMenuController.swift"
-                  timestampString = "580755766.577672"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "228"
-                  endingLineNumber = "228"
-                  offsetFromSymbolStart = "856">
-               </Location>
-               <Location
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (Any) -&gt; () in MediDeals.SideMenuController.logoutApi() -&gt; ()"
-                  moduleName = "MediDeals"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/Untitled%201/MediDealsApp/MediDeals-iOS-App-master/MediDeals/View%20Controllers/SideMenuController.swift"
-                  timestampString = "580755766.5823129"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "229"
-                  endingLineNumber = "229"
-                  offsetFromSymbolStart = "128">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

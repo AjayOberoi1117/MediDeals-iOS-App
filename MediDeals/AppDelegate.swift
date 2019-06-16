@@ -11,17 +11,12 @@ import UIKit
 import IQKeyboardManagerSwift
 import MMDrawerController
 import NVActivityIndicatorView
-import FBSDKLoginKit
-import FBSDKCoreKit
-import FacebookLogin
-import GoogleSignIn
 import UserNotifications
 @available(iOS 11.0, *)
 @UIApplicationMain
-class AppDelegate: UIResponder,GIDSignInDelegate, UIApplicationDelegate,NVActivityIndicatorViewable,UNUserNotificationCenterDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate,NVActivityIndicatorViewable,UNUserNotificationCenterDelegate {
     var window: UIWindow?
     var centerContainer =  MMDrawerController()
-    var gmailuserdictionary = [String : Any]()
     var firstName : String!
     var lastName : String!
     
@@ -53,11 +48,7 @@ class AppDelegate: UIResponder,GIDSignInDelegate, UIApplicationDelegate,NVActivi
         UINavigationBar.appearance().barTintColor = THEME_COLOR
         UINavigationBar.appearance().tintColor = UIColor.white
         UINavigationBar.appearance().titleTextAttributes = [NSAttributedStringKey.foregroundColor:UIColor.white]
-        //MARK: use for facebook integration
-        FBSDKApplicationDelegate.sharedInstance().application(application, didFinishLaunchingWithOptions: launchOptions)
-        //MARK: Initialize google sign-in
-        GIDSignIn.sharedInstance().clientID = "89202861452-d7ch3vvfvbfpaagpr5orr41bm6orlt9a.apps.googleusercontent.com"
-        GIDSignIn.sharedInstance().delegate = self
+    
         sleep(2)
         return true
     }
@@ -133,7 +124,7 @@ class AppDelegate: UIResponder,GIDSignInDelegate, UIApplicationDelegate,NVActivi
     }
     //MARK: Delegate used for failure case
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        UserDefaults.standard.set("6DF94241852968AD49898532F789D4257B30989850342818B60EE2", forKey: "DEVICETOKEN");
+        UserDefaults.standard.set("6DF94241852968AD49898532F789D425730989850342818B60EE212", forKey: "DEVICETOKEN");
         UserDefaults.standard.synchronize();
         
         // Define identifier
@@ -175,88 +166,7 @@ class AppDelegate: UIResponder,GIDSignInDelegate, UIApplicationDelegate,NVActivi
     
     
     
-    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {
-        let handled: Bool = FBSDKApplicationDelegate.sharedInstance().application(application, open: url, sourceApplication: sourceApplication, annotation: annotation)
-        // Add any custom logic here.
-        return handled
-    }
-    // Swift
-    func application(_ app: UIApplication, open url: URL, options: [UIApplicationOpenURLOptionsKey : Any] = [:]) -> Bool {
-        
-        if(url.scheme!.isEqual("fb1973729969587292"))
-        {
-            return FBSDKApplicationDelegate.sharedInstance().application(app, open: url, sourceApplication: options[UIApplicationOpenURLOptionsKey.sourceApplication] as! String!, annotation: options[UIApplicationOpenURLOptionsKey.annotation])
-        }
-        else if(url.scheme!.isEqual("com.googleusercontent.apps.89202861452-d7ch3vvfvbfpaagpr5orr41bm6orlt9a"))
-        {
-            return GIDSignIn.sharedInstance().handle(url as URL!,
-                                                     sourceApplication: options[UIApplicationOpenURLOptionsKey.sourceApplication] as! String!,
-                                                     annotation: options[UIApplicationOpenURLOptionsKey.annotation])
-        }
-        else{
-            return true
-        }
-    }
-    func application(application: UIApplication,
-                     openURL url: NSURL, sourceApplication: String?, annotation: AnyObject?) -> Bool {
-        let options: [String: AnyObject] = [UIApplicationOpenURLOptionsKey.sourceApplication.rawValue: sourceApplication as AnyObject,
-                                            UIApplicationOpenURLOptionsKey.annotation.rawValue: annotation!]
-        print(options)
-        return GIDSignIn.sharedInstance().handle(url as URL!,
-                                                 sourceApplication: sourceApplication,
-                                                 annotation: annotation)
-    }
     
-    func sign(_ signIn: GIDSignIn!, didDisconnectWith user: GIDGoogleUser!, withError error: Error!)
-    {
-        
-    }
-    func sign(_ signIn: GIDSignIn!, didSignInFor user: GIDGoogleUser!, withError error: Error!) {
-        if (error == nil){
-            // Perform any operations on signed in user here.
-            let userId: String = user.userID                  // For client-side use only!
-            let idToken: String = user.authentication.idToken // Safe to send to the server
-            let fullName: String = user.profile.name
-            let givenName: String = user.profile.givenName
-            let email: String = user.profile.email
-            let picURL = user.profile.imageURL(withDimension: 120)
-            gmailuserdictionary  = ["id" : userId, "Tokenid": idToken, "username" : fullName, "name" : givenName, "useremail" : email, "image" : picURL as Any]
-            print(userId ,idToken ,fullName ,givenName ,email ,picURL as Any )
-//            SingletonClass.sharedInstance.gmailuser_login = gmailuserdictionary as NSDictionary
-            // ...
-            let fullName1 : String = fullName
-            let fullNameArr : [String] = fullName1.components(separatedBy: " ")
-            // And then to ac cess the individual words:
-            firstName = fullNameArr[0]
-            lastName  = fullNameArr[1]
-            print(firstName,lastName)
-//            self.socialgmaillogin()
-        }else
-        {
-            print("\(error.localizedDescription)")
-        }
-    }
-    
-    
-//    func socialgmaillogin() {
-//
-//        let params = ["id": SingletonClass.sharedInstance.gmailuser_login.value(forKey: "id"),
-//                      "login_type": "G",
-//                      "email": SingletonClass.sharedInstance.gmailuser_login.value(forKey: "useremail"),
-//                      "first_name": firstName,
-//                      "last_name": lastName,
-//                      "user_image": SingletonClass.sharedInstance.gmailuser_login.value(forKey: "image")]
-//
-//        WebService.webService.social_loginApi(params: params as NSDictionary){ _ in
-//
-//            // Define identifier
-//            let notificationName = Notification.Name("GMAIL_NOTI")
-//            // Post notification
-//
-//            NotificationCenter.default.post(name: notificationName, object: nil)
-//            //           NotificationCenter.default.post(name: Notification.Name("GMAIL_NOTI"), object: nil)
-//        }
-//    }
 
 }
 

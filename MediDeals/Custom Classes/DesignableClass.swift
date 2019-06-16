@@ -46,6 +46,18 @@ import UIKit
     }
 }
 
+//MARK:===============DesignableView=====================
+@IBDesignable class DesignableTextView: UITextView{
+    @IBInspectable var CornerRadius: CGFloat = 0.0{
+        didSet{self.layer.cornerRadius = CornerRadius}
+    }
+    @IBInspectable var BorderWidth :CGFloat = 0.0 {
+        didSet{self.layer.borderWidth = BorderWidth}
+    }
+    @IBInspectable var BorderColor :UIColor = .clear {
+        didSet{ self.layer.borderColor = BorderColor.cgColor}
+    }
+}
 //MARK:===============DesignableCell=====================
 
 @IBDesignable class DesignableImage: UIImageView{

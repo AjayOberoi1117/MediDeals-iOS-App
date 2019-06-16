@@ -9,29 +9,13 @@
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "MediDeals/View Controllers/Home_ViewController.swift"
-            timestampString = "580731292.436975"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "505"
-            endingLineNumber = "505"
-            landmarkName = "collectionView(_:didSelectItemAt:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/Cart_ViewController.swift"
             timestampString = "580730769.093323"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "109"
             endingLineNumber = "109"
-            landmarkName = "btnPlus(_:)"
+            landmarkName = "loginBtn(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -42,12 +26,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "MediDeals/View Controllers/Home_ViewController.swift"
-            timestampString = "580731292.4460911"
+            timestampString = "581520014.248842"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "454"
-            endingLineNumber = "454"
-            landmarkName = "collectionView(_:cellForItemAt:)"
+            startingLineNumber = "465"
+            endingLineNumber = "465"
+            landmarkName = "BuyNowBtn(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

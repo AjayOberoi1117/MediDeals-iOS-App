@@ -20,32 +20,19 @@
 	<array>
 		<dict>
 			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>fb1973729969587292</string>
-			</array>
+			<array/>
 		</dict>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.89202861452-d7ch3vvfvbfpaagpr5orr41bm6orlt9a</string>
-			</array>
+			<array/>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>FacebookAppID</key>
-	<string>1973729969587292</string>
-	<key>FacebookDisplayName</key>
-	<string>Medideals</string>
 	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>fbapi</string>
-		<string>fb-messenger-share-api</string>
-		<string>fbauth2</string>
-		<string>fbshareextension</string>
-	</array>
+	<array/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -56,7 +43,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Allows user to take photos within this app. (e.g To update profile pic , post image etc)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>App requires to use location where user have to fetch the current country name to fill the details of shipping address before payment.</string>
+	<string>App requires to use location where user have to fetch the user current location to show hot deals, most discounted and Latest products in main screen.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>App requires to use photo library to upload documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

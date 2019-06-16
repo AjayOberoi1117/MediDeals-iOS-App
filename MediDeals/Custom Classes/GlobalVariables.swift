@@ -16,6 +16,7 @@ class SingletonVariables: NSObject {
         let singletonObject = SingletonVariables()
         return singletonObject
     }()
+    var userProfileData = NSDictionary()
     var userId = ""
     var loginStatus = ""
     var accountType = ""

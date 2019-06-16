@@ -26,6 +26,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
     var minQuantitiy = [String]()
     var newminQuantitiy = [String]()
     var productIdsArray = [String]()
+    var newSignlePriceArray = [String]()
     var grandToTal = Float()
     var playTime = Timer()
     var strLabel = UILabel()
@@ -111,13 +112,20 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
         countValue = (countValue + 1)
         print (countValue)
         self.newminQuantitiy[sender.tag] = "\(countValue)"
-        let singlePrice:Float = Float(self.getCartData[sender.tag].price)!
-        self.grandToTal = grandToTal + singlePrice
-        print(self.grandToTal)
-        let a = Double(self.grandToTal)
-        let b = String(format: "%.2f", a)
-        self.totalPrice.text = "Total: Rs." +  "\(b)"
-        self.SubTotal.text = "SubTotal: Rs." + "\(b)"
+        let singlePrice:Float = Float(self.getCartData[sender.tag].price)! / Float(Int(minQuantitiy[sender.tag])!)
+        let singlePriceTotal:Float = singlePrice * Float(countValue)
+        let aa = String(format: "%.2f", singlePriceTotal)
+        self.newSignlePriceArray[sender.tag] = "\(aa)"
+        print(self.newSignlePriceArray)
+        
+        var total = Float()
+        for item in 0..<self.newSignlePriceArray.count{
+            let a = Float(self.newSignlePriceArray[item])
+            total = total + a!
+        }
+        print(total)
+        self.totalPrice.text = "Total: Rs." +  "\(total)"
+        self.SubTotal.text = "SubTotal: Rs." + "\(total)"
         cartTableView.reloadData()
      
                
@@ -134,48 +142,59 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
             cell.lblValue.text = "\(countValue)"
             self.newminQuantitiy[sender.tag] = "\(countValue)"
             print(countValue)
-            let singlePrice:Float = Float(self.getCartData[sender.tag].price)!
-            self.grandToTal = grandToTal - singlePrice
-            print(self.grandToTal)
-            let a = Double(self.grandToTal)
-            let b = String(format: "%.2f", a)
-            self.totalPrice.text = "Total: Rs." +  "\(b)"
-            self.SubTotal.text = "SubTotal: Rs." + "\(b)"
+            let singlePrice:Float = Float(self.getCartData[sender.tag].price)! / Float(Int(minQuantitiy[sender.tag])!)
+            let singlePriceTotal:Float = singlePrice * Float(countValue)
+            let aa = String(format: "%.2f", singlePriceTotal)
+            self.newSignlePriceArray[sender.tag] = "\(aa)"
+            print(self.newSignlePriceArray)
+            
+            var total = Float()
+            for item in 0..<self.newSignlePriceArray.count{
+                let a = Float(self.newSignlePriceArray[item])
+                total = total + a!
+            }
+            print(total)
+            self.totalPrice.text = "Total: Rs." +  "\(total)"
+            self.SubTotal.text = "SubTotal: Rs." + "\(total)"
         }
-
+        
         cartTableView.reloadData()
-        //let id = self.getCartData[sender.tag].product_id
-        //self.editCartApi(prodID: id, quantity: "\(countValue)")
  }
     func textFieldDidBeginEditing(_ textField: UITextField) {
      
         
     }
     func textFieldDidEndEditing(_ textField: UITextField) {
-    print(textField.tag)
-    let productMinQ:Int = Int(self.minQuantitiy[textField.tag])!
-    if textField.text != ""  {
-        if Int(textField.text!)! < productMinQ {
-            Utilities.ShowAlertView2(title: "Alert", message: "Order quantity must me greater than minimum order quantity ", viewController: self)
-        }else{
-            print(textField.tag)
-            let value = textField.text
-             self.newminQuantitiy[textField.tag] = "\(value ?? "")"
-            let singlePrice:Float = Float(self.getCartData[textField.tag].price)!
-            let productQuantity:Float = Float(self.newminQuantitiy[textField.tag])!
-            self.grandToTal = 0.0
-            let newTotal:Float = singlePrice * productQuantity
-            self.grandToTal = grandToTal + newTotal
-            print(self.grandToTal)
-            let a = Double(self.grandToTal)
-            let b = String(format: "%.2f", a)
-            self.totalPrice.text = "Total: Rs." +  "\(b)"
-            self.SubTotal.text = "SubTotal: Rs." + "\(b)"
+        print(textField.tag)
+        let productMinQ:Int = Int(self.minQuantitiy[textField.tag])!
+        if textField.text != ""  {
+            if Int(textField.text!)! < productMinQ {
+                Utilities.ShowAlertView2(title: "Alert", message: "Order quantity must me greater than minimum order quantity ", viewController: self)
+            }else{
+                print(textField.tag)
+                let value = textField.text
+                self.newminQuantitiy[textField.tag] = "\(value ?? "")"
+                let singlePrice:Float = Float(self.getCartData[textField.tag].price)! / Float(Int(minQuantitiy[textField.tag])!)
+                let productQuantity:Float = Float(self.newminQuantitiy[textField.tag])!
+                let singlePriceTotal:Float = singlePrice * Float(productQuantity)
+                let aa = String(format: "%.2f", singlePriceTotal)
+                self.newSignlePriceArray[textField.tag] = "\(aa)"
+                print(self.newSignlePriceArray)
+                
+                var total = Float()
+                for item in 0..<self.newSignlePriceArray.count{
+                    let a = Float(self.newSignlePriceArray[item])
+                    total = total + a!
+                }
+                print(total)
+                self.totalPrice.text = "Total: Rs." +  "\(total)"
+                self.SubTotal.text = "SubTotal: Rs." + "\(total)"
+                cartTableView.reloadData()
+            }
+        }else if textField.text == ""{
+            Utilities.ShowAlertView2(title: "Alert", message: "Please add some quantity", viewController: self)
         }
-    }else if textField.text == ""{
-        Utilities.ShowAlertView2(title: "Alert", message: "Please add some quantity", viewController: self)
-    }
-       
+        
     }
     //MARK: GetProduct Cart API
     func getCartApi(){
@@ -212,6 +231,7 @@ class Cart_ViewController: UIViewController , UITextFieldDelegate{
                         self.minQuantitiy.append("\((data[index] as AnyObject).value(forKey: "min_quantity") ?? "")")
                         self.newminQuantitiy.append("\((data[index] as AnyObject).value(forKey: "quantity") ?? "")")
                         self.productIdsArray.append("\((data[index] as AnyObject).value(forKey: "product_id") ?? "")")
+                         self.newSignlePriceArray.append("\((data[index] as AnyObject).value(forKey: "price") ?? "")")
                     }
 //                    for
                    
@@ -314,7 +334,7 @@ extension Cart_ViewController : UITableViewDelegate, UITableViewDataSource{
         cell.deleteBtn.tag = indexPath.row
         cell.lblValue.text =  newminQuantitiy[indexPath.row]
         cell.productName.text =  self.getCartData[indexPath.row].title
-        cell.price.text =  "Rs: " + self.getCartData[indexPath.row].price
+        cell.price.text =  "Rs: " + self.newSignlePriceArray[indexPath.row]
         cell.quantity.text = "Minimum Order Quantity: " + self.getCartData[indexPath.row].quantity
         return cell
     }

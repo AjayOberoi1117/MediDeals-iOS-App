@@ -64,7 +64,7 @@ import UIKit
  - AudioEqualizer:          AudioEqualizer animation.
  - CircleStrokeSpin:        CircleStrokeSpin animation.
  */
-public enum NVActivityIndicatorType: Int {
+public enum NVActivityIndicatorType: CaseIterable {
     /**
      Blank.
 
@@ -263,8 +263,6 @@ public enum NVActivityIndicatorType: Int {
      - returns: Instance of NVActivityIndicatorAnimationCircleStrokeSpin.
      */
     case circleStrokeSpin
-
-    static let allTypes = (blank.rawValue ... circleStrokeSpin.rawValue).map { NVActivityIndicatorType(rawValue: $0)! }
 
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func animation() -> NVActivityIndicatorAnimationDelegate {
@@ -499,6 +497,9 @@ public final class NVActivityIndicatorView: UIView {
      Start animating.
      */
     public final func startAnimating() {
+        guard !isAnimating else {
+            return
+        }
         isHidden = false
         isAnimating = true
         layer.speed = 1
@@ -509,6 +510,9 @@ public final class NVActivityIndicatorView: UIView {
      Stop animating.
      */
     public final func stopAnimating() {
+        guard isAnimating else {
+            return
+        }
         isHidden = true
         isAnimating = false
         layer.sublayers?.removeAll()
@@ -518,7 +522,7 @@ public final class NVActivityIndicatorView: UIView {
 
     // swiftlint:disable:next identifier_name
     func _setTypeName(_ typeName: String) {
-        for item in NVActivityIndicatorType.allTypes {
+        for item in NVActivityIndicatorType.allCases {
             if String(describing: item).caseInsensitiveCompare(typeName) == ComparisonResult.orderedSame {
                 type = item
                 break
@@ -534,7 +538,11 @@ public final class NVActivityIndicatorView: UIView {
 
     private final func setUpAnimation() {
         let animation: NVActivityIndicatorAnimationDelegate = type.animation()
+        #if swift(>=4.2)
+        var animationRect = frame.inset(by: UIEdgeInsets(top: padding, left: padding, bottom: padding, right: padding))
+        #else
         var animationRect = UIEdgeInsetsInsetRect(frame, UIEdgeInsets(top: padding, left: padding, bottom: padding, right: padding))
+        #endif
         let minEdge = min(animationRect.width, animationRect.height)
 
         layer.sublayers = nil

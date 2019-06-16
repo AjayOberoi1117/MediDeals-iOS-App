@@ -120,7 +120,7 @@ class Register_ViewController: UIViewController {
     func registerAPI(){
         self.showProgress()
         
-        let params = ["user_id": UserDefaults.standard.value(forKey: "USER_ID") as! String,
+        let params = ["user_id": SingletonVariables.sharedInstace.userId,
                       "user_type":SingletonVariables.sharedInstace.accountType,
                       "cat_id":SingletonVariables.sharedInstace.AccountCategory,
                       "firm_name":txtBusinessName.text!,

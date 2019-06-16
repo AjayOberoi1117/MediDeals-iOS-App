@@ -12,7 +12,6 @@ import MapKit
 import CRRefresh
 @available(iOS 11.0, *)
 class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerDelegate{
-    
     @IBOutlet weak var lblTxt: UILabel!
     @IBOutlet weak var AccTypeCollView: UICollectionView!
     fileprivate var sliderVc1: LIHSliderViewController!
@@ -22,11 +21,15 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     var checkSagueActon = String()
     var titleArry = [String]()
     var AddImagesArry = [UIImage]()
+    var tableCell = HomeMenuTableViewCell1()
     var cell1 = HomeMenuCollectionViewCell1()
     var cell2 = HomeMenuCollectionViewCell2()
     var getHotDealsData = [getHomeProducts]()
     var getMostDiscountedData = [getHomeProducts]()
     var getNewProductsData = [getHomeProducts]()
+    var dummyHotDealsArry = [String]()
+    var dummyMostDiscountedArry = [String]()
+    var dummyNewProductsArry = [String]()
     var locationManager = CLLocationManager()
     var lat = Float()
     var longi = Float()
@@ -44,9 +47,12 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     var titleCat = [String]()
     var imagesArry = [UIImage]()
     var tagVal = Int()
+    var buttonTapped:((HomeMenuCollectionViewCell1) -> Void)? = nil
     
+    var btnBarBadge : MJBadgeBarButton!
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.title = "Medideals"
         Utilities.HideRightSideMenu()
         self.navigationController?.isNavigationBarHidden = false
         AddImagesArry = [#imageLiteral(resourceName: "image1"),#imageLiteral(resourceName: "image2"),#imageLiteral(resourceName: "image3")]
@@ -64,7 +70,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         self.sliderVc1.didMove(toParentViewController: self)
         
         self.lblTxt.startAnimation()
-        self.getHomeData_Api()
+       
         
         if UserDefaults.standard.value(forKey: "USER_ID") != nil{
             self.getProfileAPI()
@@ -79,10 +85,34 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                             self?.HomeTableView.cr.endHeaderRefresh()
                         })
         }
+        
+         cartbtn()
+        
+         self.getHomeData_Api()
        // HomeTableView.cr.beginHeaderRefresh()
         
     }
+    func cartbtn(){
+        let customButton = UIButton(type: UIButton.ButtonType.custom)
+        customButton.frame = CGRect(x: 0, y: 0, width: 35.0, height: 35.0)
+        customButton.addTarget(self, action: #selector(self.onBagdeButtonClick), for: .touchUpInside)
+        customButton.setImage(UIImage(named: "shopping-cart"), for: .normal)
+        
+        self.btnBarBadge = MJBadgeBarButton()
+        self.btnBarBadge.setup(customButton: customButton)
+        self.btnBarBadge.badgeValue = "0"
+        self.btnBarBadge.badgeOriginX = 20.0
+        self.btnBarBadge.badgeOriginY = -4
+        
+        self.navigationItem.rightBarButtonItem = self.btnBarBadge
+        
+    }
     
+    @objc func onBagdeButtonClick() {
+        print("button Clicked \(self.btnBarBadge.badgeValue)")
+        let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
     func deviceID_Api(){
         //        self.addLoadingIndicator()
         //        self.startAnim()
@@ -106,7 +136,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
             
         }
     }
-    @IBAction func cartReview(_ sender: UIBarButtonItem) {
+    @IBAction func cartReview(_ sender: MJBadgeBarButton) {
         let vc = self.storyboard?.instantiateViewController(withIdentifier: "Cart_ViewController") as! Cart_ViewController
         self.navigationController?.pushViewController(vc, animated: true)
     }
@@ -121,6 +151,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     }
 
     override func viewWillAppear(_ animated: Bool) {
+        self.getCartApi()
         if checkSagueActon == "yes"{
             Utilities.AttachSideMenuController()
             checkSagueActon = ""
@@ -133,7 +164,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         locationManager.startUpdatingLocation()
         
-       
+        
     }
     
     @IBAction func buyNow(_ sender: UIButton) {
@@ -257,10 +288,93 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     
     
     func getHomeData_Api(){
-//        self.addLoadingIndicator()
-//       self.startAnim()
-
         HomeTableView.cr.beginHeaderRefresh()
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String]
+        print(params)
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.home.caseValue, parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            }
+            else
+            {
+                self.stopAnim()
+                self.getHotDealsData = [getHomeProducts]()
+                self.getMostDiscountedData = [getHomeProducts]()
+                self.getNewProductsData = [getHomeProducts]()
+                self.dummyHotDealsArry = [String]()
+                self.dummyNewProductsArry = [String]()
+                self.dummyMostDiscountedArry = [String]()
+                // get hot deals Arrays ...
+                if let data = (dic.value(forKey: "hotDealsProducts") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    for index in 0..<data.count-4
+                    {
+                        self.getHotDealsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                        
+                        if (data[index] as AnyObject).value(forKey: "product_status") as! String == "already_added"{
+                            self.dummyHotDealsArry.append("1")
+                        }else{
+                            self.dummyHotDealsArry.append("0")
+                        }
+                     }
+                }
+                
+                // get Most Discounted Arrays ...
+                if let data = (dic.value(forKey: "getMostDiscounted") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    for index in 0..<data.count-4
+                    {
+                        self.getMostDiscountedData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                        
+                        if (data[index] as AnyObject).value(forKey: "product_status") as! String == "already_added"{
+                            self.dummyMostDiscountedArry.append("1")
+                        }else{
+                            self.dummyMostDiscountedArry.append("0")
+                        }
+                    }
+                }
+                
+                // get new products Arrays ...
+                if let data = (dic.value(forKey: "getNewProducts") as? NSArray)?.mutableCopy() as? NSMutableArray
+                {
+                    for index in 0..<data.count-4
+                    {
+                        self.getNewProductsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
+                        
+                        if (data[index] as AnyObject).value(forKey: "product_status") as! String == "already_added"{
+                            self.dummyNewProductsArry.append("1")
+                        }else{
+                            self.dummyNewProductsArry.append("0")
+                        }
+                    }
+                }
+                
+                print(self.dummyHotDealsArry,self.dummyMostDiscountedArry,self.dummyNewProductsArry)
+                
+//                UIView.transition(with: self.HomeTableView,
+//                                  duration: 0.35,
+//                                  options: .transitionFlipFromLeft,
+//                                  animations: { self.HomeTableView.reloadData() })
+                
+                 self.HomeTableView.reloadData()
+               
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                    /// Stop refresh when your job finished, it will reset refresh footer if completion is true
+                    self.HomeTableView.cr.endHeaderRefresh()
+                })
+                
+            }
+            
+        }
+    }
+    
+    func getHomeData_Api1(){
+        //HomeTableView.cr.beginHeaderRefresh()
         let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String]
         print(params)
         NetworkingService.shared.getData(PostName: APIEndPoint.userCase.home.caseValue, parameters: params) { (response) in
@@ -285,7 +399,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                     for index in 0..<data.count-4
                     {
                         self.getHotDealsData.append(getHomeProducts(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", title:"\((data[index] as AnyObject).value(forKey: "title") ?? "")", old_price: "\((data[index] as AnyObject).value(forKey: "old_price") ?? "")", price: "\((data[index] as AnyObject).value(forKey: "price") ?? "")", discount: "\((data[index] as AnyObject).value(forKey: "discount") ?? "")", code: "\((data[index] as AnyObject).value(forKey: "code") ?? "")", brandName: "\((data[index] as AnyObject).value(forKey: "barnd_name") ?? "")", min_quantity: "\((data[index] as AnyObject).value(forKey: "minquantity") ?? "")", product_status: "\((data[index] as AnyObject).value(forKey: "product_status") ?? "")"))
-                     }
+                    }
                 }
                 
                 // get Most Discounted Arrays ...
@@ -308,13 +422,13 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                 
                 
                 
-//                UIView.transition(with: self.HomeTableView,
-//                                  duration: 0.35,
-//                                  options: .transitionFlipFromLeft,
-//                                  animations: { self.HomeTableView.reloadData() })
+                //                UIView.transition(with: self.HomeTableView,
+                //                                  duration: 0.35,
+                //                                  options: .transitionFlipFromLeft,
+                //                                  animations: { self.HomeTableView.reloadData() })
                 
-                 self.HomeTableView.reloadData()
-               
+                self.HomeTableView.reloadData()
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
                     /// Stop refresh when your job finished, it will reset refresh footer if completion is true
                     self.HomeTableView.cr.endHeaderRefresh()
@@ -345,6 +459,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
                 self.stopAnim()
                 
                 let records = dic.value(forKey: "record") as! NSDictionary
+                 SingletonVariables.sharedInstace.userProfileData = records
                 let number = records.value(forKey: "contact_no") as! String
                 let email = records.value(forKey: "email") as! String
                     UserDefaults.standard.set(email, forKey: "PROFILE_EMAIL")
@@ -354,6 +469,95 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
             
         }
     }
+    func getCartApi(){
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
+        ]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.get_cart.caseValue,parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+               
+            } else {
+                self.stopAnim()
+              let a = dic.value(forKey: "total_items") as! NSNumber
+                self.btnBarBadge.badgeValue = "\(Int(truncating: a))"
+            }
+        }
+    }
+    @IBAction func BuyNowBtn(_ sender: UIButton) {
+        var superview = sender.superview
+        while let view = superview, !(view is UITableViewCell) {
+            superview = view.superview
+        }
+        guard let cell = superview as? UITableViewCell else {
+            print("button is not contained in a table view cell")
+            return
+        }
+        guard let indexPath = HomeTableView.indexPath(for: cell) else {
+            print("failed to get index path for cell containing button")
+            return
+        }
+        // We've got the index path for the cell that contains the button, now do something with it.
+        print("button is in row \(indexPath.row)")
+        
+        if indexPath.row == 0 {
+             print(self.getHotDealsData[sender.tag].product_id)
+            if self.dummyHotDealsArry[sender.tag] == "0"{
+                self.dummyHotDealsArry[sender.tag] = "1"
+                addtoCartApi(productid: self.getHotDealsData[sender.tag].product_id, quantity: self.getHotDealsData[sender.tag].min_quantity)
+              }else{
+                performPushSeguefromController(identifier: "Cart_ViewController")
+            }
+        }else if indexPath.row == 1 {
+            print(self.getMostDiscountedData[sender.tag].product_id)
+            if self.dummyMostDiscountedArry[sender.tag] == "0"{
+                 self.dummyMostDiscountedArry[sender.tag] = "1"
+                addtoCartApi(productid: self.getMostDiscountedData[sender.tag].product_id, quantity: self.getMostDiscountedData[sender.tag].min_quantity)
+               
+            }else{
+                performPushSeguefromController(identifier: "Cart_ViewController")
+            }
+        }else if indexPath.row == 2 {
+            print(self.getNewProductsData[sender.tag].product_id)
+            if self.dummyNewProductsArry[sender.tag] == "0"{
+                self.dummyNewProductsArry[sender.tag] = "1"
+                addtoCartApi(productid: self.getNewProductsData[sender.tag].product_id, quantity: self.getNewProductsData[sender.tag].min_quantity)
+                
+            }else{
+                performPushSeguefromController(identifier: "Cart_ViewController")
+            }
+        }else{
+            
+        }
+        
+        
+    }
+    func addtoCartApi(productid:String,quantity:String){
+        self.addLoadingIndicator()
+        self.startAnim()
+        let params = ["device_id": UserDefaults.standard.value(forKey: "DEVICETOKEN") as! String,
+                      "product_id" : productid ,
+                      "quantity": quantity]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.add_Cart.caseValue,parameters: params) { (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                
+            } else {
+                self.stopAnim()
+                self.getCartApi()
+                self.HomeTableView.reloadData()
+            }
+        }
+    }
+    
 }
 
 @available(iOS 11.0, *)
@@ -366,16 +570,15 @@ extension Home_ViewController : UITableViewDelegate, UITableViewDataSource{
        }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            if let cell1 = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? HomeMenuTableViewCell1 {
-                cell1.lblTitle.text = titleArry[indexPath.row]
-                self.HomeTableView.tag = indexPath.row
-                
-                cell1.collectionViewFirst.tag = indexPath.row
-                self.tagVal = cell1.collectionViewFirst.tag
-                cell1.collectionViewFirst.reloadData()
-                return cell1
-            }
-         return UITableViewCell()
+        tableCell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as! HomeMenuTableViewCell1
+        tableCell.lblTitle.text = titleArry[indexPath.row]
+        self.HomeTableView.tag = indexPath.row
+        
+        tableCell.collectionViewFirst.tag = indexPath.row
+        self.tagVal = tableCell.collectionViewFirst.tag
+        tableCell.collectionViewFirst.reloadData()
+        return tableCell
+        
     }
     
 //    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -438,6 +641,8 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
             } else {
                 cell1 = collectionView.dequeueReusableCell(withReuseIdentifier: "cell1", for: indexPath as IndexPath) as! HomeMenuCollectionViewCell1
                
+
+                
                 if tagVal == 0{
                     cell1.titleName.text = self.getHotDealsData[indexPath.row].title
                     cell1.brandName.text = self.getHotDealsData[indexPath.row].brandName
@@ -450,13 +655,14 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     print("discount value is" , d)
                     // cell1.discountPercent.startAnimation()
                     cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
-                    
-                    let product_status = self.getHotDealsData[indexPath.row].product_status
-                    if product_status == "already_added"{
-                        cell1.BuyNowlbl.backgroundColor = BUTTONSELECTION_COLOR
-                        
+                    cell1.buyNowBtn.tag = indexPath.row
+                    let product_status = self.dummyHotDealsArry[indexPath.row]
+                    if product_status == "1"{
+                        cell1.buyNowBtn.backgroundColor = BUTTONSELECTION_COLOR
+                        cell1.buyNowBtn.setTitle("GO TO CART", for: .normal)
                     }else{
-                        cell1.BuyNowlbl.backgroundColor = BUTTON_COLOR
+                        cell1.buyNowBtn.backgroundColor = BUTTON_COLOR
+                        cell1.buyNowBtn.setTitle("BUY NOW", for: .normal)
                     }
                     
 
@@ -473,6 +679,16 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     // cell1.discountPercent.startAnimation()
                     cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
                     
+                    cell1.buyNowBtn.tag = indexPath.row
+                    let product_status = self.dummyMostDiscountedArry[indexPath.row]
+                    if product_status == "1"{
+                        cell1.buyNowBtn.backgroundColor = BUTTONSELECTION_COLOR
+                        cell1.buyNowBtn.setTitle("GO TO CART", for: .normal)
+                    }else{
+                        cell1.buyNowBtn.backgroundColor = BUTTON_COLOR
+                        cell1.buyNowBtn.setTitle("BUY NOW", for: .normal)
+                    }
+                    
                 }else if tagVal == 2 {
                     cell1.titleName.text = self.getNewProductsData[indexPath.row].title
                     cell1.brandName.text = self.getNewProductsData[indexPath.row].brandName
@@ -485,6 +701,15 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     print("discount value is" , d)
                     // cell1.discountPercent.startAnimation()
                     cell1.discountPercent.text = String(format: "%.0f" , d) + "%"
+                    cell1.buyNowBtn.tag = indexPath.row
+                    let product_status = self.dummyNewProductsArry[indexPath.row]
+                    if product_status == "1"{
+                        cell1.buyNowBtn.backgroundColor = BUTTONSELECTION_COLOR
+                        cell1.buyNowBtn.setTitle("GO TO CART", for: .normal)
+                    }else{
+                        cell1.buyNowBtn.backgroundColor = BUTTON_COLOR
+                        cell1.buyNowBtn.setTitle("BUY NOW", for: .normal)
+                    }
                 }
                 
                 return cell1
@@ -505,14 +730,17 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
             if indexPath.section == 0 {
                 if collectionView.tag == 0 {
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+                    vc.isComeFrom = "home"
                     vc.selectedProductID = self.getHotDealsData[indexPath.row].product_id
                     self.navigationController?.pushViewController(vc, animated: true)
                 }else if collectionView.tag == 1 {
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+                    vc.isComeFrom = "home"
                     vc.selectedProductID = self.getMostDiscountedData[indexPath.row].product_id
                     self.navigationController?.pushViewController(vc, animated: true)
                 }else if collectionView.tag == 2 {
                     let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+                    vc.isComeFrom = "home"
                     vc.selectedProductID = self.getNewProductsData[indexPath.row].product_id
                     self.navigationController?.pushViewController(vc, animated: true)
                 }else{

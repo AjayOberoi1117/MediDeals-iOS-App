@@ -107,18 +107,21 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
         else if titleName == "FMCG"{
             self.title = "FMCG"
             self.AllopathicPrductApi(cat_id: self.catID)
-            self.noDataImage.isHidden = false
+            self.noDataImage.isHidden = true
         }
         else if titleName == "PCD/3rd Party"{
             self.title = "PCD/3rd Party"
-            self.noDataImage.isHidden = false
+            self.noDataImage.isHidden = true
+            self.AllopathicPrductApi(cat_id: catID)
             
         }else if titleName == "Surgical Goods"{
             self.title = "Surgical Goods"
-            self.noDataImage.isHidden = false
+            self.noDataImage.isHidden = true
+            self.AllopathicPrductApi(cat_id: catID)
         }else if titleName == "Generics"{
             self.title = "Generics"
-            self.noDataImage.isHidden = false
+            self.noDataImage.isHidden = true
+            self.AllopathicPrductApi(cat_id: catID)
         }
         
         SingletonVariables.sharedInstace.cat_id = catID
@@ -260,6 +263,7 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
             {
                 self.stopAnim()
                 //Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                self.noDataImage.isHidden = false
                 self.tableViewData.cr.endHeaderRefresh()
                 self.tableViewData.cr.removeFooter()
             }else{
@@ -269,8 +273,10 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
                 {
                     if data.count == 0{
                         self.stopAnim()
+                        self.noDataImage.isHidden = false
                         Utilities.ShowAlertView2(title: "Alert", message: "No Records Found!", viewController: self)
                     }else{
+                        self.noDataImage.isHidden = true
                         self.getAllDataArr = NSArray()
                         self.getAllDataArr = data
                         self.productStatusArr = [String]()
@@ -409,6 +415,7 @@ extension MenuViewController : UITableViewDelegate, UITableViewDataSource{
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let vc = self.storyboard?.instantiateViewController(withIdentifier: "ProductDetailViewController") as! ProductDetailViewController
+        vc.isComeFrom = "menu"
         vc.selectedProductID = self.getAllpothicData[indexPath.row].product_id
         self.navigationController?.pushViewController(vc, animated: true)
     }
@@ -418,10 +425,10 @@ extension MenuViewController : UITableViewDelegate, UITableViewDataSource{
             cell1.addtoCart.tag = indexPath.row
             if dummyArry[indexPath.row] == "1"{
                 cell1.addtoCart.backgroundColor = BUTTONSELECTION_COLOR
-                 cell1.addtoCart.setTitle("Go to Cart", for: .normal)
+                 cell1.addtoCart.setTitle("GO TO CART", for: .normal)
             }else{
                 cell1.addtoCart.backgroundColor = BUTTON_COLOR
-                cell1.addtoCart.setTitle("Add to Cart", for: .normal)
+                cell1.addtoCart.setTitle("ADD TO CART", for: .normal)
             }
             
             cell1.titleName.text = self.getAllpothicData[indexPath.row].title
