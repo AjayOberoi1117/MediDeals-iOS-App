@@ -25,6 +25,7 @@ class ProfileViewController: UIViewController {
     @IBOutlet var txtName: UITextField!
     @IBOutlet weak var submitBtn: DesignableButton!
     @IBOutlet var scrollView: UIScrollView!
+    @IBOutlet weak var editBtn: UIButton!
     override func viewDidLoad() {
         super.viewDidLoad()
         Utilities.HideRightSideMenu()
@@ -39,7 +40,7 @@ class ProfileViewController: UIViewController {
         self.txtCity.isUserInteractionEnabled = false
         self.txtShopPlotNo.isUserInteractionEnabled = false
         self.txtWebsiteUrl.isUserInteractionEnabled = false
-         self.scrollView.isScrollEnabled = false
+        
         txtLicenseNo.attributedPlaceholder = NSAttributedString(string:"LICENSE NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         txtGSTNo.attributedPlaceholder = NSAttributedString(string:"GST NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         txtAddress.attributedPlaceholder = NSAttributedString(string:"ADDRESS", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
@@ -116,10 +117,11 @@ class ProfileViewController: UIViewController {
         self.scrollView.isScrollEnabled = true
     }
     
-    @IBAction func editBtnAct(_ sender: UIBarButtonItem) {
+    @IBAction func editBtnAct(_ sender: UIButton) {
         if self.editAction == ""{
             self.editAction = "yes"
             self.submitBtn.isHidden = false
+            self.editBtn.isHidden = true
             self.scrollView.isScrollEnabled = true
             self.txtName.isUserInteractionEnabled = true
             self.txtAddress.isUserInteractionEnabled = true
@@ -136,6 +138,7 @@ class ProfileViewController: UIViewController {
         }else{
             self.editAction = ""
             self.scrollView.isScrollEnabled = false
+            self.editBtn.isHidden = false
             self.txtName.isUserInteractionEnabled = false
             self.txtAddress.isUserInteractionEnabled = false
             self.txtEmail.isUserInteractionEnabled = false

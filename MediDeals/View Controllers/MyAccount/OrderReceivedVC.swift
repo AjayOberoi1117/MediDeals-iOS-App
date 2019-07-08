@@ -19,6 +19,9 @@ class OrderReceivedVC: UIViewController {
     var search_text:String!
     var isSearchActive: Bool = false
     var isSearch = "no"
+    private var CellExpanded: Bool = false
+    private var CellSelected = Int()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         TableViewTopConstraints.constant = 0
@@ -53,7 +56,7 @@ class OrderReceivedVC: UIViewController {
             if index != nil {
                 NSLog("Index: \(index!)")
                 print(orderStatusTitle[index!])
-                let selected_type = orderStatusTitle[index!]
+               // let selected_type = orderStatusTitle[index!]
 //                self.txtAccountType.text = selected_type
             }
         }
@@ -64,27 +67,77 @@ class OrderReceivedVC: UIViewController {
         controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
     }
+    @IBAction func dropDownAct(_ sender: UIButton) {
+        var superview = sender.superview
+        while let view = superview, !(view is UITableViewCell) {
+            superview = view.superview
+        }
+        guard let cell = superview as? UITableViewCell else {
+            print("button is not contained in a table view cell")
+            return
+        }
+        guard let indexPath = tableViewData.indexPath(for: cell) else {
+            print("failed to get index path for cell containing button")
+            return
+        }
+        // We've got the index path for the cell that contains the button, now do something with it.
+        print("button is in row \(indexPath.row)")
+        
+        CellSelected = sender.tag
+        if CellExpanded {
+            CellExpanded = false
+        } else {
+            CellExpanded = true
+        }
+        tableViewData.beginUpdates()
+        tableViewData.endUpdates()
+        tableViewData.reloadRows(at: [indexPath], with: .automatic)
+    }
 }
 @available(iOS 11.0, *)
 extension OrderReceivedVC : UITableViewDelegate, UITableViewDataSource{
     func numberOfSectionsInTableView(tableView: UITableView) -> Int {
         return 1
     }
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int{ return 10
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int{
+        return 10
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        if let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? orderRecivedCell{
+            cell.dropDownBtn.tag = indexPath.row
+            if CellSelected == indexPath.row{
+                if CellExpanded {
+                    cell.dropDownBtn.setImage(UIImage(named: "up-arrow"), for: .normal)
+                }else{
+                     cell.dropDownBtn.setImage(UIImage(named: "down-arrow"), for: .normal)
+                }
+            }else{
+                cell.dropDownBtn.setImage(UIImage(named: "down-arrow"), for: .normal)
+            }
+            return cell
+        }
+        return UITableViewCell()
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
     }
-    
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        if let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? orderRecivedCell{
-            
-            return cell
-        }
-        return UITableViewCell()
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+            if CellSelected == indexPath.row{
+                if CellExpanded {
+                    return 500
+                } else {
+                    return 270
+                }
+            }else{
+                return 270
+            }
+        
     }
+// 500 - 260
 }
 class orderRecivedCell:UITableViewCell{
     
+    @IBOutlet weak var dropDownBtn: DesignableButton!
 }

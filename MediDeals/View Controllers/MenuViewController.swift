@@ -258,7 +258,7 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
             print(response)
             let dic = response as! NSDictionary
             print(dic)
-            self.totalPage = (dic.value(forKey: "totalpage") as! NSString).integerValue
+           
             if (dic.value(forKey: "status") as? String == "0")
             {
                 self.stopAnim()
@@ -267,6 +267,7 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
                 self.tableViewData.cr.endHeaderRefresh()
                 self.tableViewData.cr.removeFooter()
             }else{
+                 self.totalPage = (dic.value(forKey: "totalpage") as! NSString).integerValue
                 self.tableViewData.cr.endHeaderRefresh()
                 self.tableViewData.cr.removeFooter()
                 if let data = (dic.value(forKey: "result") as? NSArray)?.mutableCopy() as? NSMutableArray

@@ -115,7 +115,7 @@ extension MyAccountViewController : UICollectionViewDelegate,UICollectionViewDat
             }else if indexPath.row == 1 {
                 performPushSeguefromController(identifier: "EnquiryViewController")
             }else if indexPath.row == 2 {
-               // performPushSeguefromController(identifier: "")
+                performPushSeguefromController(identifier: "ShowResponsesViewController")
             }
         }
     }

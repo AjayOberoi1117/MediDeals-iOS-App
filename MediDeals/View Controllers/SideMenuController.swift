@@ -90,122 +90,227 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
         for _ in 0..<side_menu.count{
             newArry.add("0")
         }
-        self.newArry.replaceObject(at: indexPath.row, with: "1")
-        SideMenuTable.reloadData()
-        if indexPath.row == 0
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-
-        }
-        if indexPath.row == 1
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MyAccountViewController") as! MyAccountViewController
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-            
-        }
-        if indexPath.row == 2
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
-            centerViewController.titleName = "Allopathic"
-            centerViewController.catID = "1"
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-
-        }
-        if indexPath.row == 3
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
-            centerViewController.titleName = "Ayurvedic"
-            centerViewController.catID = "2"
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-            
-        }
-        if indexPath.row == 4
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
-            centerViewController.titleName = "FMCG"
-            centerViewController.catID = "3"
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-            
-        }
-        if indexPath.row == 5
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
-            centerViewController.titleName = "PCD/3rd Party"
-            centerViewController.catID = "4"
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-        }
-      
-        if indexPath.row == 6
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
-            centerViewController.titleName = "Surgical Goods"
-            centerViewController.catID = "5"
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-
-        }
-        if indexPath.row == 7
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
-            centerViewController.titleName = "Generics"
-            centerViewController.catID = "6"
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-        }
-        if indexPath.row == 8
-        {
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "ContactUsViewController") as! ContactUsViewController
-            let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
-        }
-         
         
-        if indexPath.row == 9{
-            let centerViewController = storyboard?.instantiateViewController(withIdentifier: "SettingsViewController") as! SettingsViewController
-             let centnav = UINavigationController(rootViewController:centerViewController)
-            let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
-            appDelegate.centerContainer.centerViewController = centnav
-            appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+        if UserDefaults.standard.value(forKey: "USER_ID") != nil{
+            self.newArry.replaceObject(at: indexPath.row, with: "1")
+            SideMenuTable.reloadData()
+            if indexPath.row == 0
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 1
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MyAccountViewController") as! MyAccountViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 2
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Allopathic"
+                centerViewController.catID = "1"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 3
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Ayurvedic"
+                centerViewController.catID = "2"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 4
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "FMCG"
+                centerViewController.catID = "3"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 5
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "PCD/3rd Party"
+                centerViewController.catID = "4"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            
+            if indexPath.row == 6
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Surgical Goods"
+                centerViewController.catID = "5"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 7
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Generics"
+                centerViewController.catID = "6"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            if indexPath.row == 8
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "ContactUsViewController") as! ContactUsViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            
+            
+            if indexPath.row == 9{
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "SettingsViewController") as! SettingsViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            else if indexPath.row == 10{
+                let refreshAlert = UIAlertController(title: "Alert", message: "Are you sure you want to logout?", preferredStyle: UIAlertControllerStyle.alert)
+                
+                refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
+                    print("Handle Ok logic here")
+                    self.clearData()
+                }))
+                refreshAlert.addAction(UIAlertAction(title: "Cancel", style: .destructive, handler: { (action: UIAlertAction!) in
+                    print("Handle Cancel Logic here")
+                    refreshAlert .dismiss(animated: true, completion: nil)
+                }))
+                self.present(refreshAlert, animated: true, completion: nil)
+            }
+        }else{
+            self.newArry.replaceObject(at: indexPath.row, with: "1")
+            SideMenuTable.reloadData()
+            if indexPath.row == 0
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "Home_ViewController") as! Home_ViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 1
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MyAccountViewController") as! MyAccountViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 2
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Allopathic"
+                centerViewController.catID = "1"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 3
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Ayurvedic"
+                centerViewController.catID = "2"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 4
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "FMCG"
+                centerViewController.catID = "3"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 5
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "PCD/3rd Party"
+                centerViewController.catID = "4"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            
+            if indexPath.row == 6
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Surgical Goods"
+                centerViewController.catID = "5"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+                
+            }
+            if indexPath.row == 7
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "MenuViewController") as! MenuViewController
+                centerViewController.titleName = "Generics"
+                centerViewController.catID = "6"
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            if indexPath.row == 8
+            {
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "ContactUsViewController") as! ContactUsViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
+            
+            
+            if indexPath.row == 9{
+                let centerViewController = storyboard?.instantiateViewController(withIdentifier: "SettingsViewController") as! SettingsViewController
+                let centnav = UINavigationController(rootViewController:centerViewController)
+                let appDelegate: AppDelegate = UIApplication.shared.delegate as! AppDelegate
+                appDelegate.centerContainer.centerViewController = centnav
+                appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
+            }
         }
-        else if indexPath.row == 12{
-            let refreshAlert = UIAlertController(title: "Alert", message: "Are you sure you want to logout?", preferredStyle: UIAlertControllerStyle.alert)
-
-            refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
-                print("Handle Ok logic here")
-                self.clearData()
-            }))
-            refreshAlert.addAction(UIAlertAction(title: "Cancel", style: .destructive, handler: { (action: UIAlertAction!) in
-                print("Handle Cancel Logic here")
-                refreshAlert .dismiss(animated: true, completion: nil)
-            }))
-            self.present(refreshAlert, animated: true, completion: nil)
-        }
-
     }
   
     func LogoutFunction(){

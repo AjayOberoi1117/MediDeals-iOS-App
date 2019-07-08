@@ -51,6 +51,7 @@ let BankDetailsTitles = ["Id","Bank Name","Bank Account","Ifsc Code","Bank Addre
 
 let orderStatusTitle = ["Confirmation Pending","Not Confirmed","Order Confirmed","Order Shipped","Order Delivered","Order Returned","Order Cancelled"]
 
+let PlacedOrderStatusTitle = ["Goods Received","Order Returned"]
 public enum APIEndPoint
 {
     public enum userCase {
