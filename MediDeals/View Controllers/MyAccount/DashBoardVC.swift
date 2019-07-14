@@ -15,7 +15,7 @@ class DashBoardVC: UIViewController {
     var titleArry = ["Selling Details", "Buying Details"]
     override func viewDidLoad() {
         super.viewDidLoad()
-        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.rowHeight = UITableView.automaticDimension
         self.tableView.estimatedRowHeight = 200
         // Do any additional setup after loading the view.
     }

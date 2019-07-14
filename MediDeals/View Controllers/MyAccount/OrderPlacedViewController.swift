@@ -49,7 +49,7 @@ class OrderPlacedViewController: UIViewController {
     }
     
     @IBAction func EditOrder(_ sender: DesignableButton) {
-        let controller = UIAlertController(title: "Choose a Order Status", message: nil, preferredStyle: UIAlertControllerStyle.actionSheet)
+        let controller = UIAlertController(title: "Choose a Order Status", message: nil, preferredStyle: UIAlertController.Style.actionSheet)
         controller.view.tintColor = UIColor.black
         let closure = { (action: UIAlertAction!) -> Void in
             let index = controller.actions.index(of: action)
@@ -64,7 +64,7 @@ class OrderPlacedViewController: UIViewController {
             // selected_Year = self.yearsArr[i] as? String
             
         }
-        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
+        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
     }
     

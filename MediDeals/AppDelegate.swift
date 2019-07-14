@@ -20,7 +20,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate,NVActivityIndicatorViewabl
     var firstName : String!
     var lastName : String!
     
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         // Override point for customization after application launch.
         let center = UNUserNotificationCenter.current()
@@ -47,7 +47,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate,NVActivityIndicatorViewabl
         UIApplication.shared.statusBarStyle = UIStatusBarStyle.lightContent //For Status bar to be white in color
         UINavigationBar.appearance().barTintColor = THEME_COLOR
         UINavigationBar.appearance().tintColor = UIColor.white
-        UINavigationBar.appearance().titleTextAttributes = [NSAttributedStringKey.foregroundColor:UIColor.white]
+        UINavigationBar.appearance().titleTextAttributes = [NSAttributedString.Key.foregroundColor:UIColor.white]
     
         sleep(2)
         return true

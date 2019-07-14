@@ -65,9 +65,9 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
         
         self.sliderVc1  = LIHSliderViewController(slider: slider1)
         sliderVc1.delegate = self
-        self.addChildViewController(self.sliderVc1)
+        self.addChild(self.sliderVc1)
         self.view.addSubview(self.sliderVc1.view)
-        self.sliderVc1.didMove(toParentViewController: self)
+        self.sliderVc1.didMove(toParent: self)
         
         self.lblTxt.startAnimation()
        
@@ -176,7 +176,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
     func initTimeZone() {
         timeZone = NSTimeZone.local as NSTimeZone
         timeZoneVal = timeZone.name
-        print(timeZoneVal)
+        print(timeZoneVal as Any)
     }
     
     //MARK: Call to Location Manager Delegates to check authorization status
@@ -201,7 +201,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
             let alert = UIAlertController(title: "Location Services Disabled", message: "Please enable Location Services in Settings", preferredStyle: .alert)
             
             let okAction = UIAlertAction(title: "Settings", style: .default, handler: {(alert: UIAlertAction!) in
-                UIApplication.shared.open(URL(string:UIApplicationOpenSettingsURLString)!)
+                UIApplication.shared.open(URL(string:UIApplication.openSettingsURLString)!)
             })
             let CancelAction = UIAlertAction(title: "Cancel", style: .default, handler: nil)
             alert.addAction(okAction)
@@ -213,7 +213,7 @@ class Home_ViewController: UIViewController,LIHSliderDelegate,CLLocationManagerD
             let alert = UIAlertController(title: "Location Services Disabled", message: "Please enable Location Services in Settings", preferredStyle: .alert)
             
             let okAction = UIAlertAction(title: "Settings", style: .default, handler: {(alert: UIAlertAction!) in
-                UIApplication.shared.open(URL(string:UIApplicationOpenSettingsURLString)!)
+                UIApplication.shared.open(URL(string:UIApplication.openSettingsURLString)!)
             })
             let CancelAction = UIAlertAction(title: "Cancel", style: .default, handler: nil)
             alert.addAction(okAction)
@@ -649,7 +649,7 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     cell1.discountPrice.text = "Rs " + self.getHotDealsData[indexPath.row].price
                     let newStringStrike =  "Rs " + self.getHotDealsData[indexPath.row].old_price
                     let attributeString = NSMutableAttributedString(string: newStringStrike)
-                    attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+                    attributeString.addAttribute(NSAttributedString.Key.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
                     cell1.originalPrice.attributedText = attributeString
                     let d = Float(self.getHotDealsData[indexPath.row].discount)!.rounded(.towardZero)
                     print("discount value is" , d)
@@ -672,7 +672,7 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     cell1.discountPrice.text = "Rs " + self.getMostDiscountedData[indexPath.row].price
                     let newStringStrike =  "Rs " + self.getMostDiscountedData[indexPath.row].old_price
                     let attributeString = NSMutableAttributedString(string: newStringStrike)
-                    attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+                    attributeString.addAttribute(NSAttributedString.Key.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
                     cell1.originalPrice.attributedText = attributeString
                     let d = Float(self.getMostDiscountedData[indexPath.row].discount)!.rounded(.towardZero)
                     print("discount value is" , d)
@@ -695,7 +695,7 @@ extension Home_ViewController : UICollectionViewDelegate,UICollectionViewDataSou
                     cell1.discountPrice.text = "Rs " + self.getNewProductsData[indexPath.row].price
                     let newStringStrike =  "Rs " + self.getNewProductsData[indexPath.row].old_price
                     let attributeString = NSMutableAttributedString(string: newStringStrike)
-                    attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+                    attributeString.addAttribute(NSAttributedString.Key.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
                     cell1.originalPrice.attributedText = attributeString
                     let d = Float(self.getNewProductsData[indexPath.row].discount)!.rounded(.towardZero)
                     print("discount value is" , d)

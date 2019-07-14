@@ -8392,6 +8392,12 @@ We will contact you shortly with confirmation.</string>
                                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="7SI-Ye-1v5" customClass="DesignableView" customModule="MediDeals" customModuleProvider="target">
                                                 <rect key="frame" x="18.666666666666657" y="279.66666666666669" width="337.66666666666674" height="40.333333333333314"/>
                                                 <subviews>
+                                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="0sc-7Y-av2">
+                                                        <rect key="frame" x="10" y="0.0" width="40.666666666666664" height="40.333333333333336"/>
+                                                        <constraints>
+                                                            <constraint firstAttribute="width" secondItem="0sc-7Y-av2" secondAttribute="height" multiplier="1:1" id="PcE-ns-qDj"/>
+                                                        </constraints>
+                                                    </imageView>
                                                     <textField opaque="NO" userInteractionEnabled="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" placeholder="Choose file" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="0qj-MB-3Bn">
                                                         <rect key="frame" x="10" y="11.666666666666629" width="287" height="17"/>
                                                         <nil key="textColor"/>
@@ -8399,18 +8405,24 @@ We will contact you shortly with confirmation.</string>
                                                         <textInputTraits key="textInputTraits"/>
                                                     </textField>
                                                     <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="camera" translatesAutoresizingMaskIntoConstraints="NO" id="LHM-Ef-JGt">
-                                                        <rect key="frame" x="316.66666666666663" y="12.333333333333314" width="16" height="16"/>
+                                                        <rect key="frame" x="311.33333333333331" y="9.666666666666627" width="21.333333333333314" height="21.333333333333329"/>
                                                     </imageView>
                                                     <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="B8d-hP-Rmd">
                                                         <rect key="frame" x="0.0" y="0.0" width="337.66666666666669" height="40.333333333333336"/>
+                                                        <connections>
+                                                            <action selector="chooseFileBtn:" destination="hcl-id-AcT" eventType="touchUpInside" id="myk-fk-ZPe"/>
+                                                        </connections>
                                                     </button>
                                                 </subviews>
                                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                                 <constraints>
                                                     <constraint firstItem="B8d-hP-Rmd" firstAttribute="width" secondItem="7SI-Ye-1v5" secondAttribute="width" id="1OJ-ea-tbw"/>
                                                     <constraint firstItem="0qj-MB-3Bn" firstAttribute="leading" secondItem="7SI-Ye-1v5" secondAttribute="leading" constant="10" id="GO0-eL-bfY"/>
+                                                    <constraint firstItem="0sc-7Y-av2" firstAttribute="leading" secondItem="7SI-Ye-1v5" secondAttribute="leading" constant="10" id="K8i-Ex-Yl3"/>
+                                                    <constraint firstItem="0sc-7Y-av2" firstAttribute="centerY" secondItem="7SI-Ye-1v5" secondAttribute="centerY" id="Oo7-Gt-ts8"/>
                                                     <constraint firstItem="LHM-Ef-JGt" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="0qj-MB-3Bn" secondAttribute="trailing" constant="8" symbolic="YES" id="T3z-zS-2Rm"/>
                                                     <constraint firstItem="LHM-Ef-JGt" firstAttribute="centerY" secondItem="0qj-MB-3Bn" secondAttribute="centerY" id="Uog-Jc-iwf"/>
+                                                    <constraint firstItem="0sc-7Y-av2" firstAttribute="height" secondItem="7SI-Ye-1v5" secondAttribute="height" id="VHi-QE-vyV"/>
                                                     <constraint firstItem="B8d-hP-Rmd" firstAttribute="centerX" secondItem="7SI-Ye-1v5" secondAttribute="centerX" id="Xt6-EY-jt0"/>
                                                     <constraint firstItem="0qj-MB-3Bn" firstAttribute="width" secondItem="7SI-Ye-1v5" secondAttribute="width" multiplier="85%" id="Y33-bT-dfx"/>
                                                     <constraint firstAttribute="trailing" secondItem="LHM-Ef-JGt" secondAttribute="trailing" constant="5" id="ao6-Ye-6nj"/>
@@ -8434,7 +8446,7 @@ We will contact you shortly with confirmation.</string>
                                                 <rect key="frame" x="18.666666666666657" y="330" width="337.66666666666674" height="40.666666666666686"/>
                                                 <nil key="textColor"/>
                                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
-                                                <textInputTraits key="textInputTraits"/>
+                                                <textInputTraits key="textInputTraits" keyboardType="numberPad"/>
                                                 <userDefinedRuntimeAttributes>
                                                     <userDefinedRuntimeAttribute type="number" keyPath="CornerRadius">
                                                         <real key="value" value="5"/>
@@ -8451,7 +8463,7 @@ We will contact you shortly with confirmation.</string>
                                                 <rect key="frame" x="18.666666666666657" y="380.66666666666669" width="337.66666666666674" height="40.333333333333314"/>
                                                 <nil key="textColor"/>
                                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
-                                                <textInputTraits key="textInputTraits"/>
+                                                <textInputTraits key="textInputTraits" keyboardType="numberPad"/>
                                                 <userDefinedRuntimeAttributes>
                                                     <userDefinedRuntimeAttribute type="number" keyPath="CornerRadius">
                                                         <real key="value" value="5"/>
@@ -8468,7 +8480,7 @@ We will contact you shortly with confirmation.</string>
                                                 <rect key="frame" x="18.666666666666657" y="431" width="337.66666666666674" height="40.666666666666686"/>
                                                 <nil key="textColor"/>
                                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
-                                                <textInputTraits key="textInputTraits"/>
+                                                <textInputTraits key="textInputTraits" keyboardType="numberPad"/>
                                                 <userDefinedRuntimeAttributes>
                                                     <userDefinedRuntimeAttribute type="number" keyPath="CornerRadius">
                                                         <real key="value" value="5"/>
@@ -8485,7 +8497,7 @@ We will contact you shortly with confirmation.</string>
                                                 <rect key="frame" x="18.666666666666657" y="479.66666666666663" width="337.66666666666674" height="40.333333333333371"/>
                                                 <nil key="textColor"/>
                                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
-                                                <textInputTraits key="textInputTraits"/>
+                                                <textInputTraits key="textInputTraits" keyboardType="numberPad"/>
                                                 <userDefinedRuntimeAttributes>
                                                     <userDefinedRuntimeAttribute type="number" keyPath="CornerRadius">
                                                         <real key="value" value="5"/>
@@ -8502,7 +8514,7 @@ We will contact you shortly with confirmation.</string>
                                                 <rect key="frame" x="18.666666666666657" y="530" width="337.66666666666674" height="40.666666666666629"/>
                                                 <nil key="textColor"/>
                                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
-                                                <textInputTraits key="textInputTraits"/>
+                                                <textInputTraits key="textInputTraits" keyboardType="numberPad"/>
                                                 <userDefinedRuntimeAttributes>
                                                     <userDefinedRuntimeAttribute type="number" keyPath="CornerRadius">
                                                         <real key="value" value="5"/>
@@ -8555,6 +8567,7 @@ We will contact you shortly with confirmation.</string>
                                                 </userDefinedRuntimeAttributes>
                                                 <connections>
                                                     <action selector="letsStartBTn:" destination="7Am-ET-v2O" eventType="touchUpInside" id="Uj3-za-EBu"/>
+                                                    <action selector="uploadProduct:" destination="hcl-id-AcT" eventType="touchUpInside" id="p7Z-Va-1ss"/>
                                                 </connections>
                                             </button>
                                         </subviews>
@@ -8632,6 +8645,20 @@ We will contact you shortly with confirmation.</string>
                     <navigationItem key="navigationItem" title="Add Product" id="CSQ-cY-e6f"/>
                     <simulatedNavigationBarMetrics key="simulatedTopBarMetrics" translucent="NO" prompted="NO"/>
                     <size key="freeformSize" width="375" height="850"/>
+                    <connections>
+                        <outlet property="btnChooseFile" destination="B8d-hP-Rmd" id="YEy-Ot-vw9"/>
+                        <outlet property="chooseProduct" destination="53J-F9-akR" id="qik-g4-P9L"/>
+                        <outlet property="productImg" destination="0sc-7Y-av2" id="ezd-j2-RmF"/>
+                        <outlet property="txtChooseFile" destination="0qj-MB-3Bn" id="Vbf-K1-rPV"/>
+                        <outlet property="txtCompanyName" destination="Rxz-AA-ZRr" id="h9Y-Bd-cxq"/>
+                        <outlet property="txtDiscPrice" destination="ad6-pq-89T" id="M0A-Bb-4wn"/>
+                        <outlet property="txtMaxRetailPrice" destination="VmS-Nl-5bf" id="1Rz-UX-R0d"/>
+                        <outlet property="txtMinOrderQuantity" destination="IQc-uF-fGk" id="rVQ-Bs-Qly"/>
+                        <outlet property="txtProductName" destination="ZFQ-z8-i2D" id="0ca-Jb-GRu"/>
+                        <outlet property="txtQuantity" destination="2RC-tB-EBG" id="PCi-No-Xsb"/>
+                        <outlet property="txtTotalDiscPrice" destination="XPb-4f-nji" id="1SN-DB-f3E"/>
+                        <outlet property="txtViewDescription" destination="hwc-yV-xf8" id="qVv-6b-rr1"/>
+                    </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="e6Y-JV-fxV" sceneMemberID="firstResponder"/>
             </objects>
@@ -9315,6 +9342,9 @@ We will contact you shortly with confirmation.</string>
                                                                                     <color key="value" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                                                                 </userDefinedRuntimeAttribute>
                                                                             </userDefinedRuntimeAttributes>
+                                                                            <connections>
+                                                                                <action selector="edit:" destination="hkn-u2-zJx" eventType="touchUpInside" id="460-da-wfS"/>
+                                                                            </connections>
                                                                         </button>
                                                                         <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="0Es-b2-jDG">
                                                                             <rect key="frame" x="80.333333333333329" y="12" width="1" height="57"/>
@@ -9359,6 +9389,9 @@ We will contact you shortly with confirmation.</string>
                                                                                     <color key="value" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                                                                 </userDefinedRuntimeAttribute>
                                                                             </userDefinedRuntimeAttributes>
+                                                                            <connections>
+                                                                                <action selector="addLocation:" destination="hkn-u2-zJx" eventType="touchUpInside" id="rbq-Fa-jD8"/>
+                                                                            </connections>
                                                                         </button>
                                                                         <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="On3-wP-FF5">
                                                                             <rect key="frame" x="112.66666666666667" y="12" width="1" height="57"/>
@@ -9403,6 +9436,9 @@ We will contact you shortly with confirmation.</string>
                                                                                     <color key="value" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                                                                 </userDefinedRuntimeAttribute>
                                                                             </userDefinedRuntimeAttributes>
+                                                                            <connections>
+                                                                                <action selector="viewLocation:" destination="hkn-u2-zJx" eventType="touchUpInside" id="53v-G0-J5b"/>
+                                                                            </connections>
                                                                         </button>
                                                                         <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Hwn-VS-quv">
                                                                             <rect key="frame" x="112.33333333333331" y="12" width="1" height="57"/>
@@ -9444,6 +9480,9 @@ We will contact you shortly with confirmation.</string>
                                                                             <color key="value" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                                                         </userDefinedRuntimeAttribute>
                                                                     </userDefinedRuntimeAttributes>
+                                                                    <connections>
+                                                                        <action selector="DeleteAct:" destination="hkn-u2-zJx" eventType="touchUpInside" id="aQr-mk-WOC"/>
+                                                                    </connections>
                                                                 </button>
                                                             </subviews>
                                                             <constraints>
@@ -9522,6 +9561,17 @@ We will contact you shortly with confirmation.</string>
                                             </constraints>
                                         </tableViewCellContentView>
                                         <color key="backgroundColor" cocoaTouchSystemColor="groupTableViewBackgroundColor"/>
+                                        <connections>
+                                            <outlet property="addLocation" destination="fp6-Qv-jet" id="nwj-Ac-Yji"/>
+                                            <outlet property="delete" destination="5AA-jW-Dyb" id="woj-pA-1hH"/>
+                                            <outlet property="desc" destination="c3o-lS-hme" id="ebJ-oD-O7C"/>
+                                            <outlet property="edit" destination="Sh8-fZ-Kyu" id="C4I-0R-heR"/>
+                                            <outlet property="mrp" destination="C8M-VM-V09" id="HOG-6B-zoP"/>
+                                            <outlet property="newPrice" destination="1Zv-6b-HZQ" id="8YK-Ws-veO"/>
+                                            <outlet property="quantity" destination="cT8-eR-sof" id="hQa-kl-6Dn"/>
+                                            <outlet property="titleName" destination="z6e-dm-B7G" id="oHQ-VR-IdM"/>
+                                            <outlet property="viewLocation" destination="APj-pi-L2w" id="hpb-kE-w3a"/>
+                                        </connections>
                                     </tableViewCell>
                                 </prototypes>
                                 <connections>

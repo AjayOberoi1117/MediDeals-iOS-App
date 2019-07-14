@@ -22,10 +22,10 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
         Utilities.HideLeftSideMenu()
         txtMobile.delegate = self
         signUpBtn.isHidden = true
-        txtUserName.attributedPlaceholder = NSAttributedString(string:"User name", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtUserName.attributedPlaceholder = NSAttributedString(string:"User name", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         //self.forgotPwdView.isHidden = true
-        txtMobile.attributedPlaceholder = NSAttributedString(string:"Mobile", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"Email", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtMobile.attributedPlaceholder = NSAttributedString(string:"Mobile", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtEmail.attributedPlaceholder = NSAttributedString(string:"Email", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         //txtPassword.attributedPlaceholder = NSAttributedString(string:"Password", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         
         // Do any additional setup after loading the view.
@@ -140,7 +140,7 @@ class RegisterVC2: UIViewController,UITextFieldDelegate{
                 self.stopAnim()
                 let vc = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
                 
-                let refreshAlert = UIAlertController(title: "OTP", message:  "\(dic.value(forKey: "otp") as! NSNumber)", preferredStyle: UIAlertControllerStyle.alert)
+                let refreshAlert = UIAlertController(title: "OTP", message:  "\(dic.value(forKey: "otp") as! NSNumber)", preferredStyle: UIAlertController.Style.alert)
                 
                 refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
                     print("Handle Ok logic here")

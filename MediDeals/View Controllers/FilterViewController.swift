@@ -66,7 +66,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate,UITextFieldDeleg
     override func viewDidLoad(){
         super.viewDidLoad()
         self.navigationController?.isNavigationBarHidden = false
-        txtSearchProduct.attributedPlaceholder = NSAttributedString(string:"Search Product", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtSearchProduct.attributedPlaceholder = NSAttributedString(string:"Search Product", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         brandSpinner.delegate = self
         stateSpinner.delegate = self
         citySpinner.delegate = self
@@ -276,10 +276,10 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate,UITextFieldDeleg
         }
     }
     @IBAction func selectCity(_ sender: UIButton) {
-        let controller = UIAlertController(title: "Choose a City name", message: nil, preferredStyle: UIAlertControllerStyle.actionSheet)
+        let controller = UIAlertController(title: "Choose a City name", message: nil, preferredStyle: UIAlertController.Style.actionSheet)
         controller.view.tintColor = UIColor.black
         let closure = { (action: UIAlertAction!) -> Void in
-            let index = controller.actions.index(of: action)
+            let index = controller.actions.firstIndex(of: action)
             if index != nil {
                 NSLog("Index: \(index!)")
                 print(self.city_name[index!])
@@ -293,14 +293,14 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate,UITextFieldDeleg
             // selected_Year = self.yearsArr[i] as? String
             
         }
-        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
+        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
     }
     @IBAction func selectStates(_ sender: UIButton) {
-        let controller = UIAlertController(title: "Choose a State name", message: nil, preferredStyle: UIAlertControllerStyle.actionSheet)
+        let controller = UIAlertController(title: "Choose a State name", message: nil, preferredStyle: UIAlertController.Style.actionSheet)
         controller.view.tintColor = UIColor.black
         let closure = { (action: UIAlertAction!) -> Void in
-            let index = controller.actions.index(of: action)
+            let index = controller.actions.firstIndex(of: action)
             if index != nil {
                 NSLog("Index: \(index!)")
                 print(self.states_name[index!])
@@ -313,14 +313,14 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate,UITextFieldDeleg
             // selected_Year = self.yearsArr[i] as? String
             
         }
-        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
+        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
     }
     @IBAction func selectBrands(_ sender: UIButton) {
-        let controller = UIAlertController(title: "Choose a Brand name", message: nil, preferredStyle: UIAlertControllerStyle.actionSheet)
+        let controller = UIAlertController(title: "Choose a Brand name", message: nil, preferredStyle: UIAlertController.Style.actionSheet)
         controller.view.tintColor = UIColor.black
         let closure = { (action: UIAlertAction!) -> Void in
-            let index = controller.actions.index(of: action)
+            let index = controller.actions.firstIndex(of: action)
             if index != nil {
                 NSLog("Index: \(index!)")
                 print(self.brand_name[index!])
@@ -332,7 +332,7 @@ class FilterViewController: UIViewController,LBZSpinnerDelegate,UITextFieldDeleg
             // selected_Year = self.yearsArr[i] as? String
             
         }
-        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
+        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
     }
     

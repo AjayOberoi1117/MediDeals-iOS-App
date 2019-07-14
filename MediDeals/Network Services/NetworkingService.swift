@@ -143,7 +143,7 @@ extension UIViewController: URLSessionDataDelegate,URLSessionTaskDelegate,URLSes
         let boundary: String = "------VohpleBoundary4QuqLuM1cE5lMwCy"
         let contentType: String = "multipart/form-data; boundary=\(boundary)"
         let headers :[String:String] =
-            ["content-type": "application/json", "token" : UserDefaults.standard.value(forKey: "TOKEN") as! String]
+            ["content-type": "application/json"]
         var request = URLRequest(url: URL(string: urlString)!)
         
         for (key, value) in headers {
@@ -169,7 +169,7 @@ extension UIViewController: URLSessionDataDelegate,URLSessionTaskDelegate,URLSes
             body.append("--\(boundary)\r\n".data(using: String.Encoding.utf8)!)
             body.append("Content-Disposition: form-data; name=\"\(fileName)\"; filename=\"image.png\"\r\n".data(using: String.Encoding.utf8)!)
             body.append("Content-Type:image/png\r\n\r\n".data(using: String.Encoding.utf8)!)
-            body.append(UIImageJPEGRepresentation(image!, 0.2)!)
+            body.append(image!.jpegData(compressionQuality: 0.1)!)
             body.append("\r\n".data(using: String.Encoding.utf8)!)
         }
         

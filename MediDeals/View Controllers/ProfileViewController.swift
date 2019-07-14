@@ -41,12 +41,12 @@ class ProfileViewController: UIViewController {
         self.txtShopPlotNo.isUserInteractionEnabled = false
         self.txtWebsiteUrl.isUserInteractionEnabled = false
         
-        txtLicenseNo.attributedPlaceholder = NSAttributedString(string:"LICENSE NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtGSTNo.attributedPlaceholder = NSAttributedString(string:"GST NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtAddress.attributedPlaceholder = NSAttributedString(string:"ADDRESS", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtContact.attributedPlaceholder = NSAttributedString(string:"CONTACT NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtName.attributedPlaceholder = NSAttributedString(string:"BUSINESS NAME", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtLicenseNo.attributedPlaceholder = NSAttributedString(string:"LICENSE NO.", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtGSTNo.attributedPlaceholder = NSAttributedString(string:"GST NO.", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtAddress.attributedPlaceholder = NSAttributedString(string:"ADDRESS", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtContact.attributedPlaceholder = NSAttributedString(string:"CONTACT NO.", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtName.attributedPlaceholder = NSAttributedString(string:"BUSINESS NAME", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
          // Do any additional setup after loading the view.
         self.submitBtn.isHidden = true
         

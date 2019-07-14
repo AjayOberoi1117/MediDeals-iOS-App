@@ -43,9 +43,9 @@ class Login_ViewController: UIViewController {
         Utilities.HideRightSideMenu()
         self.hiddenView.isHidden = true
         self.forgotPwdView.isHidden = true
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtPassword.attributedPlaceholder = NSAttributedString(string:"PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtForgotEmil.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtPassword.attributedPlaceholder = NSAttributedString(string:"PASSWORD", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtForgotEmil.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         self.hiddenView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTappedOnCircularView1)))
         
         if UserDefaults.standard.value(forKey: "USER_ID") == nil
@@ -101,7 +101,7 @@ class Login_ViewController: UIViewController {
             completion: { _ in
                 // Implement your awesome logic here.
         })
-        let blurEffect = UIBlurEffect(style: UIBlurEffectStyle.light)
+        let blurEffect = UIBlurEffect(style: UIBlurEffect.Style.light)
             let blurEffectView = UIVisualEffectView(effect: blurEffect)
         blurEffectView.frame = view.bounds
         blurEffectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -223,8 +223,8 @@ class Login_ViewController: UIViewController {
             {
                 self.hideProgress()
                 self.stopAnim()
-                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: {action -> Void in
+                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertController.Style.alert)
+                alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: {action -> Void in
                     print("action are work....")
                     self.hiddenView.isHidden = true
                     self.forgotPwdView.isHidden = true

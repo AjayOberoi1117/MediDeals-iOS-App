@@ -104,4 +104,12 @@ struct getCartListing
     var total: String
 }
 
- 
+struct getAllResponse{
+    var product_id :String
+    var description :String
+    var mrp : String
+    var new_price :String
+    var product_name : String
+    var quantity : String
+    var image :  String
+}

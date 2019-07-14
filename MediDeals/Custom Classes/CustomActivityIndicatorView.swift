@@ -50,7 +50,7 @@ class CustomActivityIndicatorView: UIView {
         rotation.duration = 1.0
         rotation.isRemovedOnCompletion = false
         rotation.repeatCount = HUGE
-        rotation.fillMode = kCAFillModeForwards
+        rotation.fillMode = CAMediaTimingFillMode.forwards
         rotation.fromValue = NSNumber(value: 0.0 as Float)
         rotation.toValue = NSNumber(value: 3.14 * 2.0 as Float)
         

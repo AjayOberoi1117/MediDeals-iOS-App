@@ -83,11 +83,11 @@ open class IQBarButtonItem: UIBarButtonItem {
 
             #if swift(>=4)
 
-                if let attributes = titleTextAttributes(for: .normal) {
+                if let attributes = convertFromOptionalNSAttributedStringKeyDictionary(titleTextAttributes(for: .normal)) {
                     
                     for (key, value) in attributes {
                         #if swift(>=4.2)
-                        textAttributes[key] = value
+                        //textAttributes[key] = value
                         #else
                         textAttributes[NSAttributedStringKey.init(key)] = value
                         #endif
@@ -133,4 +133,10 @@ open class IQBarButtonItem: UIBarButtonItem {
         target = nil
         invocation = nil
     }
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromOptionalNSAttributedStringKeyDictionary(_ input: [NSAttributedString.Key: Any]?) -> [String: Any]? {
+	guard let input = input else { return nil }
+	return Dictionary(uniqueKeysWithValues: input.map {key, value in (key.rawValue, value)})
 }

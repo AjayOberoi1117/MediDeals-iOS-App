@@ -68,8 +68,8 @@ class Utilities: NSObject,NVActivityIndicatorViewable,UINavigationBarDelegate {
     class func ShowAlertView(title: String, message: String, viewController: UIViewController) {
         let alert: UIAlertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
         // add the actions (buttons)
-        alert.addAction(UIAlertAction(title: "Continue", style: UIAlertActionStyle.default, handler: nil))
-        alert.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Continue", style: UIAlertAction.Style.default, handler: nil))
+        alert.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil))
         viewController.present(alert, animated: true, completion: nil)
     }
     //    MARK: ShowAlertView...
@@ -77,7 +77,7 @@ class Utilities: NSObject,NVActivityIndicatorViewable,UINavigationBarDelegate {
         let alert: UIAlertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
         // add the actions (buttons)
         //alert.addAction(UIAlertAction(title: "Continue", style: UIAlertActionStyle.default, handler: nil))
-        alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.cancel, handler: nil))
         viewController.present(alert, animated: true, completion: nil)
     }
     
@@ -87,7 +87,7 @@ class Utilities: NSObject,NVActivityIndicatorViewable,UINavigationBarDelegate {
         flash.duration = 0.5
         flash.fromValue = 1
         flash.toValue = 0.1
-        flash.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseInEaseOut)
+        flash.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeInEaseOut)
         flash.autoreverses = true
         flash.repeatCount = 1
         buttonName.layer.add(flash, forKey: nil)

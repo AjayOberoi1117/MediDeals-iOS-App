@@ -85,6 +85,8 @@ public enum APIEndPoint
         case delete_cart
         case search
         case home
+        case addProduct
+        case showAllProduct
         var caseValue: String{
             switch self{
             case .userRegister:               return "/register"
@@ -117,6 +119,8 @@ public enum APIEndPoint
             case .delete_cart:                return "/delete_cart"
             case .home:                       return "/home"
             case .search:                     return "/search"
+            case .addProduct:                 return "/addProduct"
+            case .showAllProduct:             return "/showAllProduct"
             }
         }
     }

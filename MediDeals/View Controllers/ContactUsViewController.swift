@@ -21,9 +21,9 @@ class ContactUsViewController: UIViewController,UITextViewDelegate, UITextFieldD
         super.viewDidLoad()
         Utilities.HideRightSideMenu()
         self.scrollView.isScrollEnabled = false
-        txtContactNo.attributedPlaceholder = NSAttributedString(string:"CONTACT NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtName.attributedPlaceholder = NSAttributedString(string:"NAME", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtContactNo.attributedPlaceholder = NSAttributedString(string:"CONTACT NO.", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtName.attributedPlaceholder = NSAttributedString(string:"NAME", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         txtName.delegate = self
         txtEmail.delegate = self
         txtContactNo.delegate = self
@@ -136,8 +136,8 @@ class ContactUsViewController: UIViewController,UITextViewDelegate, UITextFieldD
             {
                 self.hideProgress()
                 self.stopAnim()
-                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: {action -> Void in
+                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertController.Style.alert)
+                alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: {action -> Void in
                     print("action are work....")
                     self.txtName.text = ""
                     self.txtEmail.text = ""

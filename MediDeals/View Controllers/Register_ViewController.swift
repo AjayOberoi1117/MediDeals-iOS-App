@@ -27,13 +27,13 @@ class Register_ViewController: UIViewController {
         Utilities.HideRightSideMenu()
 //        txtEmail.attributedPlaceholder = NSAttributedString(string:"EMAIL", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
 //        txtPassword.attributedPlaceholder = NSAttributedString(string:"PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtBusinessName.attributedPlaceholder = NSAttributedString(string:"BUSINESS NAME", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtBusinessName.attributedPlaceholder = NSAttributedString(string:"BUSINESS NAME", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         //txtAccountType.attributedPlaceholder = NSAttributedString(string:"ACCOUNT TYPE", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtShopNO.attributedPlaceholder = NSAttributedString(string:"SHOP NO./PLOT NO.", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtStreetName.attributedPlaceholder = NSAttributedString(string:"STREET NAME", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtCity.attributedPlaceholder = NSAttributedString(string:"CITY", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtLicenceNO.attributedPlaceholder = NSAttributedString(string:"LICENCE NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-        txtGSTNO.attributedPlaceholder = NSAttributedString(string:"GST NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtShopNO.attributedPlaceholder = NSAttributedString(string:"SHOP NO./PLOT NO.", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtStreetName.attributedPlaceholder = NSAttributedString(string:"STREET NAME", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtCity.attributedPlaceholder = NSAttributedString(string:"CITY", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtLicenceNO.attributedPlaceholder = NSAttributedString(string:"LICENCE NUMBER", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtGSTNO.attributedPlaceholder = NSAttributedString(string:"GST NUMBER", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
 //        txtContactNO.attributedPlaceholder = NSAttributedString(string:"CONTACT NUMBER", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
         
         AccType = ["WholeSeller","Retailer","PCD Company","Third Party Manufacture","FMCG","Doctor"]
@@ -46,10 +46,10 @@ class Register_ViewController: UIViewController {
         self.navigationController?.popViewController(animated: true)
     }
     @IBAction func AccountType_bnt(_ sender: UIButton) {
-        let controller = UIAlertController(title: "Choose an Account Type", message: nil, preferredStyle: UIAlertControllerStyle.actionSheet)
+        let controller = UIAlertController(title: "Choose an Account Type", message: nil, preferredStyle: UIAlertController.Style.actionSheet)
         controller.view.tintColor = UIColor.black
         let closure = { (action: UIAlertAction!) -> Void in
-            let index = controller.actions.index(of: action)
+            let index = controller.actions.firstIndex(of: action)
             if index != nil {
                 NSLog("Index: \(index!)")
                 print(self.AccType[index!])
@@ -61,7 +61,7 @@ class Register_ViewController: UIViewController {
             // selected_Year = self.yearsArr[i] as? String
             
         }
-        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil))
+        controller.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil))
         present(controller, animated: true, completion: nil)
     }
     
@@ -145,8 +145,8 @@ class Register_ViewController: UIViewController {
             {
                 self.hideProgress()
                 self.stopAnim()
-                let alert = UIAlertController(title: "Message", message: "Register successfully done", preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: {action -> Void in
+                let alert = UIAlertController(title: "Message", message: "Register successfully done", preferredStyle: UIAlertController.Style.alert)
+                alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: {action -> Void in
                     print("action are work....")
                     self.sague()
                     

@@ -459,7 +459,7 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
             if let  textFieldRetain = _textFieldView {
                 
                 //Getting index of current textField.
-                if let index = textFields.index(of: textFieldRetain) {
+                if let index = textFields.firstIndex(of: textFieldRetain) {
                     
                     //If it is not first textField. then it's previous object canBecomeFirstResponder.
                     if index > 0 {
@@ -479,7 +479,7 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
         if let textFields = responderViews() {
             if let  textFieldRetain = _textFieldView {
                 //Getting index of current textField.
-                if let index = textFields.index(of: textFieldRetain) {
+                if let index = textFields.firstIndex(of: textFieldRetain) {
                     
                     //If it is not first textField. then it's previous object canBecomeFirstResponder.
                     if index < textFields.count-1 {
@@ -500,7 +500,7 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
         if let  textFieldRetain = _textFieldView {
             if let textFields = responderViews() {
                 //Getting index of current textField.
-                if let index = textFields.index(of: textFieldRetain) {
+                if let index = textFields.firstIndex(of: textFieldRetain) {
                     
                     //If it is not first textField. then it's previous object becomeFirstResponder.
                     if index > 0 {
@@ -535,7 +535,7 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
         if let  textFieldRetain = _textFieldView {
             if let textFields = responderViews() {
                 //Getting index of current textField.
-                if let index = textFields.index(of: textFieldRetain) {
+                if let index = textFields.firstIndex(of: textFieldRetain) {
                     //If it is not last textField. then it's next object becomeFirstResponder.
                     if index < textFields.count-1 {
                         
@@ -758,7 +758,7 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
     
     @objc public func unregisterTextFieldViewClass(_ aClass: UIView.Type, didBeginEditingNotificationName : String, didEndEditingNotificationName : String) {
         
-        if let index = registeredClasses.index(where: { element in
+        if let index = registeredClasses.firstIndex(where: { element in
             return element == aClass.self
         }) {
             registeredClasses.remove(at: index)
@@ -1334,9 +1334,9 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
             let durationUserInfoKey = UIResponder.keyboardAnimationDurationUserInfoKey
             let frameEndUserInfoKey = UIResponder.keyboardFrameEndUserInfoKey
             #else
-            let curveUserInfoKey    = UIKeyboardAnimationCurveUserInfoKey
-            let durationUserInfoKey = UIKeyboardAnimationDurationUserInfoKey
-            let frameEndUserInfoKey = UIKeyboardFrameEndUserInfoKey
+            let curveUserInfoKey    = UIResponder.keyboardAnimationCurveUserInfoKey
+            let durationUserInfoKey = UIResponder.keyboardAnimationDurationUserInfoKey
+            let frameEndUserInfoKey = UIResponder.keyboardFrameEndUserInfoKey
             #endif
 
             //  Getting keyboard animation.
@@ -1457,7 +1457,7 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
             #if swift(>=4.2)
             let durationUserInfoKey = UIResponder.keyboardAnimationDurationUserInfoKey
             #else
-            let durationUserInfoKey = UIKeyboardAnimationDurationUserInfoKey
+            let durationUserInfoKey = UIResponder.keyboardAnimationDurationUserInfoKey
             #endif
 
             //  Getting keyboard animation duration
@@ -1990,18 +1990,18 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
         
         let UIApplicationWillChangeStatusBarOrientation = UIApplication.willChangeStatusBarOrientationNotification
         #else
-        let UIKeyboardWillShow  = Notification.Name.UIKeyboardWillShow
-        let UIKeyboardDidShow   = Notification.Name.UIKeyboardDidShow
-        let UIKeyboardWillHide  = Notification.Name.UIKeyboardWillHide
-        let UIKeyboardDidHide   = Notification.Name.UIKeyboardDidHide
+        let UIKeyboardWillShow  = UIResponder.keyboardWillShowNotification
+        let UIKeyboardDidShow   = UIResponder.keyboardDidShowNotification
+        let UIKeyboardWillHide  = UIResponder.keyboardWillHideNotification
+        let UIKeyboardDidHide   = UIResponder.keyboardDidHideNotification
         
-        let UITextFieldTextDidBeginEditing  = Notification.Name.UITextFieldTextDidBeginEditing
-        let UITextFieldTextDidEndEditing    = Notification.Name.UITextFieldTextDidEndEditing
+        let UITextFieldTextDidBeginEditing  = UITextField.textDidBeginEditingNotification
+        let UITextFieldTextDidEndEditing    = UITextField.textDidEndEditingNotification
         
-        let UITextViewTextDidBeginEditing   = Notification.Name.UITextViewTextDidBeginEditing
-        let UITextViewTextDidEndEditing     = Notification.Name.UITextViewTextDidEndEditing
+        let UITextViewTextDidBeginEditing   = UITextView.textDidBeginEditingNotification
+        let UITextViewTextDidEndEditing     = UITextView.textDidEndEditingNotification
         
-        let UIApplicationWillChangeStatusBarOrientation = Notification.Name.UIApplicationWillChangeStatusBarOrientation
+        let UIApplicationWillChangeStatusBarOrientation = UIApplication.willChangeStatusBarOrientationNotification
         #endif
 
         //  Registering for keyboard notification.
@@ -2036,18 +2036,18 @@ public class IQKeyboardManager: NSObject, UIGestureRecognizerDelegate {
         
         let UIApplicationWillChangeStatusBarOrientation = UIApplication.willChangeStatusBarOrientationNotification
         #else
-        let UIKeyboardWillShow  = Notification.Name.UIKeyboardWillShow
-        let UIKeyboardDidShow   = Notification.Name.UIKeyboardDidShow
-        let UIKeyboardWillHide  = Notification.Name.UIKeyboardWillHide
-        let UIKeyboardDidHide   = Notification.Name.UIKeyboardDidHide
+        let UIKeyboardWillShow  = UIResponder.keyboardWillShowNotification
+        let UIKeyboardDidShow   = UIResponder.keyboardDidShowNotification
+        let UIKeyboardWillHide  = UIResponder.keyboardWillHideNotification
+        let UIKeyboardDidHide   = UIResponder.keyboardDidHideNotification
         
-        let UITextFieldTextDidBeginEditing  = Notification.Name.UITextFieldTextDidBeginEditing
-        let UITextFieldTextDidEndEditing    = Notification.Name.UITextFieldTextDidEndEditing
+        let UITextFieldTextDidBeginEditing  = UITextField.textDidBeginEditingNotification
+        let UITextFieldTextDidEndEditing    = UITextField.textDidEndEditingNotification
         
-        let UITextViewTextDidBeginEditing   = Notification.Name.UITextViewTextDidBeginEditing
-        let UITextViewTextDidEndEditing     = Notification.Name.UITextViewTextDidEndEditing
+        let UITextViewTextDidBeginEditing   = UITextView.textDidBeginEditingNotification
+        let UITextViewTextDidEndEditing     = UITextView.textDidEndEditingNotification
         
-        let UIApplicationWillChangeStatusBarOrientation = Notification.Name.UIApplicationWillChangeStatusBarOrientation
+        let UIApplicationWillChangeStatusBarOrientation = UIApplication.willChangeStatusBarOrientationNotification
         #endif
 
         //  Unregistering for keyboard notification.

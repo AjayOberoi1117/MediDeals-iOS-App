@@ -195,7 +195,7 @@ class SideMenuController: UIViewController, UITableViewDelegate , UITableViewDat
                 appDelegate.centerContainer.toggle(MMDrawerSide.left, animated: true, completion: nil)
             }
             else if indexPath.row == 10{
-                let refreshAlert = UIAlertController(title: "Alert", message: "Are you sure you want to logout?", preferredStyle: UIAlertControllerStyle.alert)
+                let refreshAlert = UIAlertController(title: "Alert", message: "Are you sure you want to logout?", preferredStyle: UIAlertController.Style.alert)
                 
                 refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
                     print("Handle Ok logic here")

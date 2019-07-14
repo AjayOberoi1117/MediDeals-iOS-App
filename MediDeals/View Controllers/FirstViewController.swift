@@ -31,6 +31,7 @@ class FirstViewController: UIViewController,UIScrollViewDelegate, UIPageViewCont
         self.letsStartedBtn.isHidden = true
         self.headingArr = ["SIGNUP AND ACTIVATE","LIST PRODUCTS","SELL ACROSS INDIA","INSTANT PAYMENTS"]
         self.descriptionArr = ["Fill all the details, get verified & activated in few minutes","Uploading your products is really simple through our self-serve tool.","Maximise online sales, attract buyers & achieve higher conversions.","Our payments processed instantly after goods delivered!"]
+    
         self.imgArr = [UIImage(named: "clipboard (1)"),UIImage(named: "list (1)"),UIImage(named: "seller-1"),UIImage(named: "hand (1)")] as! [UIImage]
    
         self.offSet = 0

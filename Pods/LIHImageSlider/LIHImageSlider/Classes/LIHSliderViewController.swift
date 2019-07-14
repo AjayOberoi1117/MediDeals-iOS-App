@@ -81,8 +81,8 @@ open class LIHSliderViewController: UIViewController, LIHSliderItemDelegate {
         pageController.setViewControllers([startingViewController], direction: .forward, animated: false, completion: nil)
         
         self.view.addSubview(self.pageController.view)
-        self.view.bringSubview(toFront: self.pageControl)
-        pageController.didMove(toParentViewController: self)
+        self.view.bringSubviewToFront(self.pageControl)
+        pageController.didMove(toParent: self)
         
         for sview in pageController.view.subviews {
             
@@ -106,13 +106,13 @@ open class LIHSliderViewController: UIViewController, LIHSliderItemDelegate {
     
     fileprivate func setConstraints() {
         
-        let top = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutAttribute.top, relatedBy: NSLayoutRelation.equal, toItem: self.view, attribute: NSLayoutAttribute.top, multiplier: 1, constant: 0)
+        let top = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutConstraint.Attribute.top, relatedBy: NSLayoutConstraint.Relation.equal, toItem: self.view, attribute: NSLayoutConstraint.Attribute.top, multiplier: 1, constant: 0)
         
-        let bottom = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutAttribute.bottom, relatedBy: NSLayoutRelation.equal, toItem: self.view, attribute: NSLayoutAttribute.bottom, multiplier: 1, constant: 0)
+        let bottom = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutConstraint.Attribute.bottom, relatedBy: NSLayoutConstraint.Relation.equal, toItem: self.view, attribute: NSLayoutConstraint.Attribute.bottom, multiplier: 1, constant: 0)
         
-        let left = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutAttribute.left, relatedBy: NSLayoutRelation.equal, toItem: self.view, attribute: NSLayoutAttribute.left, multiplier: 1, constant: 0)
+        let left = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutConstraint.Attribute.left, relatedBy: NSLayoutConstraint.Relation.equal, toItem: self.view, attribute: NSLayoutConstraint.Attribute.left, multiplier: 1, constant: 0)
         
-        let right = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutAttribute.right, relatedBy: NSLayoutRelation.equal, toItem: self.view, attribute: NSLayoutAttribute.right, multiplier: 1, constant: 0)
+        let right = NSLayoutConstraint(item: self.pageController.view, attribute: NSLayoutConstraint.Attribute.right, relatedBy: NSLayoutConstraint.Relation.equal, toItem: self.view, attribute: NSLayoutConstraint.Attribute.right, multiplier: 1, constant: 0)
         
         self.view.addConstraints([top,bottom,left,right])
     }
@@ -131,14 +131,14 @@ open class LIHSliderViewController: UIViewController, LIHSliderItemDelegate {
     @objc func pageSwitchTimer(_ sender: AnyObject) {
         
         if currentIndex == self.slider.sliderImages.count - 1 {
-            self.pageController.setViewControllers([self.contentViewController(atIndex: 0)], direction: UIPageViewControllerNavigationDirection.forward, animated: true, completion: { (complete) -> Void in
+            self.pageController.setViewControllers([self.contentViewController(atIndex: 0)], direction: UIPageViewController.NavigationDirection.forward, animated: true, completion: { (complete) -> Void in
                 self.currentIndex = 0
             })
         } else {
             if [self.contentViewController(atIndex: self.currentIndex+1)][0] == nil{
             
             }else{
-                self.pageController.setViewControllers([self.contentViewController(atIndex: self.currentIndex+1)], direction: UIPageViewControllerNavigationDirection.forward, animated: true, completion: { (complete) -> Void in
+                self.pageController.setViewControllers([self.contentViewController(atIndex: self.currentIndex+1)], direction: UIPageViewController.NavigationDirection.forward, animated: true, completion: { (complete) -> Void in
                     self.currentIndex = self.currentIndex + 1
                 })
             }

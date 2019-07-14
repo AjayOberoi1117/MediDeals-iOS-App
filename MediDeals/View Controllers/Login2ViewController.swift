@@ -30,9 +30,9 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
         self.sendOTPBtn.isHidden = false
         self.hiddenView.isHidden = true
         //self.forgotPwdView.isHidden = true
-        txtEmail.attributedPlaceholder = NSAttributedString(string:"Mobile", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtEmail.attributedPlaceholder = NSAttributedString(string:"Mobile", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         //self.forgotPwdView.isHidden = true
-        txtPasswrd.attributedPlaceholder = NSAttributedString(string:"Password", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtPasswrd.attributedPlaceholder = NSAttributedString(string:"Password", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         
         self.hiddenView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTappedOnCircularView1)))
         self.sendOTPBtn.isHidden = true
@@ -197,7 +197,7 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
                 self.stopAnim()
                 let secondViewController = self.storyboard?.instantiateViewController(withIdentifier: "OTPViewController") as! OTPViewController
                
-                let refreshAlert = UIAlertController(title: "OTP", message:  "\(dic.value(forKey: "otp") as! NSNumber)", preferredStyle: UIAlertControllerStyle.alert)
+                let refreshAlert = UIAlertController(title: "OTP", message:  "\(dic.value(forKey: "otp") as! NSNumber)", preferredStyle: UIAlertController.Style.alert)
                 
                 refreshAlert.addAction(UIAlertAction(title: "Confirm", style: .default, handler: { (action: UIAlertAction!) in
                     print("Handle Ok logic here")
@@ -234,7 +234,7 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
             completion: { _ in
                 // Implement your awesome logic here.
         })
-        let blurEffect = UIBlurEffect(style: UIBlurEffectStyle.light)
+        let blurEffect = UIBlurEffect(style: UIBlurEffect.Style.light)
         let blurEffectView = UIVisualEffectView(effect: blurEffect)
         blurEffectView.frame = view.bounds
         blurEffectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -263,8 +263,8 @@ class Login2ViewController: UIViewController,UITextFieldDelegate {
             {
                 self.hideProgress()
                 self.stopAnim()
-                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: {action -> Void in
+                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertController.Style.alert)
+                alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: {action -> Void in
                     print("action are work....")
                     self.hiddenView.isHidden = true
                     

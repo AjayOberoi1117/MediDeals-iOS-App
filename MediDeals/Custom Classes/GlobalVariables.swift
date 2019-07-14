@@ -41,4 +41,10 @@ class SingletonVariables: NSObject {
                      "brand": "",
                      "state":"",
                      "city": ""]
+    
+    var categoryDic = [["cat_name":"ALLOPATHIC","cat_id":"1"],
+                       ["cat_name":"AYURVEDIC","cat_id":"2"],
+                       ["cat_name":"FMCG","cat_id":"3"],
+                       ["cat_name":"PCD COMPANIES/3RD PARTY","cat_id":"4"],
+                       ["cat_name":"SURGICAL GOODS","cat_id":"5"]]
 }

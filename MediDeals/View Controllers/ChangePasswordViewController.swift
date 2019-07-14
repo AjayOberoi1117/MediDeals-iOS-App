@@ -17,9 +17,9 @@ class ChangePasswordViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         Utilities.HideRightSideMenu()
-        txtOldPassword.attributedPlaceholder = NSAttributedString(string:"OLD PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-         txtNewPassword.attributedPlaceholder = NSAttributedString(string:"NEW PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
-         txtConfrimPassword.attributedPlaceholder = NSAttributedString(string:"CONFIRM PASSWORD", attributes: [NSAttributedStringKey.foregroundColor: UIColor.white])
+        txtOldPassword.attributedPlaceholder = NSAttributedString(string:"OLD PASSWORD", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtNewPassword.attributedPlaceholder = NSAttributedString(string:"NEW PASSWORD", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
+        txtConfrimPassword.attributedPlaceholder = NSAttributedString(string:"CONFIRM PASSWORD", attributes: [NSAttributedString.Key.foregroundColor: UIColor.white])
         // Do any additional setup after loading the view.
     }
 
@@ -74,8 +74,8 @@ class ChangePasswordViewController: UIViewController {
             {
                 self.hideProgress()
                 self.stopAnim()
-                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertControllerStyle.alert)
-                alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: {action -> Void in
+                let alert = UIAlertController(title: "Message", message: (dic.value(forKey: "message") as! String), preferredStyle: UIAlertController.Style.alert)
+                alert.addAction(UIAlertAction(title: "OK", style: UIAlertAction.Style.default, handler: {action -> Void in
                     print("action are work....")
                     self.txtOldPassword.text = ""
                     self.txtNewPassword.text = ""

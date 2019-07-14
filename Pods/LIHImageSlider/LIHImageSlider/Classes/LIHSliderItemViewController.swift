@@ -44,12 +44,12 @@ class LIHSliderItemViewController: UIViewController {
             self.imageView = imageview
         } else {
             self.imageView = UIImageView()
-            self.imageView.contentMode = UIViewContentMode.scaleAspectFill
+            self.imageView.contentMode = UIView.ContentMode.scaleAspectFill
         }
         
         
         self.button = UIButton()
-        self.button.addTarget(self, action: #selector(LIHSliderItemViewController.pressed(_:)), for: UIControlEvents.touchUpInside)
+        self.button.addTarget(self, action: #selector(LIHSliderItemViewController.pressed(_:)), for: UIControl.Event.touchUpInside)
         self.view.addSubview(self.imageView)
         self.view.addSubview(self.button)
         self.imageView.frame = self.view.frame

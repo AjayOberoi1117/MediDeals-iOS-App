@@ -67,9 +67,9 @@ class Allopathic_ViewController: UIViewController{
             //            transition.subtype = kCATransitionFromLeft
             //            fliterMenuViewController.view.layer.add(transition, forKey: kCATransition)
             BlackView.isHidden = true
-            fliterMenuViewController.willMove(toParentViewController: nil)
+            fliterMenuViewController.willMove(toParent: nil)
             fliterMenuViewController.view.removeFromSuperview()
-            fliterMenuViewController.removeFromParentViewController()
+            fliterMenuViewController.removeFromParent()
         }
         else{
             isMenuOpened = true
@@ -81,10 +81,10 @@ class Allopathic_ViewController: UIViewController{
             //            transition.subtype = kCATransitionFromRight
             //            fliterMenuViewController.view.layer.add(transition, forKey: kCATransition)
             BlackView.isHidden = false
-            self.addChildViewController(fliterMenuViewController)
+            self.addChild(fliterMenuViewController)
             self.view.addSubview(fliterMenuViewController.view)
             
-            fliterMenuViewController.didMove(toParentViewController: self)
+            fliterMenuViewController.didMove(toParent: self)
         }
         
     }
@@ -144,7 +144,7 @@ extension Allopathic_ViewController : UICollectionViewDelegate,UICollectionViewD
             cell.disPriceLbl.text = "Rs " + self.getAllpothicData[indexPath.row].price
             let newStringStrike = "Rs " + self.getAllpothicData[indexPath.row].old_price
             let attributeString = NSMutableAttributedString(string: newStringStrike)
-            attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+            attributeString.addAttribute(NSAttributedString.Key.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
             cell.originalPrice.attributedText = attributeString
              cell.codelbl.text = self.getAllpothicData[indexPath.row].code
             let d = Float(self.getAllpothicData[indexPath.row].discount)!.rounded(.towardZero)

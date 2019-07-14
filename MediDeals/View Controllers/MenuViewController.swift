@@ -148,9 +148,9 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
             //            transition.subtype = kCATransitionFromLeft
             //            fliterMenuViewController.view.layer.add(transition, forKey: kCATransition)
             BlackView.isHidden = true
-            fliterMenuViewController.willMove(toParentViewController: nil)
+            fliterMenuViewController.willMove(toParent: nil)
             fliterMenuViewController.view.removeFromSuperview()
-            fliterMenuViewController.removeFromParentViewController()
+            fliterMenuViewController.removeFromParent()
         }
         else{
             isMenuOpened = true
@@ -169,9 +169,9 @@ class MenuViewController: UIViewController,UISearchBarDelegate,UIScrollViewDeleg
             //            transition.subtype = kCATransitionFromRight
             //            fliterMenuViewController.view.layer.add(transition, forKey: kCATransition)
             BlackView.isHidden = false
-            self.addChildViewController(fliterMenuViewController)
+            self.addChild(fliterMenuViewController)
             self.view.addSubview(fliterMenuViewController.view)
-            fliterMenuViewController.didMove(toParentViewController: self)
+            fliterMenuViewController.didMove(toParent: self)
         }
 }
  
@@ -436,7 +436,7 @@ extension MenuViewController : UITableViewDelegate, UITableViewDataSource{
             cell1.disPriceLbl.text = "Rs " + self.getAllpothicData[indexPath.row].price
             let newStringStrike = "Rs " + self.getAllpothicData[indexPath.row].old_price
             let attributeString = NSMutableAttributedString(string: newStringStrike)
-            attributeString.addAttribute(NSAttributedStringKey.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
+        attributeString.addAttribute(NSAttributedString.Key.strikethroughStyle, value: 1, range: NSMakeRange(0, attributeString.length))
             cell1.originalPrice.attributedText = attributeString
             //cell1.codelbl.text = self.getAllpothicData[indexPath.row].code
             cell1.brandName.text = self.getAllpothicData[indexPath.row].brandName

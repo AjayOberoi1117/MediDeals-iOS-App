@@ -207,8 +207,8 @@ public struct WebServicesManager {
         Alamofire.upload(multipartFormData: {
             
             (multipartFormData) in
-            
-            multipartFormData.append(UIImageJPEGRepresentation(image, CGFloat(imageResolution))!, withName: imageToUploadName, fileName: "file.jpeg", mimeType: "image/jpeg")
+            //UIImageJPEGRepresentation(image, CGFloat(imageResolution))!
+            multipartFormData.append(image.jpegData(compressionQuality: CGFloat(imageResolution))!   , withName: imageToUploadName, fileName: "file.jpeg", mimeType: "image/jpeg")
             
             
             for (key, value) in params {

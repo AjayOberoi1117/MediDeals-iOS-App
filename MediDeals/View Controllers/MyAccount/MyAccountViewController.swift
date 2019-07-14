@@ -16,7 +16,7 @@ class MyAccountViewController: UIViewController {
         super.viewDidLoad()
         
         // Do any additional setup after loading the view.
-        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.rowHeight = UITableView.automaticDimension
         self.tableView.estimatedRowHeight = 200
         
 //        self.addLoadingIndicator()

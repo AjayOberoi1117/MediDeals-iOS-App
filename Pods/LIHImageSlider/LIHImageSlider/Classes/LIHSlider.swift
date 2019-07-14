@@ -23,9 +23,9 @@ open class LIHSlider: NSObject {
     open var userInteractionEnabled: Bool = true
     
     //Sliding options
-    open var transitionStyle: UIPageViewControllerTransitionStyle = UIPageViewControllerTransitionStyle.scroll
-    open var slidingOrientation: UIPageViewControllerNavigationOrientation = UIPageViewControllerNavigationOrientation.horizontal
-    open var sliderNavigationDirection: UIPageViewControllerNavigationDirection = UIPageViewControllerNavigationDirection.forward
+    open var transitionStyle: UIPageViewController.TransitionStyle = UIPageViewController.TransitionStyle.scroll
+    open var slidingOrientation: UIPageViewController.NavigationOrientation = UIPageViewController.NavigationOrientation.horizontal
+    open var sliderNavigationDirection: UIPageViewController.NavigationDirection = UIPageViewController.NavigationDirection.forward
     
     public init(images: [UIImage]) {
         
