@@ -13,14 +13,42 @@ class DashBoardVC: UIViewController {
     @IBOutlet weak var tableView: UITableView!
     
     var titleArry = ["Selling Details", "Buying Details"]
+    var sellingCount = NSDictionary()
+    var buyingCount = NSDictionary()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         tableView.rowHeight = UITableView.automaticDimension
         self.tableView.estimatedRowHeight = 200
         // Do any additional setup after loading the view.
+        showCountsAPI()
     }
     
-
+    func showCountsAPI(){
+        self.addLoadingIndicator()
+        self.startAnim()
+        
+        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String]
+        
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.total_counts.caseValue,parameters: params){ (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                
+            } else {
+                self.stopAnim()
+                if let data = dic.value(forKey: "message") as? NSDictionary
+                {
+                   self.buyingCount = data.value(forKey: "buying_details") as! NSDictionary
+                   self.sellingCount = data.value(forKey: "selling_details") as! NSDictionary
+                }
+                self.tableView.reloadData()
+            }
+        }
+    }
    
 }
 @available(iOS 11.0, *)
@@ -36,6 +64,7 @@ extension DashBoardVC : UITableViewDelegate, UITableViewDataSource{
         if let tableCell = tableView.dequeueReusableCell(withIdentifier: "tableCell", for: indexPath) as? DashBoardTableCell {
         tableCell.namelbl.text = titleArry[indexPath.row]
         tableCell.collectionView.tag = indexPath.row
+        tableCell.collectionView.reloadData()
         return tableCell
             
         }
@@ -73,6 +102,10 @@ extension DashBoardVC : UICollectionViewDelegate,UICollectionViewDataSource,UICo
         {
             if collectionView.tag == 0{
                 cell.menuView.backgroundColor = colorArray10[indexPath.row]
+                
+              //  let val = "\(String(describing: self.sellingCount.value(forKey: "totalListedProducts") as! NSNumber))"
+                
+                
                 cell.titleName.text = DashBoardSellingName[indexPath.row]
                 cell.MenuImage.image = DashBoardSellingImages[indexPath.row]
             }else{

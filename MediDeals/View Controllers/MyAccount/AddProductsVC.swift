@@ -24,12 +24,14 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
     @IBOutlet weak var productImg: UIImageView!
     
     var spinnerCode : LBZSpinner!
-    var categoryName = ["ALLOPATHIC", "AYURVEDIC", "FMCG", "PCD COMPANIES/3RD PARTY", "SURGICAL GOODS"]
+    var categoryName = ["ALLOPATHIC", "AYURVEDIC", "FMCG", "PCD COMPANIES/3RD PARTY","SURGICAL GOODS","GENERICS"]
     var imagePicker:UIImagePickerController?=UIImagePickerController()
     var imageData = Data()
     var productImage = UIImage()
-    var categoryID = ["1","2","3","4","5"]
+    var categoryID = ["1","2","3","4","5","6"]
     var selectedId = ""
+    var productArray = NSDictionary()
+    var product_id = ""
     override func viewDidLoad() {
         super.viewDidLoad()
         chooseProduct.delegate = self
@@ -38,6 +40,19 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
         txtViewDescription.delegate = self
         txtViewDescription.text = "Enter product description"
         txtViewDescription.textColor = UIColor.lightGray
+        
+        if productArray.count != 0 {
+            print(productArray)
+            self.txtProductName.text = (productArray.value(forKey: "product_name") as! String)
+            self.txtViewDescription.text = (productArray.value(forKey: "description") as! String).html2String
+            self.txtMaxRetailPrice.text = (productArray.value(forKey: "mrp") as! String)
+            self.txtDiscPrice.text = (productArray.value(forKey: "mrp") as! String)
+            self.txtTotalDiscPrice.text = (productArray.value(forKey: "mrp") as! String)
+            self.txtQuantity.text = (productArray.value(forKey: "quantity") as! String)
+            self.txtMinOrderQuantity.text = ""
+            self.txtCompanyName.text = ""
+            self.product_id = (productArray.value(forKey: "product_id") as! String)
+        }
         // Do any additional setup after loading the view.
     }
     func spinnerChoose(_ spinner: LBZSpinner, index: Int, value: String) {
@@ -140,7 +155,7 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
     }
     
     func validations() {
-        if self.txtProductName.text == "" && self.txtViewDescription.text == "Enter product description" && self.txtChooseFile.text == "" && self.txtMaxRetailPrice.text == "" && self.txtDiscPrice.text == ""  && self.txtTotalDiscPrice.text == "" && self.txtQuantity.text == ""  && self.txtMinOrderQuantity.text == "" && self.txtCompanyName.text == ""{
+        if self.txtProductName.text == "" && self.txtViewDescription.text == "Enter product description" && self.txtMaxRetailPrice.text == "" && self.txtDiscPrice.text == ""  && self.txtTotalDiscPrice.text == "" && self.txtQuantity.text == ""  && self.txtMinOrderQuantity.text == "" && self.txtCompanyName.text == ""{
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter all product information first", viewController: self)
         }
         else if txtProductName.text == "" {
@@ -152,9 +167,9 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
         else if selectedId == ""{
             Utilities.ShowAlertView2(title: "Alert", message: "Please choose product category first", viewController: self)
         }
-        else if txtChooseFile.text == "" {
-            Utilities.ShowAlertView2(title: "Alert", message: "Please choose a product image file", viewController: self)
-        }
+//        else if txtChooseFile.text == "" {
+//            Utilities.ShowAlertView2(title: "Alert", message: "Please choose a product image file", viewController: self)
+//        }
         else if self.txtMaxRetailPrice.text == "" {
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter product max. retail price", viewController: self)
         }
@@ -174,7 +189,11 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
             Utilities.ShowAlertView2(title: "Alert", message: "Please enter your company name", viewController: self)
         }
         else {
-            self.addProductAPI()
+            if productArray.count != 0 {
+                self.editProductAPI()
+            }else{
+                self.addProductAPI()
+            }
         }
     }
     
@@ -204,7 +223,7 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
                 self.hideProgress()
                 self.stopAnim()
                 
-                let refreshAlert = UIAlertController(title: "Message", message:dict.value(forKey: "message") as! String, preferredStyle: UIAlertController.Style.alert)
+                let refreshAlert = UIAlertController(title: "Message", message:(dict.value(forKey: "message") as! String), preferredStyle: UIAlertController.Style.alert)
                 
                 refreshAlert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (action: UIAlertAction!) in
                     print("Handle Ok logic here")
@@ -218,6 +237,49 @@ class AddProductsVC: UIViewController,LBZSpinnerDelegate,UINavigationControllerD
             print(error)
         }
      
+    }
+    
+    //MARK: Add product API:
+    func editProductAPI(){
+        self.addLoadingIndicator()
+        self.startAnim()
+        let params = ["vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String,
+                      "product_id": self.product_id,
+                      "product_name" : self.txtProductName.text!,
+                      "product_description": self.txtViewDescription.text!,
+                      "category":self.selectedId,
+                      "maximum_retail_Price":self.txtMaxRetailPrice.text!,
+                      "discounted_price": self.txtDiscPrice.text!,
+                      "discount_percent": self.txtTotalDiscPrice.text!,
+                      "quantity": self.txtQuantity.text!,
+                      "minquantity":txtMinOrderQuantity.text!,
+                      "company_name":txtCompanyName.text!]
+        
+        uploadImage(urlString: baseUrl + APIEndPoint.userCase.editProduct.caseValue, params: params, imageKeyValue: "image", image: productImage, success: { (response) in
+            let dict:NSDictionary = response
+            print(dict)
+            if dict.value(forKeyPath: "status") as! String == "0"{
+                self.hideProgress()
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dict.value(forKey: "message") as! String, viewController: self)
+            }else {
+                self.hideProgress()
+                self.stopAnim()
+                
+                let refreshAlert = UIAlertController(title: "Message", message:(dict.value(forKey: "message") as! String), preferredStyle: UIAlertController.Style.alert)
+                
+                refreshAlert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (action: UIAlertAction!) in
+                    print("Handle Ok logic here")
+                    self.popSague()
+                }))
+                
+                self.present(refreshAlert, animated: true, completion: nil)
+            }
+        }) { (error) in
+            self.hideProgress()
+            print(error)
+        }
+        
     }
     func popSague(){
         self.navigationController?.popViewController(animated: true)

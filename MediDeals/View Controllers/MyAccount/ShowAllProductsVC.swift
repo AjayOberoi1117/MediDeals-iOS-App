@@ -32,6 +32,9 @@ class ShowAllProductsVC: UIViewController,UISearchBarDelegate,UIScrollViewDelega
         pageno = 1
         TableViewTopConstraints.constant = 0
         // Do any additional setup after loading the view.
+        
+    }
+    override func viewWillAppear(_ animated: Bool) {
         showAllProductAPI()
     }
     @IBAction func searchBtn(_ sender: Any) {
@@ -154,19 +157,23 @@ class ShowAllProductsVC: UIViewController,UISearchBarDelegate,UIScrollViewDelega
             if (dic.value(forKey: "status") as? String == "0")
             {
                 self.stopAnim()
+                self.getAllResponseData = [getAllResponse]()
                 Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+                 self.tableViewData.reloadData()
             } else {
                 self.stopAnim()
                  self.totalPage = (dic.value(forKey: "totalpage") as! NSString).integerValue
                 if let data = (dic.value(forKey: "result") as? NSArray)?.mutableCopy() as? NSMutableArray
                 {
+                    self.getAllResponseData = [getAllResponse]()
                     if data.count == 0{
                         self.stopAnim()
                         Utilities.ShowAlertView2(title: "Alert", message: "No Records Found!", viewController: self)
+                         self.tableViewData.reloadData()
                     }else{
                         self.getAllDataArr = NSArray()
                         self.getAllDataArr = data
-                        self.getAllResponseData = [getAllResponse]()
+                        
                         for index in 0..<data.count
                         {
                             self.getAllResponseData.append(getAllResponse(product_id: "\((data[index] as AnyObject).value(forKey: "product_id") ?? "")", description: "\((data[index] as AnyObject).value(forKey: "description") ?? "")", mrp: "\((data[index] as AnyObject).value(forKey: "mrp") ?? "")", new_price: "\((data[index] as AnyObject).value(forKey: "new_price") ?? "")", product_name: "\((data[index] as AnyObject).value(forKey: "product_name") ?? "")", quantity: "\((data[index] as AnyObject).value(forKey: "quantity") ?? "")", image: "\((data[index] as AnyObject).value(forKey: "image") ?? "")"))
@@ -177,9 +184,33 @@ class ShowAllProductsVC: UIViewController,UISearchBarDelegate,UIScrollViewDelega
             }
         }
     }
+    
+    func deleteProductAPI(product_id: String){
+        self.addLoadingIndicator()
+        self.startAnim()
+        
+        let params = [ "vendor_id" : UserDefaults.standard.value(forKey: "USER_ID") as! String,
+                       "product_id" : product_id]
+        NetworkingService.shared.getData(PostName: APIEndPoint.userCase.deleteProduct.caseValue,parameters: params){ (response) in
+            print(response)
+            let dic = response as! NSDictionary
+            print(dic)
+            if (dic.value(forKey: "status") as? String == "0")
+            {
+                self.stopAnim()
+                Utilities.ShowAlertView2(title: "Alert", message: dic.value(forKey: "message") as! String, viewController: self)
+            } else {
+                self.stopAnim()
+                self.showAllProductAPI()
+            }
+        }
+    }
 
     @IBAction func edit(_ sender: DesignableButton) {
-        
+       let selectedArray = self.getAllDataArr[sender.tag] as! NSDictionary
+        let vc = storyboard?.instantiateViewController(withIdentifier: "AddProductsVC") as! AddProductsVC
+        vc.productArray = selectedArray
+        self.navigationController?.pushViewController(vc, animated: true)
     }
     
     @IBAction func addLocation(_ sender: DesignableButton) {
@@ -187,6 +218,18 @@ class ShowAllProductsVC: UIViewController,UISearchBarDelegate,UIScrollViewDelega
     }
     
     @IBAction func DeleteAct(_ sender: DesignableButton) {
+        let product_id = (self.getAllDataArr[sender.tag] as AnyObject).value(forKey: "product_id") as! String
+        let refreshAlert = UIAlertController(title: "Alert", message:"Are you sure you want to delete this product?", preferredStyle: UIAlertController.Style.alert)
+        
+        refreshAlert.addAction(UIAlertAction(title: "Yes", style: .default, handler: { (action: UIAlertAction!) in
+            print("Handle Ok logic here")
+            self.deleteProductAPI(product_id:product_id )
+        }))
+        refreshAlert.addAction(UIAlertAction(title: "No", style: .default, handler: { (action: UIAlertAction!) in
+            print("Handle Ok logic here")
+        }))
+        
+        self.present(refreshAlert, animated: true, completion: nil)
         
     }
     @IBAction func viewLocation(_ sender: DesignableButton) {

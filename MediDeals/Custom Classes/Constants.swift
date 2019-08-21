@@ -47,9 +47,11 @@ let DashBoardBuyingName = ["Total Orders Placed","Total Orders Received","Total 
 
 let DashBoardBuyingImages = [UIImage(named: "package")!,UIImage(named: "package")!,UIImage(named: "package")!,UIImage(named: "file")!,UIImage(named: "file")!,UIImage(named: "money")!,UIImage(named: "calendar")!,UIImage(named: "file")!]
 
-let BankDetailsTitles = ["Id","Bank Name","Bank Account","Ifsc Code","Bank Address","Phone Number",    "Upi Number","Insert Date","Firm Name","Vendor Id"]
+let BankDetailsTitles = ["Id","Bank Name","Bank Account","Ifsc Code","Bank Address","Phone Number","Upi Number","Insert Date","Firm Name","Vendor Id"]
 
 let orderStatusTitle = ["Confirmation Pending","Not Confirmed","Order Confirmed","Order Shipped","Order Delivered","Order Returned","Order Cancelled"]
+
+let orderStatusTitleID = ["1","2","3","4","5","6","7"]
 
 let PlacedOrderStatusTitle = ["Goods Received","Order Returned"]
 public enum APIEndPoint
@@ -87,6 +89,17 @@ public enum APIEndPoint
         case home
         case addProduct
         case showAllProduct
+        case editProduct
+        case deleteProduct
+        case getBankDetail
+        case addBankDetail
+        case addEnquirie
+        case getEnquirie
+        case total_counts
+        case orderReceived
+        case addEditDocketNumber
+        case changeOrderStatus
+        case orderPlaced
         var caseValue: String{
             switch self{
             case .userRegister:               return "/register"
@@ -121,6 +134,17 @@ public enum APIEndPoint
             case .search:                     return "/search"
             case .addProduct:                 return "/addProduct"
             case .showAllProduct:             return "/showAllProduct"
+            case .editProduct:                return "/editProduct"
+            case .deleteProduct:              return "/deleteProduct"
+            case .getBankDetail:              return "/getBankDetail"
+            case .addBankDetail:              return "/addBankDetail"
+            case .addEnquirie:                return "/addEnquirie"
+            case .getEnquirie:                return "/getEnquirie"
+            case .total_counts:               return "/total_counts"
+            case .orderReceived:              return "/orderReceived"
+            case .addEditDocketNumber:        return "/addEditDocketNumber"
+            case .changeOrderStatus:          return "/changeOrderStatus"
+            case .orderPlaced:                return "/orderPlaced"
             }
         }
     }

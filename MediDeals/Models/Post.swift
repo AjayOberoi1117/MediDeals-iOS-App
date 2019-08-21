@@ -113,3 +113,42 @@ struct getAllResponse{
     var quantity : String
     var image :  String
 }
+struct getBankDetails{
+    var id: String
+    var bank_name: String
+    var bank_account: String
+    var ifsc_code: String
+    var bank_address: String
+    var phone_number: String
+    var upi_number: String
+    var insert_date: String
+    var firm_name: String
+    var vendor_id: String
+}
+struct getAllEnquire{
+    var response_id : String
+    var vendor_id: String
+    var vendor_email: String
+    var message: String
+    var date: String
+}
+
+struct getOrderReceived{
+    var list_id: String
+    var order_id: String
+    var date: String
+    var customer_number: String
+    var order_status: String
+    var docket_number: String
+    var money_status: String
+    var details: NSDictionary
+}
+
+struct getOrderPlaced{
+    var order_id: String
+    var date: String
+    var phone: String
+    var total_amount: String
+    var money_status: String
+    var details: NSDictionary
+}
