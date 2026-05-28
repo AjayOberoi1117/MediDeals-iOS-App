@@ -1,40 +1,67 @@
-# Telegram Forex Bot — MT5 / Vantage
+# Telegram Forex Bot — MT5 / Vantage (macOS + Wine)
 
-Live currency pair rates delivered via Telegram, powered by MetaTrader 5.
+Live currency pair rates delivered via Telegram, powered by MetaTrader 5 running under Wine on macOS.
 
-## Setup
+---
 
-### 1. Install dependencies
+## Quick Start (macOS + Wine)
+
+### Step 1 — Install Wine & MT5
+
+1. Install [Wine](https://www.winehq.org) or [CrossOver](https://www.codeweavers.com/crossover) on your Mac
+2. Install MetaTrader 5 inside Wine and log into your **Vantage demo account**
+3. Keep MT5 running (it must be open for the bridge to work)
+
+### Step 2 — Install Python inside Wine
+
+```bash
+# Download Python 3.10 Windows installer, then:
+wine msiexec /i python-3.10.11-amd64.msi
+
+# Install required packages inside Wine Python:
+wine pip install MetaTrader5 mt5linux
+```
+
+### Step 3 — Install native macOS dependencies
 
 ```bash
 cd telegram_bot
 pip install -r requirements.txt
 ```
 
-### 2. Configure `.env`
+### Step 4 — Configure `.env`
 
 Edit `telegram_bot/.env`:
 
-| Key | Description |
-|-----|-------------|
-| `ACTIVE_BOT` | `ELITE` or `STOCX` — which bot token to use |
-| `MT5_LOGIN` | Your Vantage MT5 account number |
-| `MT5_PASSWORD` | Your Vantage MT5 password |
-| `MT5_SERVER` | Vantage server name (e.g. `Vantage-Live` or `Vantage-Demo`) |
-| `FALLBACK_API_KEY` | Optional — free key from exchangerate-api.com for when MT5 is offline |
+| Key | Value |
+|-----|-------|
+| `MT5_WINE_MODE` | `true` |
+| `MT5_LOGIN` | Your Vantage demo account number |
+| `MT5_PASSWORD` | Your Vantage demo password |
+| `MT5_SERVER` | `Vantage-Demo` (or `Vantage-Live` for real account) |
+| `ACTIVE_BOT` | `ELITE` or `STOCX` |
 
-### 3. Run the bot
+### Step 5 — Start the Wine bridge server
+
+Open a Terminal and run:
+
+```bash
+wine python wine_server.py
+```
+
+Leave this terminal open. You'll see: `Starting MT5 Wine bridge server on localhost:18812 ...`
+
+### Step 6 — Start the Telegram bot
+
+Open a second Terminal and run:
 
 ```bash
 python bot.py
 ```
 
-To run the Stocx bot instead:
-```bash
-ACTIVE_BOT=STOCX python bot.py
-```
+---
 
-## Commands
+## Bot Commands
 
 | Command | Description |
 |---------|-------------|
@@ -43,15 +70,34 @@ ACTIVE_BOT=STOCX python bot.py
 | `/pairs` | List of common forex/CFD symbols |
 | `/help` | Command reference |
 
-## MT5 Requirement
+---
 
-The `MetaTrader5` Python package **only runs on Windows** (64-bit) with MT5 terminal installed and running. On Linux/Mac the bot automatically falls back to a free exchange-rate API (standard FX pairs only — no gold, indices, or crypto CFDs).
+## Vantage Server Names
 
-To find your Vantage server name: open MT5 → File → Open Account → search "Vantage".
+| Account type | MT5_SERVER value |
+|-------------|-----------------|
+| Demo | `Vantage-Demo` |
+| Live | `Vantage-Live` |
+
+To confirm: open MT5 → File → Open Account → search "Vantage" → note the server name shown.
+
+---
+
+## Switching Bots
+
+To run the Stocx bot instead of Elite:
+
+```bash
+ACTIVE_BOT=STOCX python bot.py
+```
+
+Or change `ACTIVE_BOT=STOCX` in `.env`.
+
+---
 
 ## Tokens
 
-| Bot | Token |
-|-----|-------|
-| Elite | set in `.env` as `ELITE_BOT_TOKEN` |
-| Stocx | set in `.env` as `STOCX_BOT_TOKEN` |
+| Bot | Environment variable |
+|-----|---------------------|
+| Elite | `ELITE_BOT_TOKEN` in `.env` |
+| Stocx | `STOCX_BOT_TOKEN` in `.env` |

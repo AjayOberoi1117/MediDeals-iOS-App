@@ -8,11 +8,13 @@ Commands:
   /info EURUSD  — Bid/Ask/Spread/High/Low for a symbol
   /help         — Show available commands
 
-MT5 note: MetaTrader5 Python package requires a Windows machine with
-MT5 terminal installed and running. On Linux use the FALLBACK_API_KEY.
+Platforms:
+  Windows      — uses MetaTrader5 package directly (set MT5_WINE_MODE=false)
+  macOS + Wine — uses mt5linux bridge (set MT5_WINE_MODE=true, run wine_server.py inside Wine first)
 """
 
 import os
+import sys
 import logging
 import requests
 from dotenv import load_dotenv
@@ -43,9 +45,12 @@ else:
     BOT_TOKEN = os.getenv("ELITE_BOT_TOKEN")
     BOT_NAME = "Elite"
 
-MT5_LOGIN = int(os.getenv("MT5_LOGIN", "0"))
+MT5_LOGIN    = int(os.getenv("MT5_LOGIN", "0"))
 MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
-MT5_SERVER = os.getenv("MT5_SERVER", "Vantage-Live")
+MT5_SERVER   = os.getenv("MT5_SERVER", "Vantage-Live")
+MT5_WINE_MODE = os.getenv("MT5_WINE_MODE", "false").lower() == "true"
+MT5_HOST     = os.getenv("MT5_HOST", "localhost")
+MT5_PORT     = int(os.getenv("MT5_PORT", "18812"))
 FALLBACK_API_KEY = os.getenv("FALLBACK_API_KEY", "")
 
 COMMON_PAIRS = [
@@ -54,11 +59,35 @@ COMMON_PAIRS = [
     "XAUUSD", "XAGUSD", "US30", "US500", "BTCUSD",
 ]
 
-# ─── MT5 helpers ────────────────────────────────────────────────────────────
+# ─── MT5 module loader (Wine bridge or native) ──────────────────────────────
 
-def _init_mt5() -> bool:
+def _load_mt5():
+    """
+    Returns the mt5 module or None.
+    - MT5_WINE_MODE=true  → mt5linux (macOS + Wine bridge)
+    - MT5_WINE_MODE=false → MetaTrader5 (Windows native)
+    """
+    if MT5_WINE_MODE:
+        try:
+            from mt5linux import MetaTrader5
+            return MetaTrader5(host=MT5_HOST, port=MT5_PORT)
+        except ImportError:
+            logger.error("mt5linux not installed. Run: pip install mt5linux")
+            return None
+        except Exception as exc:
+            logger.warning("mt5linux load error: %s", exc)
+            return None
+    else:
+        try:
+            import MetaTrader5 as mt5
+            return mt5
+        except ImportError:
+            logger.warning("MetaTrader5 package not available (Windows only)")
+            return None
+
+
+def _init_mt5(mt5) -> bool:
     try:
-        import MetaTrader5 as mt5
         if not mt5.initialize():
             logger.warning("MT5 initialize() failed: %s", mt5.last_error())
             return False
@@ -69,44 +98,41 @@ def _init_mt5() -> bool:
                 mt5.shutdown()
                 return False
         return True
-    except ImportError:
-        return False
     except Exception as exc:
         logger.warning("MT5 init error: %s", exc)
         return False
 
 
 def get_rate_mt5(symbol: str) -> dict | None:
+    mt5 = _load_mt5()
+    if mt5 is None:
+        return None
     try:
-        import MetaTrader5 as mt5
-        if not _init_mt5():
+        if not _init_mt5(mt5):
             return None
         tick = mt5.symbol_info_tick(symbol.upper())
         info = mt5.symbol_info(symbol.upper())
         mt5.shutdown()
         if tick is None:
             return None
+        digits = info.digits if info else 5
         return {
             "symbol": symbol.upper(),
-            "bid": tick.bid,
-            "ask": tick.ask,
-            "spread": round((tick.ask - tick.bid) * (10 ** (info.digits if info else 5)), 1),
-            "high": info.session_high if info else None,
-            "low": info.session_low if info else None,
-            "source": f"MT5 / {MT5_SERVER}",
+            "bid":    tick.bid,
+            "ask":    tick.ask,
+            "spread": round((tick.ask - tick.bid) * (10 ** digits), 1),
+            "high":   info.session_high if info else None,
+            "low":    info.session_low  if info else None,
+            "source": f"MT5 / {MT5_SERVER}" + (" (Wine)" if MT5_WINE_MODE else ""),
         }
     except Exception as exc:
         logger.warning("MT5 rate error: %s", exc)
         return None
 
 
-# ─── Fallback API (exchangerate-api.com) ────────────────────────────────────
+# ─── Fallback API (open.er-api.com) ─────────────────────────────────────────
 
 def get_rate_fallback(symbol: str) -> dict | None:
-    """
-    Handles simple FX pairs like EURUSD → EUR/USD.
-    Not suitable for CFDs (XAUUSD, US30, etc.).
-    """
     symbol = symbol.upper()
     if len(symbol) != 6:
         return None
@@ -126,11 +152,11 @@ def get_rate_fallback(symbol: str) -> dict | None:
             return None
         return {
             "symbol": symbol,
-            "bid": round(rate * 0.9998, 5),
-            "ask": round(rate * 1.0002, 5),
+            "bid":    round(rate * 0.9998, 5),
+            "ask":    round(rate * 1.0002, 5),
             "spread": None,
-            "high": None,
-            "low": None,
+            "high":   None,
+            "low":    None,
             "source": "ExchangeRate-API (fallback)",
         }
     except Exception as exc:
@@ -145,11 +171,12 @@ def get_rate(symbol: str) -> dict | None:
 # ─── Telegram handlers ──────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    mode = "MT5 via Wine bridge" if MT5_WINE_MODE else "MT5 native (Windows)"
     await update.message.reply_text(
-        f"*{BOT_NAME} Forex Bot* \n\n"
-        "Live currency pair rates via MetaTrader 5 / Vantage.\n\n"
+        f"*{BOT_NAME} Forex Bot*\n\n"
+        f"Live currency pair rates — {mode}.\n\n"
         "Commands:\n"
-        "  /rate EURUSD — get live rate\n"
+        "  /rate EURUSD — mid price\n"
         "  /info EURUSD — bid/ask/spread/high/low\n"
         "  /pairs       — list common pairs\n"
         "  /help        — show this message",
@@ -172,12 +199,12 @@ async def cmd_rate(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Usage: /rate EURUSD")
         return
     symbol = ctx.args[0].upper()
-    await update.message.reply_text(f"Fetching {symbol}...")
+    await update.message.reply_text(f"Fetching {symbol}…")
     data = get_rate(symbol)
     if not data:
         await update.message.reply_text(
             f"Could not fetch `{symbol}`.\n"
-            "Check the symbol name or connect MT5.\n"
+            "Check the symbol name or verify MT5/Wine is running.\n"
             "Try /pairs for common symbols.",
             parse_mode="Markdown",
         )
@@ -196,18 +223,18 @@ async def cmd_info(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Usage: /info EURUSD")
         return
     symbol = ctx.args[0].upper()
-    await update.message.reply_text(f"Fetching {symbol} details...")
+    await update.message.reply_text(f"Fetching {symbol} details…")
     data = get_rate(symbol)
     if not data:
         await update.message.reply_text(
             f"Could not fetch `{symbol}`.\n"
-            "Check the symbol name or connect MT5.",
+            "Check the symbol name or verify MT5/Wine is running.",
             parse_mode="Markdown",
         )
         return
     spread_str = f"`{data['spread']} pts`" if data["spread"] is not None else "_n/a_"
-    high_str = f"`{data['high']}`" if data["high"] else "_n/a_"
-    low_str = f"`{data['low']}`" if data["low"] else "_n/a_"
+    high_str   = f"`{data['high']}`"        if data["high"]   else "_n/a_"
+    low_str    = f"`{data['low']}`"         if data["low"]    else "_n/a_"
     await update.message.reply_text(
         f"*{data['symbol']}* — Full Quote\n"
         f"  Bid    : `{data['bid']}`\n"
@@ -230,14 +257,15 @@ def main() -> None:
     if not BOT_TOKEN:
         raise ValueError("Bot token not set. Check .env → ELITE_BOT_TOKEN or STOCX_BOT_TOKEN")
 
-    logger.info("Starting %s bot (token: ...%s)", BOT_NAME, BOT_TOKEN[-6:])
-    app = Application.builder().token(BOT_TOKEN).build()
+    mode_label = f"Wine bridge ({MT5_HOST}:{MT5_PORT})" if MT5_WINE_MODE else "Windows native"
+    logger.info("Starting %s bot | MT5 mode: %s", BOT_NAME, mode_label)
 
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("help", cmd_help))
-    app.add_handler(CommandHandler("pairs", cmd_pairs))
-    app.add_handler(CommandHandler("rate", cmd_rate))
-    app.add_handler(CommandHandler("info", cmd_info))
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start",  cmd_start))
+    app.add_handler(CommandHandler("help",   cmd_help))
+    app.add_handler(CommandHandler("pairs",  cmd_pairs))
+    app.add_handler(CommandHandler("rate",   cmd_rate))
+    app.add_handler(CommandHandler("info",   cmd_info))
     app.add_handler(MessageHandler(filters.COMMAND, unknown))
 
     logger.info("Bot polling…")
