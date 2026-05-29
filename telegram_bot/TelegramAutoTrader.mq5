@@ -478,8 +478,8 @@ void TgSend(long chatId, string text)
                   ",\"text\":\"" + EscapeJson(text) + "\"}";
     char reqArr[], resArr[];
     StringToCharArray(body, reqArr, 0, StringLen(body), CP_UTF8);
-    string headers = "Content-Type: application/json\r\n", resH;
-    int code = WebRequest("POST", g_baseUrl + "/sendMessage", headers, "", 5000,
+    string resH;
+    int code = WebRequest("POST", g_baseUrl + "/sendMessage", "", "", 5000,
                           reqArr, ArraySize(reqArr) - 1, resArr, resH);
     if(code != 200)
         Print("sendMessage failed code=", code, " chatId=", chatId);
