@@ -488,15 +488,18 @@ string TgUrlEncode(string s)
     for(int i = 0; i < len; i++)
     {
         ushort c = StringGetCharacter(s, i);
-        if     (c == ' ')  r += "+";
-        else if(c == '\n') r += "%0A";
-        else if(c == '\r') {}
-        else if(c == '&')  r += "%26";
-        else if(c == '+')  r += "%2B";
-        else if(c == '%')  r += "%25";
-        else if(c == '#')  r += "%23";
-        else if(c == '=')  r += "%3D";
-        else               r += ShortToString(c);
+        if     (c == ' ')               r += "+";
+        else if(c == '\n' || c == '\r') r += "+";
+        else if(c == '&')               r += "%26";
+        else if(c == '+')               r += "%2B";
+        else if(c == '%')               r += "%25";
+        else if(c == '/')               r += "%2F";
+        else if(c == '?')               r += "%3F";
+        else if(c == '#')               r += "%23";
+        else if(c == '=')               r += "%3D";
+        else if(c == '@')               r += "%40";
+        else if(c == '*')               r += "%2A";
+        else if(c > 31 && c < 127)      r += ShortToString(c);
     }
     return r;
 }
