@@ -474,15 +474,31 @@ void HandleTgCommand(long chatId, string rawText)
 void TgSend(long chatId, string text)
 {
     if(chatId == 0) return;
-    string body = "{\"chat_id\":" + IntegerToString(chatId) +
-                  ",\"text\":\"" + EscapeJson(text) + "\"}";
-    char reqArr[], resArr[];
-    StringToCharArray(body, reqArr, 0, StringLen(body), CP_UTF8);
-    string resH;
-    int code = WebRequest("POST", g_baseUrl + "/sendMessage", "", "", 5000,
-                          reqArr, ArraySize(reqArr) - 1, resArr, resH);
-    if(code != 200)
-        Print("sendMessage failed code=", code, " chatId=", chatId);
+    string url = g_baseUrl + "/sendMessage?chat_id=" + IntegerToString(chatId)
+                           + "&text=" + TgUrlEncode(text);
+    string resp = HttpGet(url);
+    if(StringFind(resp, "\"ok\":true") < 0)
+        Print("sendMessage GET failed chatId=", chatId);
+}
+
+string TgUrlEncode(string s)
+{
+    string r = "";
+    int len = StringLen(s);
+    for(int i = 0; i < len; i++)
+    {
+        ushort c = StringGetCharacter(s, i);
+        if     (c == ' ')  r += "+";
+        else if(c == '\n') r += "%0A";
+        else if(c == '\r') {}
+        else if(c == '&')  r += "%26";
+        else if(c == '+')  r += "%2B";
+        else if(c == '%')  r += "%25";
+        else if(c == '#')  r += "%23";
+        else if(c == '=')  r += "%3D";
+        else               r += ShortToString(c);
+    }
+    return r;
 }
 
 void TgBroadcast(string text)
