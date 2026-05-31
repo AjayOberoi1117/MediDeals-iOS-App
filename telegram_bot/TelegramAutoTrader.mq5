@@ -1,7 +1,9 @@
 //+------------------------------------------------------------------+
 //| TelegramAutoTrader.mq5                                           |
-//| Fully automated EA -- EMA crossover + RSI filter                 |
+//| Fully automated EA -- EMA crossover + RSI + Order Block          |
 //| Sends all trade events and daily P&L to Telegram                 |
+//|                                                                  |
+//| Developer: OB                                                    |
 //|                                                                  |
 //| SETUP (do this before attaching to chart):                       |
 //|  1. MT5 -> Tools -> Options -> Expert Advisors                   |
@@ -20,7 +22,7 @@
 //|  /help    -- show command list                                   |
 //+------------------------------------------------------------------+
 #property copyright "Vantage Auto Trader | OB"
-#property version   "2.01"
+#property version   "2.02"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -31,31 +33,36 @@
 //------------------------------------------------------------------
 
 // --- Telegram ---
-input string           InpBotToken     = "8034731398:AAHHAKJaYEn_u0M_TzwSJr8e7tNtQIwN5BM"; // VantageEA_bot token
-input long             InpChatId       = 1994067941;  // Your Telegram chat ID
-input int              InpPollSeconds  = 3;            // How often to check Telegram (seconds)
+input string           InpBotToken     = "8034731398:AAHHAKJaYEn_u0M_TzwSJr8e7tNtQIwN5BM";
+input long             InpChatId       = 1994067941;
+input int              InpPollSeconds  = 3;
 
 // --- Symbols ---
 input string           InpSymbols      = "EURUSD,GBPUSD,USDJPY,XAUUSD";
 
 // --- Risk management ---
-input double           InpLotSize      = 0.01;  // Lot size per trade
-input int              InpStopPips     = 30;    // Stop loss (pips)
-input int              InpTakePips     = 60;    // Take profit (pips, 0 = none)
-input int              InpMaxTrades    = 4;     // Max concurrent open trades
-input bool             InpTrailingStop = true;  // Enable trailing stop
-input int              InpTrailPips    = 20;    // Trailing stop distance (pips)
+input double           InpLotSize      = 0.01;
+input int              InpStopPips     = 30;
+input int              InpTakePips     = 60;
+input int              InpMaxTrades    = 4;
+input bool             InpTrailingStop = true;
+input int              InpTrailPips    = 20;
 
 // --- Signal ---
-input ENUM_TIMEFRAMES  InpTF           = PERIOD_H1;  // Timeframe for signals
-input int              InpFastMA       = 10;    // Fast EMA period
-input int              InpSlowMA       = 50;    // Slow EMA period
-input int              InpRSIPeriod    = 14;    // RSI period
-input int              InpRSIBuyMax    = 65;    // Max RSI to open a BUY (avoids overbought)
-input int              InpRSISellMin   = 35;    // Min RSI to open a SELL (avoids oversold)
+input ENUM_TIMEFRAMES  InpTF           = PERIOD_H1;
+input int              InpFastMA       = 10;
+input int              InpSlowMA       = 50;
+input int              InpRSIPeriod    = 14;
+input int              InpRSIBuyMax    = 65;
+input int              InpRSISellMin   = 35;
+
+// --- Order Block ---
+input bool             InpOBFilter     = true;
+input int              InpOBLookback   = 20;
+input int              InpOBPips       = 5;
 
 // --- Schedule ---
-input int              InpSummaryHour  = 20;    // Daily P&L summary hour (server time 0-23)
+input int              InpSummaryHour  = 20;
 
 //------------------------------------------------------------------
 // GLOBALS
@@ -99,13 +106,15 @@ int OnInit()
         symLine += (i > 0 ? ", " : "") + g_symbols[i];
 
     TgBroadcast(
-        "*Vantage Auto Trader v2.01 -- Online*\n\n"
-        "Symbols : " + symLine + "\n"
-        "Lot     : " + DoubleToString(InpLotSize, 2) + "\n"
-        "SL / TP : " + IntegerToString(InpStopPips) + " / " + IntegerToString(InpTakePips) + " pips\n"
-        "Trailing: " + (InpTrailingStop ? IntegerToString(InpTrailPips) + " pips" : "off") + "\n"
-        "TF      : " + EnumToString(InpTF) + "\n"
-        "Max open: " + IntegerToString(InpMaxTrades) + "\n\n"
+        "Vantage Auto Trader v2.02 -- Online\n\n"
+        "Developer: OB\n"
+        "Symbols  : " + symLine + "\n"
+        "Lot      : " + DoubleToString(InpLotSize, 2) + "\n"
+        "SL-TP    : " + IntegerToString(InpStopPips) + " - " + IntegerToString(InpTakePips) + " pips\n"
+        "Trailing : " + (InpTrailingStop ? IntegerToString(InpTrailPips) + " pips" : "off") + "\n"
+        "OB Filter: " + (InpOBFilter ? "ON" : "OFF") + "\n"
+        "TF       : " + EnumToString(InpTF) + "\n"
+        "Max open : " + IntegerToString(InpMaxTrades) + "\n\n"
         "Send /help for commands."
     );
 
@@ -164,13 +173,13 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
     string result = (profit >= 0) ? "[WIN]" : "[LOSS]";
     string sign   = (profit >= 0) ? "+" : "";
     TgBroadcast(result + " " + sym + " CLOSED\n"
-                "  Exit  : " + DoubleToString(price, digits) + "\n"
-                "  P&L   : " + sign + DoubleToString(profit, 2) + " USD\n"
+                "  Exit   : " + DoubleToString(price, digits) + "\n"
+                "  PnL    : " + sign + DoubleToString(profit, 2) + " USD\n"
                 "  Balance: $" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2));
 }
 
 //------------------------------------------------------------------
-// SIGNAL -- EMA CROSSOVER + RSI FILTER
+// SIGNAL -- EMA CROSSOVER + RSI + ORDER BLOCK
 //------------------------------------------------------------------
 void CheckSignal(string sym)
 {
@@ -201,10 +210,49 @@ void CheckSignal(string sym)
     bool bullCross = (fast[1] > slow[1]) && (fast[2] <= slow[2]);
     bool bearCross = (fast[1] < slow[1]) && (fast[2] >= slow[2]);
 
-    if(bullCross && rsi[1] < (double)InpRSIBuyMax)
+    if(bullCross && rsi[1] < (double)InpRSIBuyMax && IsNearOrderBlock(sym, ORDER_TYPE_BUY))
         OpenTrade(sym, ORDER_TYPE_BUY);
-    else if(bearCross && rsi[1] > (double)InpRSISellMin)
+    else if(bearCross && rsi[1] > (double)InpRSISellMin && IsNearOrderBlock(sym, ORDER_TYPE_SELL))
         OpenTrade(sym, ORDER_TYPE_SELL);
+}
+
+//------------------------------------------------------------------
+// ORDER BLOCK FILTER
+// BUY  signal: price must be near a bullish OB (last bearish candle)
+// SELL signal: price must be near a bearish OB (last bullish candle)
+//------------------------------------------------------------------
+bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
+{
+    if(!InpOBFilter) return true;
+
+    double point  = SymbolInfoDouble(sym, SYMBOL_POINT);
+    int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+    double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
+    double tol    = InpOBPips * pipVal;
+
+    MqlTick tick;
+    if(!SymbolInfoTick(sym, tick)) return false;
+    double price = (type == ORDER_TYPE_BUY) ? tick.ask : tick.bid;
+
+    for(int i = 1; i <= InpOBLookback; i++)
+    {
+        double o = iOpen(sym,  InpTF, i);
+        double c = iClose(sym, InpTF, i);
+        double h = iHigh(sym,  InpTF, i);
+        double l = iLow(sym,   InpTF, i);
+
+        if(type == ORDER_TYPE_BUY && c < o)
+        {
+            if(price >= l - tol && price <= h + tol)
+                return true;
+        }
+        else if(type == ORDER_TYPE_SELL && c > o)
+        {
+            if(price >= l - tol && price <= h + tol)
+                return true;
+        }
+    }
+    return false;
 }
 
 //------------------------------------------------------------------
@@ -251,7 +299,7 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
                 "  SL    : " + slStr + "\n"
                 "  TP    : " + tpStr + "\n"
                 "  Lot   : " + DoubleToString(InpLotSize, 2) + "\n"
-                "  Signal: EMA cross + RSI on " + EnumToString(InpTF));
+                "  Signal: EMA cross + RSI + OB on " + EnumToString(InpTF));
 }
 
 //------------------------------------------------------------------
@@ -323,7 +371,7 @@ void SendStatus()
         string pnlStr = (g_pos.Profit() >= 0 ? "+" : "") + DoubleToString(g_pos.Profit(), 2);
 
         msg += dir + " " + g_pos.Symbol() + " @ " +
-               DoubleToString(g_pos.PriceOpen(), digits) + "  P&L: " + pnlStr + "\n";
+               DoubleToString(g_pos.PriceOpen(), digits) + "  PnL: " + pnlStr + "\n";
         fpl += g_pos.Profit();
         n++;
     }
@@ -334,7 +382,7 @@ void SendStatus()
     double eq     = AccountInfoDouble(ACCOUNT_EQUITY);
     string fplStr = (fpl >= 0 ? "+" : "") + DoubleToString(fpl, 2);
 
-    msg += "\nFloating P&L : " + fplStr + " USD\n"
+    msg += "\nFloating PnL : " + fplStr + " USD\n"
            "Balance      : $" + DoubleToString(bal, 2) + "\n"
            "Equity       : $" + DoubleToString(eq,  2) + "\n"
            "Status       : " + (g_paused ? "PAUSED" : "RUNNING");
@@ -343,7 +391,7 @@ void SendStatus()
 }
 
 //------------------------------------------------------------------
-// /pnl -- today's closed trade stats
+// /pnl
 //------------------------------------------------------------------
 void SendPnLSummary()
 {
@@ -370,11 +418,11 @@ void SendPnLSummary()
     string sign = (net >= 0) ? "+" : "";
     string icon = (net >= 0) ? "[UP]" : "[DOWN]";
 
-    TgBroadcast(icon + " Daily P&L Summary\n"
-                "  Trades  : " + IntegerToString(wins + losses) +
+    TgBroadcast(icon + " Daily PnL Summary\n"
+                "  Trades : " + IntegerToString(wins + losses) +
                 " (W:" + IntegerToString(wins) + " L:" + IntegerToString(losses) + ")\n"
-                "  Net P&L : " + sign + DoubleToString(net, 2) + " USD\n"
-                "  Balance : $" + DoubleToString(bal, 2));
+                "  Net    : " + sign + DoubleToString(net, 2) + " USD\n"
+                "  Balance: $" + DoubleToString(bal, 2));
 }
 
 void MaybeSendDailySummary()
@@ -441,9 +489,9 @@ void HandleTgCommand(long chatId, string rawText)
     {
         g_chatId = chatId;
         TgSend(chatId,
-            "Vantage Auto Trader v2.01\n\n"
+            "Vantage Auto Trader v2.02 -- OB\n\n"
             "/status -- open positions + equity\n"
-            "/pnl    -- today's P&L summary\n"
+            "/pnl    -- today's PnL summary\n"
             "/pause  -- stop opening new trades\n"
             "/resume -- restart auto-trading\n"
             "/close  -- close ALL open trades\n"
