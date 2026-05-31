@@ -19,7 +19,7 @@
 //|  /close   -- close ALL open trades immediately                   |
 //|  /help    -- show command list                                   |
 //+------------------------------------------------------------------+
-#property copyright "Vantage Auto Trader"
+#property copyright "Vantage Auto Trader | OB"
 #property version   "2.01"
 #property strict
 
