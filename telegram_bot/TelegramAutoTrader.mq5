@@ -276,27 +276,31 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
     MqlTick tick;
     if(!SymbolInfoTick(sym, tick)) return;
 
-    int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
-    double point  = SymbolInfoDouble(sym, SYMBOL_POINT);
-    double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
+    int    digits    = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+    double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
+    double pipVal    = (digits == 3 || digits == 5) ? point * 10.0 : point;
+    long   stopLevel = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL);
+    double minDist   = MathMax(InpStopPips * pipVal, (stopLevel + 5) * point);
+    double tpDist    = MathMax(InpTakePips * pipVal, (stopLevel + 5) * point);
 
-    double price = 0.0, sl = 0.0, tp = 0.0;
+    double price = (type == ORDER_TYPE_BUY) ? tick.ask : tick.bid;
+    double sl = 0.0, tp = 0.0;
+
     if(type == ORDER_TYPE_BUY)
     {
-        price = tick.ask;
-        if(InpStopPips > 0) sl = NormalizeDouble(price - InpStopPips * pipVal, digits);
-        if(InpTakePips > 0) tp = NormalizeDouble(price + InpTakePips * pipVal, digits);
+        if(InpStopPips > 0) sl = NormalizeDouble(price - minDist, digits);
+        if(InpTakePips > 0) tp = NormalizeDouble(price + tpDist,  digits);
     }
     else
     {
-        price = tick.bid;
-        if(InpStopPips > 0) sl = NormalizeDouble(price + InpStopPips * pipVal, digits);
-        if(InpTakePips > 0) tp = NormalizeDouble(price - InpTakePips * pipVal, digits);
+        if(InpStopPips > 0) sl = NormalizeDouble(price + minDist, digits);
+        if(InpTakePips > 0) tp = NormalizeDouble(price - tpDist,  digits);
     }
 
+    // Use price=0 for true market execution so broker accepts SL/TP
     bool sent = (type == ORDER_TYPE_BUY)
-                ? g_trade.Buy (InpLotSize, sym, price, sl, tp, "TgAuto")
-                : g_trade.Sell(InpLotSize, sym, price, sl, tp, "TgAuto");
+                ? g_trade.Buy (InpLotSize, sym, 0, sl, tp, "TgAuto")
+                : g_trade.Sell(InpLotSize, sym, 0, sl, tp, "TgAuto");
 
     if(!sent)
     {
