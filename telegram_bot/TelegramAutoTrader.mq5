@@ -22,7 +22,7 @@
 //|  /help    -- show command list                                   |
 //+------------------------------------------------------------------+
 #property copyright "Vantage Auto Trader | OB"
-#property version   "2.02"
+#property version   "2.03"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -109,7 +109,7 @@ int OnInit()
         symLine += (i > 0 ? ", " : "") + g_symbols[i];
 
     TgBroadcast(
-        "Vantage Auto Trader v2.02 -- Online\n\n"
+        "Vantage Auto Trader v2.03 -- Online\n\n"
         "Developer: OB\n"
         "Symbols  : " + symLine + "\n"
         "Lot      : " + DoubleToString(InpLotSize, 2) + "\n"
@@ -243,9 +243,11 @@ bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
     double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
     double tol    = InpOBPips * pipVal;
 
-    MqlTick tick;
-    if(!SymbolInfoTick(sym, tick)) return false;
-    double price = (type == ORDER_TYPE_BUY) ? tick.ask : tick.bid;
+    MqlTick tk;
+    if(!SymbolInfoTick(sym, tk)) return false;
+    double ask = tk.ask;
+    double bid = tk.bid;
+    double price = (type == ORDER_TYPE_BUY) ? ask : bid;
 
     for(int i = 1; i <= InpOBLookback; i++)
     {
@@ -273,8 +275,10 @@ bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
 //------------------------------------------------------------------
 void OpenTrade(string sym, ENUM_ORDER_TYPE type)
 {
-    MqlTick tick;
-    if(!SymbolInfoTick(sym, tick)) return;
+    MqlTick tk;
+    if(!SymbolInfoTick(sym, tk)) return;
+    double ask = tk.ask;
+    double bid = tk.bid;
 
     int    digits    = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
     double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
@@ -283,7 +287,7 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
     double minDist   = MathMax(InpStopPips * pipVal, (stopLevel + 5) * point);
     double tpDist    = MathMax(InpTakePips * pipVal, (stopLevel + 5) * point);
 
-    double price = (type == ORDER_TYPE_BUY) ? tick.ask : tick.bid;
+    double price = (type == ORDER_TYPE_BUY) ? ask : bid;
     double sl = 0.0, tp = 0.0;
 
     if(type == ORDER_TYPE_BUY)
@@ -297,7 +301,6 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
         if(InpTakePips > 0) tp = NormalizeDouble(price - tpDist,  digits);
     }
 
-    // Use price=0 for true market execution so broker accepts SL/TP
     bool sent = (type == ORDER_TYPE_BUY)
                 ? g_trade.Buy (InpLotSize, sym, 0, sl, tp, "TgAuto")
                 : g_trade.Sell(InpLotSize, sym, 0, sl, tp, "TgAuto");
@@ -335,19 +338,21 @@ void ManageTrailingStops()
         double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
         double trail  = InpTrailPips * pipVal;
 
-        MqlTick tick;
-        if(!SymbolInfoTick(sym, tick)) continue;
+        MqlTick tk;
+        if(!SymbolInfoTick(sym, tk)) continue;
+        double ask = tk.ask;
+        double bid = tk.bid;
 
         double newSL = 0.0;
         if(g_pos.PositionType() == POSITION_TYPE_BUY)
         {
-            newSL = NormalizeDouble(tick.bid - trail, digits);
+            newSL = NormalizeDouble(bid - trail, digits);
             if(newSL > g_pos.StopLoss() + point)
                 g_trade.PositionModify(g_pos.Ticket(), newSL, g_pos.TakeProfit());
         }
         else
         {
-            newSL = NormalizeDouble(tick.ask + trail, digits);
+            newSL = NormalizeDouble(ask + trail, digits);
             if(g_pos.StopLoss() == 0 || newSL < g_pos.StopLoss() - point)
                 g_trade.PositionModify(g_pos.Ticket(), newSL, g_pos.TakeProfit());
         }
@@ -506,7 +511,7 @@ void HandleTgCommand(long chatId, string rawText)
     {
         g_chatId = chatId;
         TgSend(chatId,
-            "Vantage Auto Trader v2.02 -- OB\n\n"
+            "Vantage Auto Trader v2.03 -- OB\n\n"
             "/status -- open positions + equity\n"
             "/pnl    -- today's PnL summary\n"
             "/pause  -- stop opening new trades\n"
