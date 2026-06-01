@@ -22,7 +22,7 @@
 //|  /help    -- show command list                                   |
 //+------------------------------------------------------------------+
 #property copyright "Vantage Auto Trader | OB"
-#property version   "2.03"
+#property version   "2.04"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -31,37 +31,25 @@
 //------------------------------------------------------------------
 // INPUTS
 //------------------------------------------------------------------
-
-// --- Telegram ---
 input string           InpBotToken     = "8034731398:AAHHAKJaYEn_u0M_TzwSJr8e7tNtQIwN5BM";
 input long             InpChatId       = 1994067941;
 input int              InpPollSeconds  = 3;
-
-// --- Symbols ---
 input string           InpSymbols      = "EURUSD,GBPUSD,USDJPY,XAUUSD";
-
-// --- Risk management ---
 input double           InpLotSize      = 0.01;
 input int              InpStopPips     = 30;
 input int              InpTakePips     = 60;
 input int              InpMaxTrades    = 4;
 input bool             InpTrailingStop = true;
 input int              InpTrailPips    = 20;
-
-// --- Signal ---
 input ENUM_TIMEFRAMES  InpTF           = PERIOD_H1;
 input int              InpFastMA       = 10;
 input int              InpSlowMA       = 50;
 input int              InpRSIPeriod    = 14;
 input int              InpRSIBuyMax    = 65;
 input int              InpRSISellMin   = 35;
-
-// --- Order Block ---
 input bool             InpOBFilter     = true;
 input int              InpOBLookback   = 20;
 input int              InpOBPips       = 5;
-
-// --- Schedule ---
 input int              InpSummaryHour  = 20;
 
 //------------------------------------------------------------------
@@ -69,16 +57,21 @@ input int              InpSummaryHour  = 20;
 //------------------------------------------------------------------
 CTrade        g_trade;
 CPositionInfo g_pos;
+string        g_baseUrl;
+long          g_lastUpdateId = 0;
+long          g_chatId       = 0;
+bool          g_paused       = false;
+int           g_summaryDay   = -1;
+string        g_symbols[];
+datetime      g_lastBarTime[];
+int           g_symCount     = 0;
+const int     MAGIC          = 20250528;
 
-string   g_baseUrl;
-long     g_lastUpdateId = 0;
-long     g_chatId       = 0;
-bool     g_paused       = false;
-int      g_summaryDay   = -1;
-string   g_symbols[];
-datetime g_lastBarTime[];
-int      g_symCount     = 0;
-const int MAGIC         = 20250528;
+//------------------------------------------------------------------
+// HELPERS -- price without MqlTick struct
+//------------------------------------------------------------------
+double GetAsk(string sym) { return SymbolInfoDouble(sym, SYMBOL_ASK); }
+double GetBid(string sym) { return SymbolInfoDouble(sym, SYMBOL_BID); }
 
 //------------------------------------------------------------------
 // LIFECYCLE
@@ -109,7 +102,7 @@ int OnInit()
         symLine += (i > 0 ? ", " : "") + g_symbols[i];
 
     TgBroadcast(
-        "Vantage Auto Trader v2.03 -- Online\n\n"
+        "Vantage Auto Trader v2.04 -- Online\n\n"
         "Developer: OB\n"
         "Symbols  : " + symLine + "\n"
         "Lot      : " + DoubleToString(InpLotSize, 2) + "\n"
@@ -138,16 +131,12 @@ void OnTick() {}
 void OnTimer()
 {
     PollTelegram();
-
-    if(InpTrailingStop)
-        ManageTrailingStops();
-
+    if(InpTrailingStop) ManageTrailingStops();
     if(!g_paused && CountBotTrades() < InpMaxTrades)
     {
         for(int i = 0; i < g_symCount; i++)
             CheckSignal(i);
     }
-
     MaybeSendDailySummary();
 }
 
@@ -159,10 +148,8 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeResult      &res)
 {
     if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
-
     ulong dealTicket = trans.deal;
     if(!HistoryDealSelect(dealTicket)) return;
-
     if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY) != DEAL_ENTRY_OUT) return;
     if(HistoryDealGetInteger(dealTicket, DEAL_MAGIC) != MAGIC) return;
 
@@ -172,9 +159,9 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                   + HistoryDealGetDouble(dealTicket, DEAL_COMMISSION);
     double price  = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
     int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
-
     string result = (profit >= 0) ? "[WIN]" : "[LOSS]";
     string sign   = (profit >= 0) ? "+" : "";
+
     TgBroadcast(result + " " + sym + " CLOSED\n"
                 "  Exit   : " + DoubleToString(price, digits) + "\n"
                 "  PnL    : " + sign + DoubleToString(profit, 2) + " USD\n"
@@ -182,7 +169,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 }
 
 //------------------------------------------------------------------
-// SIGNAL -- EMA CROSSOVER + RSI + ORDER BLOCK
+// SIGNAL CHECK
 //------------------------------------------------------------------
 void CheckSignal(int idx)
 {
@@ -195,9 +182,7 @@ void CheckSignal(int idx)
     int hFast = iMA(sym, InpTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);
     int hSlow = iMA(sym, InpTF, InpSlowMA, 0, MODE_EMA, PRICE_CLOSE);
     int hRsi  = iRSI(sym, InpTF, InpRSIPeriod, PRICE_CLOSE);
-
-    if(hFast == INVALID_HANDLE || hSlow == INVALID_HANDLE || hRsi == INVALID_HANDLE)
-        return;
+    if(hFast == INVALID_HANDLE || hSlow == INVALID_HANDLE || hRsi == INVALID_HANDLE) return;
 
     double fast[], slow[], rsi[];
     ArraySetAsSeries(fast, true);
@@ -207,11 +192,9 @@ void CheckSignal(int idx)
     bool ok = CopyBuffer(hFast, 0, 0, 3, fast) == 3 &&
               CopyBuffer(hSlow, 0, 0, 3, slow) == 3 &&
               CopyBuffer(hRsi,  0, 0, 2, rsi)  == 2;
-
     IndicatorRelease(hFast);
     IndicatorRelease(hSlow);
     IndicatorRelease(hRsi);
-
     if(!ok) return;
 
     bool bullCross = (fast[1] > slow[1]) && (fast[2] <= slow[2]);
@@ -231,8 +214,6 @@ void CheckSignal(int idx)
 
 //------------------------------------------------------------------
 // ORDER BLOCK FILTER
-// BUY  signal: price must be near a bullish OB (last bearish candle)
-// SELL signal: price must be near a bearish OB (last bullish candle)
 //------------------------------------------------------------------
 bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
 {
@@ -242,29 +223,22 @@ bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
     int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
     double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
     double tol    = InpOBPips * pipVal;
-
-    MqlTick tk;
-    if(!SymbolInfoTick(sym, tk)) return false;
-    double ask = tk.ask;
-    double bid = tk.bid;
-    double price = (type == ORDER_TYPE_BUY) ? ask : bid;
+    double price  = (type == ORDER_TYPE_BUY) ? GetAsk(sym) : GetBid(sym);
 
     for(int i = 1; i <= InpOBLookback; i++)
     {
-        double o = iOpen(sym,  InpTF, i);
-        double c = iClose(sym, InpTF, i);
-        double h = iHigh(sym,  InpTF, i);
-        double l = iLow(sym,   InpTF, i);
+        double barO = iOpen(sym,  InpTF, i);
+        double barC = iClose(sym, InpTF, i);
+        double barH = iHigh(sym,  InpTF, i);
+        double barL = iLow(sym,   InpTF, i);
 
-        if(type == ORDER_TYPE_BUY && c < o)
+        if(type == ORDER_TYPE_BUY && barC < barO)
         {
-            if(price >= l - tol && price <= h + tol)
-                return true;
+            if(price >= barL - tol && price <= barH + tol) return true;
         }
-        else if(type == ORDER_TYPE_SELL && c > o)
+        else if(type == ORDER_TYPE_SELL && barC > barO)
         {
-            if(price >= l - tol && price <= h + tol)
-                return true;
+            if(price >= barL - tol && price <= barH + tol) return true;
         }
     }
     return false;
@@ -275,10 +249,9 @@ bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
 //------------------------------------------------------------------
 void OpenTrade(string sym, ENUM_ORDER_TYPE type)
 {
-    MqlTick tk;
-    if(!SymbolInfoTick(sym, tk)) return;
-    double ask = tk.ask;
-    double bid = tk.bid;
+    double entryAsk = GetAsk(sym);
+    double entryBid = GetBid(sym);
+    if(entryAsk <= 0 || entryBid <= 0) return;
 
     int    digits    = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
     double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
@@ -287,8 +260,9 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
     double minDist   = MathMax(InpStopPips * pipVal, (stopLevel + 5) * point);
     double tpDist    = MathMax(InpTakePips * pipVal, (stopLevel + 5) * point);
 
-    double price = (type == ORDER_TYPE_BUY) ? ask : bid;
-    double sl = 0.0, tp = 0.0;
+    double price = (type == ORDER_TYPE_BUY) ? entryAsk : entryBid;
+    double sl    = 0.0;
+    double tp    = 0.0;
 
     if(type == ORDER_TYPE_BUY)
     {
@@ -307,13 +281,15 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
 
     if(!sent)
     {
-        Print("Order failed: ", sym, " err=", g_trade.ResultRetcode(), " ", g_trade.ResultRetcodeDescription());
+        Print("Order failed: ", sym, " err=", g_trade.ResultRetcode(),
+              " ", g_trade.ResultRetcodeDescription());
         return;
     }
 
     string dir   = (type == ORDER_TYPE_BUY) ? "[BUY]" : "[SELL]";
     string slStr = (sl > 0) ? DoubleToString(sl, digits) : "none";
     string tpStr = (tp > 0) ? DoubleToString(tp, digits) : "none";
+
     TgBroadcast(dir + " " + sym + "\n"
                 "  Entry : " + DoubleToString(price, digits) + "\n"
                 "  SL    : " + slStr + "\n"
@@ -337,22 +313,19 @@ void ManageTrailingStops()
         double point  = SymbolInfoDouble(sym, SYMBOL_POINT);
         double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
         double trail  = InpTrailPips * pipVal;
-
-        MqlTick tk;
-        if(!SymbolInfoTick(sym, tk)) continue;
-        double ask = tk.ask;
-        double bid = tk.bid;
+        double curBid = GetBid(sym);
+        double curAsk = GetAsk(sym);
 
         double newSL = 0.0;
         if(g_pos.PositionType() == POSITION_TYPE_BUY)
         {
-            newSL = NormalizeDouble(bid - trail, digits);
+            newSL = NormalizeDouble(curBid - trail, digits);
             if(newSL > g_pos.StopLoss() + point)
                 g_trade.PositionModify(g_pos.Ticket(), newSL, g_pos.TakeProfit());
         }
         else
         {
-            newSL = NormalizeDouble(ask + trail, digits);
+            newSL = NormalizeDouble(curAsk + trail, digits);
             if(g_pos.StopLoss() == 0 || newSL < g_pos.StopLoss() - point)
                 g_trade.PositionModify(g_pos.Ticket(), newSL, g_pos.TakeProfit());
         }
@@ -480,22 +453,20 @@ void PollTelegram()
         if(cp < 0) break;
         int cip = StringFind(resp, "\"id\":", cp);
         long chatId = ExtractLong(resp, cip + 5);
-
         if(g_chatId == 0 && chatId != 0) g_chatId = chatId;
 
-        int tp2 = StringFind(resp, "\"text\":\"", p);
-        string text = "";
+        int tp2    = StringFind(resp, "\"text\":\"", p);
+        string txt = "";
         if(tp2 >= 0)
         {
-            text = ExtractJsonString(resp, tp2 + 8);
-            int at = StringFind(text, "@");
-            if(at >= 0) text = StringSubstr(text, 0, at);
-            StringTrimLeft(text);
-            StringTrimRight(text);
+            txt = ExtractJsonString(resp, tp2 + 8);
+            int at = StringFind(txt, "@");
+            if(at >= 0) txt = StringSubstr(txt, 0, at);
+            StringTrimLeft(txt);
+            StringTrimRight(txt);
         }
 
-        if(StringLen(text) > 0)
-            HandleTgCommand(chatId, text);
+        if(StringLen(txt) > 0) HandleTgCommand(chatId, txt);
 
         cursor = StringFind(resp, "\"update_id\":", p + 12);
         if(cursor < 0) break;
@@ -511,7 +482,7 @@ void HandleTgCommand(long chatId, string rawText)
     {
         g_chatId = chatId;
         TgSend(chatId,
-            "Vantage Auto Trader v2.03 -- OB\n\n"
+            "Vantage Auto Trader v2.04 -- OB\n\n"
             "/status -- open positions + equity\n"
             "/pnl    -- today's PnL summary\n"
             "/pause  -- stop opening new trades\n"
@@ -520,26 +491,24 @@ void HandleTgCommand(long chatId, string rawText)
             "/help   -- this message\n\n"
             "Status: " + (g_paused ? "PAUSED" : "RUNNING"));
     }
-    else if(StringFind(cmd, "/status") == 0)  SendStatus();
-    else if(StringFind(cmd, "/pnl")    == 0)  SendPnLSummary();
+    else if(StringFind(cmd, "/status") == 0) SendStatus();
+    else if(StringFind(cmd, "/pnl")    == 0) SendPnLSummary();
     else if(StringFind(cmd, "/pause")  == 0)
     {
         g_paused = true;
-        TgBroadcast("Trading PAUSED. Existing trades remain open.\nSend /resume to restart.");
+        TgBroadcast("Trading PAUSED. Send /resume to restart.");
     }
     else if(StringFind(cmd, "/resume") == 0)
     {
         g_paused = false;
         TgBroadcast("Trading RESUMED.");
     }
-    else if(StringFind(cmd, "/close") == 0)
-        CloseAllTrades();
-    else
-        TgSend(chatId, "Unknown command. Try /help");
+    else if(StringFind(cmd, "/close") == 0) CloseAllTrades();
+    else TgSend(chatId, "Unknown command. Try /help");
 }
 
 //------------------------------------------------------------------
-// TELEGRAM SEND HELPERS
+// TELEGRAM HELPERS
 //------------------------------------------------------------------
 void TgSend(long chatId, string text)
 {
@@ -548,7 +517,7 @@ void TgSend(long chatId, string text)
                            + "&text=" + TgUrlEncode(text);
     string resp = HttpGet(url);
     if(StringFind(resp, "\"ok\":true") < 0)
-        Print("sendMessage GET failed chatId=", chatId);
+        Print("TgSend failed chatId=", chatId, " resp=", StringSubstr(resp, 0, 80));
 }
 
 string TgUrlEncode(string s)
@@ -576,21 +545,19 @@ string TgUrlEncode(string s)
 
 void TgBroadcast(string text)
 {
-    if(g_chatId != 0)
-        TgSend(g_chatId, text);
-    else
-        Print("TgBroadcast (no chat registered): ", text);
+    if(g_chatId != 0) TgSend(g_chatId, text);
+    else Print("TgBroadcast (no chat): ", text);
 }
 
 //------------------------------------------------------------------
-// HTTP & STRING UTILITIES
+// HTTP AND STRING UTILITIES
 //------------------------------------------------------------------
 string HttpGet(string url)
 {
     char req[], res[];
     string headers;
     int code = WebRequest("GET", url, "", "", 5000, req, 0, res, headers);
-    if(code != 200) { if(code > 0) Print("WebRequest GET failed code=", code); return ""; }
+    if(code != 200) { if(code > 0) Print("HttpGet failed code=", code); return ""; }
     return CharArrayToString(res, 0, WHOLE_ARRAY, CP_UTF8);
 }
 
@@ -652,9 +619,7 @@ int CountBotTrades()
 {
     int n = 0;
     for(int i = 0; i < PositionsTotal(); i++)
-    {
         if(g_pos.SelectByIndex(i) && g_pos.Magic() == MAGIC) n++;
-    }
     return n;
 }
 //+------------------------------------------------------------------+
