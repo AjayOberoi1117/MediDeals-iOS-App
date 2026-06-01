@@ -76,6 +76,7 @@ long     g_chatId       = 0;
 bool     g_paused       = false;
 int      g_summaryDay   = -1;
 string   g_symbols[];
+datetime g_lastBarTime[];
 int      g_symCount     = 0;
 const int MAGIC         = 20250528;
 
@@ -91,12 +92,14 @@ int OnInit()
     g_trade.SetDeviationInPoints(10);
 
     g_symCount = StringSplit(InpSymbols, ',', g_symbols);
+    ArrayResize(g_lastBarTime, g_symCount);
     for(int i = 0; i < g_symCount; i++)
     {
         StringTrimLeft(g_symbols[i]);
         StringTrimRight(g_symbols[i]);
         StringToUpper(g_symbols[i]);
         SymbolSelect(g_symbols[i], true);
+        g_lastBarTime[i] = 0;
     }
 
     EventSetTimer(InpPollSeconds);
@@ -142,7 +145,7 @@ void OnTimer()
     if(!g_paused && CountBotTrades() < InpMaxTrades)
     {
         for(int i = 0; i < g_symCount; i++)
-            CheckSignal(g_symbols[i]);
+            CheckSignal(i);
     }
 
     MaybeSendDailySummary();
@@ -181,9 +184,13 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 //------------------------------------------------------------------
 // SIGNAL -- EMA CROSSOVER + RSI + ORDER BLOCK
 //------------------------------------------------------------------
-void CheckSignal(string sym)
+void CheckSignal(int idx)
 {
+    string sym = g_symbols[idx];
     if(HasOpenTrade(sym)) return;
+
+    datetime barTime = iTime(sym, InpTF, 1);
+    if(barTime == g_lastBarTime[idx]) return;
 
     int hFast = iMA(sym, InpTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);
     int hSlow = iMA(sym, InpTF, InpSlowMA, 0, MODE_EMA, PRICE_CLOSE);
@@ -211,9 +218,15 @@ void CheckSignal(string sym)
     bool bearCross = (fast[1] < slow[1]) && (fast[2] >= slow[2]);
 
     if(bullCross && rsi[1] < (double)InpRSIBuyMax && IsNearOrderBlock(sym, ORDER_TYPE_BUY))
+    {
+        g_lastBarTime[idx] = barTime;
         OpenTrade(sym, ORDER_TYPE_BUY);
+    }
     else if(bearCross && rsi[1] > (double)InpRSISellMin && IsNearOrderBlock(sym, ORDER_TYPE_SELL))
+    {
+        g_lastBarTime[idx] = barTime;
         OpenTrade(sym, ORDER_TYPE_SELL);
+    }
 }
 
 //------------------------------------------------------------------
