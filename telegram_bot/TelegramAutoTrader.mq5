@@ -22,7 +22,7 @@
 //|  /help    -- show command list                                   |
 //+------------------------------------------------------------------+
 #property copyright "Vantage Auto Trader | OB"
-#property version   "2.04"
+#property version   "2.05"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -45,11 +45,14 @@ input ENUM_TIMEFRAMES  InpTF           = PERIOD_H1;
 input int              InpFastMA       = 10;
 input int              InpSlowMA       = 50;
 input int              InpRSIPeriod    = 14;
+input int              InpRSIBuyMin    = 50;
 input int              InpRSIBuyMax    = 65;
+input int              InpRSISellMax   = 50;
 input int              InpRSISellMin   = 35;
 input bool             InpOBFilter     = true;
 input int              InpOBLookback   = 20;
 input int              InpOBPips       = 5;
+input int              InpEMAGapPips   = 3;
 input int              InpSummaryHour  = 20;
 
 //------------------------------------------------------------------
@@ -62,6 +65,7 @@ long          g_lastUpdateId = 0;
 long          g_chatId       = 0;
 bool          g_paused       = false;
 int           g_summaryDay   = -1;
+ulong         g_lastReportedDeal = 0;
 string        g_symbols[];
 datetime      g_lastBarTime[];
 int           g_symCount     = 0;
@@ -102,13 +106,16 @@ int OnInit()
         symLine += (i > 0 ? ", " : "") + g_symbols[i];
 
     TgBroadcast(
-        "Vantage Auto Trader v2.04 -- Online\n\n"
+        "Vantage Auto Trader v2.05 -- Online\n\n"
         "Developer: OB\n"
         "Symbols  : " + symLine + "\n"
         "Lot      : " + DoubleToString(InpLotSize, 2) + "\n"
         "SL-TP    : " + IntegerToString(InpStopPips) + " - " + IntegerToString(InpTakePips) + " pips\n"
         "Trailing : " + (InpTrailingStop ? IntegerToString(InpTrailPips) + " pips" : "off") + "\n"
         "OB Filter: " + (InpOBFilter ? "ON" : "OFF") + "\n"
+        "RSI range: " + IntegerToString(InpRSIBuyMin) + "-" + IntegerToString(InpRSIBuyMax) + " buy / "
+                      + IntegerToString(InpRSISellMin) + "-" + IntegerToString(InpRSISellMax) + " sell\n"
+        "EMA gap  : " + IntegerToString(InpEMAGapPips) + " pips min\n"
         "TF       : " + EnumToString(InpTF) + "\n"
         "Max open : " + IntegerToString(InpMaxTrades) + "\n\n"
         "Send /help for commands."
@@ -149,9 +156,11 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 {
     if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
     ulong dealTicket = trans.deal;
+    if(dealTicket == g_lastReportedDeal) return;
     if(!HistoryDealSelect(dealTicket)) return;
     if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY) != DEAL_ENTRY_OUT) return;
     if(HistoryDealGetInteger(dealTicket, DEAL_MAGIC) != MAGIC) return;
+    g_lastReportedDeal = dealTicket;
 
     string sym    = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
     double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT)
@@ -197,15 +206,22 @@ void CheckSignal(int idx)
     IndicatorRelease(hRsi);
     if(!ok) return;
 
-    bool bullCross = (fast[1] > slow[1]) && (fast[2] <= slow[2]);
-    bool bearCross = (fast[1] < slow[1]) && (fast[2] >= slow[2]);
+    int    digits2 = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+    double point2  = SymbolInfoDouble(sym, SYMBOL_POINT);
+    double pipVal2 = (digits2 == 3 || digits2 == 5) ? point2 * 10.0 : point2;
+    double minGap  = InpEMAGapPips * pipVal2;
 
-    if(bullCross && rsi[1] < (double)InpRSIBuyMax && IsNearOrderBlock(sym, ORDER_TYPE_BUY))
+    bool bullCross = (fast[1] > slow[1]) && (fast[2] <= slow[2]) && (fast[1] - slow[1] >= minGap);
+    bool bearCross = (fast[1] < slow[1]) && (fast[2] >= slow[2]) && (slow[1] - fast[1] >= minGap);
+
+    if(bullCross && rsi[1] > (double)InpRSIBuyMin && rsi[1] < (double)InpRSIBuyMax
+       && IsNearOrderBlock(sym, ORDER_TYPE_BUY))
     {
         g_lastBarTime[idx] = barTime;
         OpenTrade(sym, ORDER_TYPE_BUY);
     }
-    else if(bearCross && rsi[1] > (double)InpRSISellMin && IsNearOrderBlock(sym, ORDER_TYPE_SELL))
+    else if(bearCross && rsi[1] < (double)InpRSISellMax && rsi[1] > (double)InpRSISellMin
+            && IsNearOrderBlock(sym, ORDER_TYPE_SELL))
     {
         g_lastBarTime[idx] = barTime;
         OpenTrade(sym, ORDER_TYPE_SELL);
@@ -482,7 +498,7 @@ void HandleTgCommand(long chatId, string rawText)
     {
         g_chatId = chatId;
         TgSend(chatId,
-            "Vantage Auto Trader v2.04 -- OB\n\n"
+            "Vantage Auto Trader v2.05 -- OB\n\n"
             "/status -- open positions + equity\n"
             "/pnl    -- today's PnL summary\n"
             "/pause  -- stop opening new trades\n"
