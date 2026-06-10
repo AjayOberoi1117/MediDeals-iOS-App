@@ -49,6 +49,20 @@ _seen_bars        = set()
 _daily_signals    = []
 _report_sent_date = None
 
+def _load_seen_bars():
+    path = os.path.join(os.path.dirname(__file__), f".seen_{SYMBOL_NAME}")
+    try:
+        with open(path) as f:
+            for line in f:
+                _seen_bars.add(line.strip())
+    except FileNotFoundError:
+        pass
+
+def _save_seen_bar(bar_ts):
+    path = os.path.join(os.path.dirname(__file__), f".seen_{SYMBOL_NAME}")
+    with open(path, "a") as f:
+        f.write(bar_ts + "\n")
+
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 def tg_send(text: str) -> None:
@@ -180,6 +194,7 @@ def check_signal() -> None:
     atr_val = float(atr.iloc[i])
 
     _seen_bars.add(bar_ts)
+    _save_seen_bar(bar_ts)
     if len(_seen_bars) > 1000:
         _seen_bars.clear()
 
@@ -241,6 +256,7 @@ def main() -> None:
     if not BOT_TOKEN:
         raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or ELITE_BOT_TOKEN in .env")
 
+    _load_seen_bars()
     log.info("Starting | symbol=%s  tf=%s  ema=%d/%d  rsi=%d  poll=%ds",
              SYMBOL_NAME, TIMEFRAME, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS)
 
