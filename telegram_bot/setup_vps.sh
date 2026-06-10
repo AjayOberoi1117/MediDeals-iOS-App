@@ -38,7 +38,7 @@ echo "      Done."
 
 # 4 — Install Python packages
 echo "[4/6] Installing Python packages..."
-pip3 install requests python-dotenv yfinance pandas --quiet
+pip3 install requests python-dotenv yfinance pandas --break-system-packages --quiet
 echo "      Done."
 
 # 5 — Cron jobs (9 AM start Mon-Fri, midnight stop)
