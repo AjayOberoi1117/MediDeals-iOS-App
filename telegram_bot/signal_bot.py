@@ -85,7 +85,7 @@ def calc_rsi(close: pd.Series, period: int) -> pd.Series:
 
 # ── Data fetch ────────────────────────────────────────────────────────────────
 
-def fetch_ohlcv() -> pd.DataFrame | None:
+def fetch_ohlcv():
     min_bars = SLOW_EMA + 10
     try:
         df = yf.download(SYMBOL, period="30d", interval=TIMEFRAME,
