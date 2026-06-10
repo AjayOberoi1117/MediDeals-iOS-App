@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # setup_vps.sh — One-command setup for all 6 trading bots on a fresh Ubuntu VPS
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
 echo "============================================"
 echo "  Trading Bots VPS Setup"
@@ -9,12 +10,13 @@ echo ""
 
 # 1 — Update system
 echo "[1/6] Updating system packages..."
-apt-get update -qq && apt-get upgrade -y -qq
+apt-get update -qq
+apt-get upgrade -y -qq -o Dpkg::Options::="--force-confold"
 echo "      Done."
 
 # 2 — Install dependencies
 echo "[2/6] Installing Python3, pip, git, screen..."
-apt-get install -y -qq python3 python3-pip git screen
+apt-get install -y -qq -o Dpkg::Options::="--force-confold" python3 python3-pip git screen
 echo "      Done."
 
 # 3 — Clone repo
