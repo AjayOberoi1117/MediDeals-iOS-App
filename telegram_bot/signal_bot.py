@@ -207,6 +207,7 @@ def check_signal() -> None:
             f"📊 <b>ATR(14)   :</b> {atr_val:.5f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
+            f"⚠️ <i>Prices indicative — enter at broker's live rate</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("BUY", price, sl, tp)

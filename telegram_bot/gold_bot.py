@@ -22,7 +22,7 @@ load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("VANTAGE_EA_TOKEN", "8034731398:AAHHAKJaYEn_u0M_TzwSJr8e7tNtQIwN5BM")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",   "1994067941")
-SYMBOL         = "GC=F"        # Yahoo Finance: Gold Futures (COMEX)
+SYMBOL         = "XAUUSD=X"    # Yahoo Finance: Spot Gold (matches broker)
 DISPLAY_NAME   = "XAUUSD"
 TIMEFRAME      = "1h"
 FAST_EMA       = 10
@@ -131,11 +131,13 @@ def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> 
 
 def fetch_ohlcv():
     try:
-        df = yf.download(SYMBOL, period="30d", interval=TIMEFRAME,
+        df = yf.download(SYMBOL, period="60d", interval=TIMEFRAME,
                          progress=False, auto_adjust=True)
         if df.empty or len(df) < SLOW_EMA + 10:
             log.warning("Not enough bars (%d). Will retry.", len(df))
             return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
         return df
     except Exception as exc:
         log.warning("Data fetch error: %s", exc)
@@ -205,6 +207,7 @@ def check_signal() -> None:
             f"📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross + RSI {rsi_val:.1f}\n"
+            f"⚠️ <i>Prices indicative — enter at broker's live rate</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("BUY", price, sl, tp)
@@ -227,6 +230,7 @@ def check_signal() -> None:
             f"📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross + RSI {rsi_val:.1f}\n"
+            f"⚠️ <i>Prices indicative — enter at broker's live rate</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("SELL", price, sl, tp)
