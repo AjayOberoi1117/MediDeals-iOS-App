@@ -213,15 +213,26 @@ def check_symbol(name, ticker):
     _save_seen(name, bar_ts)
 
     is_gold = name == "XAUUSD"
-    dec     = 2 if is_gold else 5
-    cur     = "$" if is_gold else ""
+    rr      = round(ATR_TP_MULT / ATR_SL_MULT, 1)
+
+    if is_gold:
+        sl_dist = round(ATR_SL_MULT * atr_val, 2)
+        tp_dist = round(ATR_TP_MULT * atr_val, 2)
+        atr_str = f"${atr_val:.2f}"
+        sl_str  = f"$<code>{sl_dist}</code>"
+        tp_str  = f"$<code>{tp_dist}</code>"
+        unit    = "BELOW" ; unit2 = "ABOVE"
+    else:
+        pip     = 0.01 if "JPY" in name else 0.0001
+        sl_dist = round(ATR_SL_MULT * atr_val / pip, 1)
+        tp_dist = round(ATR_TP_MULT * atr_val / pip, 1)
+        atr_str = f"{round(atr_val/pip, 1)} pips"
+        sl_str  = f"<code>{sl_dist}</code> pips"
+        tp_str  = f"<code>{tp_dist}</code> pips"
+        unit    = "BELOW" ; unit2 = "ABOVE"
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        sl = round(price - ATR_SL_MULT * atr_val, dec)
-        tp = round(price + ATR_TP_MULT * atr_val, dec)
-        rr = round(abs(tp - price) / max(abs(sl - price), 0.00001), 1)
-        log.info("BUY  %s  entry=%s%.{dec}f  sl=%s%.{dec}f  tp=%s%.{dec}f".format(dec=dec),
-                 name, cur, price, cur, sl, cur, tp)
+        log.info("BUY  %s  sl_dist=%s  tp_dist=%s", name, sl_dist, tp_dist)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ <b>SCALPER — {name}</b>\n"
@@ -229,25 +240,23 @@ def check_symbol(name, ticker):
             f"📈 <b>Signal    :</b> 🟢 BUY\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
-            f"📍 <b>Entry     :</b> {cur}<code>{price:.{dec}f}</code>\n"
-            f"🛑 <b>Stop Loss :</b> {cur}<code>{sl:.{dec}f}</code>\n"
-            f"🎯 <b>Target    :</b> {cur}<code>{tp:.{dec}f}</code>\n\n"
+            f"📍 <b>Entry     :</b> Open BUY at your broker NOW\n"
+            f"🛑 <b>Stop Loss :</b> {sl_str} {unit} your entry\n"
+            f"🎯 <b>Target    :</b> {tp_str} {unit2} your entry\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> {cur}{atr_val:.{dec}f}\n"
+            f"📊 <b>ATR(14)   :</b> {atr_str}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 15min\n"
-            f"⚠️ <i>Prices indicative — enter at broker's live rate</i>\n"
+            f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
+        sl = round(price - ATR_SL_MULT * atr_val, 2 if is_gold else 5)
+        tp = round(price + ATR_TP_MULT * atr_val, 2 if is_gold else 5)
         record_signal(name, "BUY", price, sl, tp)
         _last_signal[name] = now_ts
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        sl = round(price + ATR_SL_MULT * atr_val, dec)
-        tp = round(price - ATR_TP_MULT * atr_val, dec)
-        rr = round(abs(tp - price) / max(abs(sl - price), 0.00001), 1)
-        log.info("SELL %s  entry=%s%.{dec}f  sl=%s%.{dec}f  tp=%s%.{dec}f".format(dec=dec),
-                 name, cur, price, cur, sl, cur, tp)
+        log.info("SELL %s  sl_dist=%s  tp_dist=%s", name, sl_dist, tp_dist)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ <b>SCALPER — {name}</b>\n"
@@ -255,16 +264,18 @@ def check_symbol(name, ticker):
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
-            f"📍 <b>Entry     :</b> {cur}<code>{price:.{dec}f}</code>\n"
-            f"🛑 <b>Stop Loss :</b> {cur}<code>{sl:.{dec}f}</code>\n"
-            f"🎯 <b>Target    :</b> {cur}<code>{tp:.{dec}f}</code>\n\n"
+            f"📍 <b>Entry     :</b> Open SELL at your broker NOW\n"
+            f"🛑 <b>Stop Loss :</b> {sl_str} ABOVE your entry\n"
+            f"🎯 <b>Target    :</b> {tp_str} BELOW your entry\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> {cur}{atr_val:.{dec}f}\n"
+            f"📊 <b>ATR(14)   :</b> {atr_str}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 15min\n"
-            f"⚠️ <i>Prices indicative — enter at broker's live rate</i>\n"
+            f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
+        sl = round(price + ATR_SL_MULT * atr_val, 2 if is_gold else 5)
+        tp = round(price - ATR_TP_MULT * atr_val, 2 if is_gold else 5)
         record_signal(name, "SELL", price, sl, tp)
         _last_signal[name] = now_ts
 
