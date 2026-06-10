@@ -56,14 +56,20 @@ echo "  [5] Nifty     started  (PID $!)  log: logs/nifty.log"
 python3 scanner_bot.py >> logs/scanner.log 2>&1 &
 echo "  [6] Scanner   started  (PID $!)  log: logs/scanner.log"
 
+# ── Forex + Gold 15-min Scalper ──────────────────────────────────────────────
+
+python3 forex_scalper.py >> logs/scalper.log 2>&1 &
+echo "  [7] Scalper   started  (PID $!)  log: logs/scalper.log"
+
 echo ""
-echo "All 6 bots running in the background."
+echo "All 7 bots running in the background."
 echo ""
 echo "View live logs:"
 echo "  tail -f logs/eurusd.log"
 echo "  tail -f logs/gold.log"
 echo "  tail -f logs/nifty.log"
 echo "  tail -f logs/scanner.log"
+echo "  tail -f logs/scalper.log"
 echo ""
 echo "To stop all bots:  bash stop_bots.sh"
 echo "==========================================="
