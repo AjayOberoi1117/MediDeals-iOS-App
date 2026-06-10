@@ -222,7 +222,7 @@ def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
         f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
         f"💡 EMA({FAST_EMA}/{SLOW_EMA}) crossover confirmed\n"
         f"🏦 <i>Place as MIS (Intraday) in Upstox</i>\n"
-        f"⚠️ <i>Square off before 3:15 PM IST</i>\n"
+        f"⚠️ <i>Set SL first! Square off before 3:15 PM IST</i>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━"
     )
 
