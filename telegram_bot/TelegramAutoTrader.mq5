@@ -22,7 +22,7 @@
 //|  /help    -- show command list                                   |
 //+------------------------------------------------------------------+
 #property copyright "Vantage Auto Trader | OB"
-#property version   "2.04"
+#property version   "2.05"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -65,6 +65,9 @@ int           g_summaryDay   = -1;
 string        g_symbols[];
 datetime      g_lastBarTime[];
 int           g_symCount     = 0;
+int           g_hFast[];
+int           g_hSlow[];
+int           g_hRsi[];
 const int     MAGIC          = 20250528;
 
 //------------------------------------------------------------------
@@ -72,6 +75,18 @@ const int     MAGIC          = 20250528;
 //------------------------------------------------------------------
 double GetAsk(string sym) { return SymbolInfoDouble(sym, SYMBOL_ASK); }
 double GetBid(string sym) { return SymbolInfoDouble(sym, SYMBOL_BID); }
+
+// Returns the value of 1 pip in price units for any instrument.
+// Handles fractional-pip FX (3/5 digits), standard FX (2/4 digits),
+// and commodities/indices/crypto where 1 pip = point*100 (e.g. XAUUSD digits=2).
+double PipValue(string sym)
+{
+    int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+    double point  = SymbolInfoDouble(sym, SYMBOL_POINT);
+    if(digits == 3 || digits == 5) return point * 10.0;   // JPY, fractional FX
+    if(digits == 2)                return point * 100.0;  // Gold, Oil, Indices
+    return point;                                         // 4-digit FX, crypto
+}
 
 //------------------------------------------------------------------
 // LIFECYCLE
@@ -86,6 +101,9 @@ int OnInit()
 
     g_symCount = StringSplit(InpSymbols, ',', g_symbols);
     ArrayResize(g_lastBarTime, g_symCount);
+    ArrayResize(g_hFast,       g_symCount);
+    ArrayResize(g_hSlow,       g_symCount);
+    ArrayResize(g_hRsi,        g_symCount);
     for(int i = 0; i < g_symCount; i++)
     {
         StringTrimLeft(g_symbols[i]);
@@ -93,6 +111,18 @@ int OnInit()
         StringToUpper(g_symbols[i]);
         SymbolSelect(g_symbols[i], true);
         g_lastBarTime[i] = 0;
+
+        g_hFast[i] = iMA (g_symbols[i], InpTF, InpFastMA,    0, MODE_EMA, PRICE_CLOSE);
+        g_hSlow[i] = iMA (g_symbols[i], InpTF, InpSlowMA,    0, MODE_EMA, PRICE_CLOSE);
+        g_hRsi[i]  = iRSI(g_symbols[i], InpTF, InpRSIPeriod,    PRICE_CLOSE);
+
+        if(g_hFast[i] == INVALID_HANDLE ||
+           g_hSlow[i] == INVALID_HANDLE ||
+           g_hRsi[i]  == INVALID_HANDLE)
+        {
+            Print("INIT FAILED: cannot create indicator handles for ", g_symbols[i]);
+            return INIT_FAILED;
+        }
     }
 
     EventSetTimer(InpPollSeconds);
@@ -102,7 +132,7 @@ int OnInit()
         symLine += (i > 0 ? ", " : "") + g_symbols[i];
 
     TgBroadcast(
-        "Vantage Auto Trader v2.04 -- Online\n\n"
+        "Vantage Auto Trader v2.05 -- Online\n\n"
         "Developer: OB\n"
         "Symbols  : " + symLine + "\n"
         "Lot      : " + DoubleToString(InpLotSize, 2) + "\n"
@@ -120,6 +150,12 @@ int OnInit()
 void OnDeinit(const int reason)
 {
     EventKillTimer();
+    for(int i = 0; i < g_symCount; i++)
+    {
+        IndicatorRelease(g_hFast[i]);
+        IndicatorRelease(g_hSlow[i]);
+        IndicatorRelease(g_hRsi[i]);
+    }
     TgBroadcast("Auto Trader STOPPED (reason: " + IntegerToString(reason) + ").");
 }
 
@@ -179,37 +215,27 @@ void CheckSignal(int idx)
     datetime barTime = iTime(sym, InpTF, 1);
     if(barTime == g_lastBarTime[idx]) return;
 
-    int hFast = iMA(sym, InpTF, InpFastMA, 0, MODE_EMA, PRICE_CLOSE);
-    int hSlow = iMA(sym, InpTF, InpSlowMA, 0, MODE_EMA, PRICE_CLOSE);
-    int hRsi  = iRSI(sym, InpTF, InpRSIPeriod, PRICE_CLOSE);
-    if(hFast == INVALID_HANDLE || hSlow == INVALID_HANDLE || hRsi == INVALID_HANDLE) return;
-
     double fast[], slow[], rsi[];
     ArraySetAsSeries(fast, true);
     ArraySetAsSeries(slow, true);
     ArraySetAsSeries(rsi,  true);
 
-    bool ok = CopyBuffer(hFast, 0, 0, 3, fast) == 3 &&
-              CopyBuffer(hSlow, 0, 0, 3, slow) == 3 &&
-              CopyBuffer(hRsi,  0, 0, 2, rsi)  == 2;
-    IndicatorRelease(hFast);
-    IndicatorRelease(hSlow);
-    IndicatorRelease(hRsi);
+    bool ok = CopyBuffer(g_hFast[idx], 0, 0, 3, fast) == 3 &&
+              CopyBuffer(g_hSlow[idx], 0, 0, 3, slow) == 3 &&
+              CopyBuffer(g_hRsi[idx],  0, 0, 2, rsi)  == 2;
     if(!ok) return;
 
     bool bullCross = (fast[1] > slow[1]) && (fast[2] <= slow[2]);
     bool bearCross = (fast[1] < slow[1]) && (fast[2] >= slow[2]);
 
+    // Mark bar processed when a crossover is detected (regardless of OB filter result),
+    // so the same crossover bar is not re-evaluated thousands of times per hour.
+    if(bullCross || bearCross) g_lastBarTime[idx] = barTime;
+
     if(bullCross && rsi[1] < (double)InpRSIBuyMax && IsNearOrderBlock(sym, ORDER_TYPE_BUY))
-    {
-        g_lastBarTime[idx] = barTime;
         OpenTrade(sym, ORDER_TYPE_BUY);
-    }
     else if(bearCross && rsi[1] > (double)InpRSISellMin && IsNearOrderBlock(sym, ORDER_TYPE_SELL))
-    {
-        g_lastBarTime[idx] = barTime;
         OpenTrade(sym, ORDER_TYPE_SELL);
-    }
 }
 
 //------------------------------------------------------------------
@@ -219,10 +245,7 @@ bool IsNearOrderBlock(string sym, ENUM_ORDER_TYPE type)
 {
     if(!InpOBFilter) return true;
 
-    double point  = SymbolInfoDouble(sym, SYMBOL_POINT);
-    int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
-    double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
-    double tol    = InpOBPips * pipVal;
+    double tol = InpOBPips * PipValue(sym);
     double price  = (type == ORDER_TYPE_BUY) ? GetAsk(sym) : GetBid(sym);
 
     for(int i = 1; i <= InpOBLookback; i++)
@@ -255,7 +278,7 @@ void OpenTrade(string sym, ENUM_ORDER_TYPE type)
 
     int    digits    = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
     double point     = SymbolInfoDouble(sym, SYMBOL_POINT);
-    double pipVal    = (digits == 3 || digits == 5) ? point * 10.0 : point;
+    double pipVal    = PipValue(sym);
     long   stopLevel = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL);
     double minDist   = MathMax(InpStopPips * pipVal, (stopLevel + 5) * point);
     double tpDist    = MathMax(InpTakePips * pipVal, (stopLevel + 5) * point);
@@ -311,8 +334,7 @@ void ManageTrailingStops()
         string sym    = g_pos.Symbol();
         int    digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
         double point  = SymbolInfoDouble(sym, SYMBOL_POINT);
-        double pipVal = (digits == 3 || digits == 5) ? point * 10.0 : point;
-        double trail  = InpTrailPips * pipVal;
+        double trail  = InpTrailPips * PipValue(sym);
         double curBid = GetBid(sym);
         double curAsk = GetAsk(sym);
 
@@ -482,7 +504,7 @@ void HandleTgCommand(long chatId, string rawText)
     {
         g_chatId = chatId;
         TgSend(chatId,
-            "Vantage Auto Trader v2.04 -- OB\n\n"
+            "Vantage Auto Trader v2.05 -- OB\n\n"
             "/status -- open positions + equity\n"
             "/pnl    -- today's PnL summary\n"
             "/pause  -- stop opening new trades\n"
