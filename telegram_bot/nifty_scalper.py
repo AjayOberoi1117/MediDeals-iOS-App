@@ -278,10 +278,6 @@ def format_signal(symbol, direction, price, sl, tp, vwap, vwap_gap, st_flipped):
     now_ist = datetime.now().strftime("%d %b %Y %I:%M %p IST")
     flip    = "🔄 Supertrend just flipped!" if st_flipped else "📐 VWAP crossover confirmation"
     rr      = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
-    sl_pts  = round(abs(price - sl), 2)
-    tp_pts  = round(abs(tp - price), 2)
-    sl_dir  = "BELOW" if direction == "BUY" else "ABOVE"
-    tp_dir  = "ABOVE" if direction == "BUY" else "BELOW"
     return (
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"⚡ <b>NIFTY SCALPER — {symbol}</b>\n"
@@ -289,9 +285,9 @@ def format_signal(symbol, direction, price, sl, tp, vwap, vwap_gap, st_flipped):
         f"📈 <b>Signal    :</b> {emoji}\n"
         f"📅 <b>Time      :</b> {now_ist}\n"
         f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
-        f"📍 <b>Entry     :</b> Open {direction} at your broker NOW\n"
-        f"🛑 <b>Stop Loss :</b> ₹<code>{sl_pts}</code> {sl_dir} your entry\n"
-        f"🎯 <b>Target    :</b> ₹<code>{tp_pts}</code> {tp_dir} your entry\n\n"
+        f"📍 <b>Entry     :</b> ₹<code>{price:.2f}</code>\n"
+        f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
+        f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
         f"📊 <b>VWAP      :</b> ₹{vwap:.2f}  ({'+' if price > vwap else '-'}{vwap_gap:.2f}% from VWAP)\n"
         f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
         f"💡 {flip}\n\n"

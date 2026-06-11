@@ -203,13 +203,13 @@ def check_signal() -> None:
              float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
              rsi_val, atr_val, bull_cross, bear_cross)
 
-    pip   = 0.01 if "JPY" in SYMBOL_NAME else 0.0001
-    sl_p  = round(ATR_SL_MULT * atr_val / pip, 1)
-    tp_p  = round(ATR_TP_MULT * atr_val / pip, 1)
-    rr    = round(ATR_TP_MULT / ATR_SL_MULT, 1)
+    dec = 3 if "JPY" in SYMBOL_NAME else 5
+    rr  = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        log.info(">>> BUY SIGNAL <<<  Bar=%.5f  SL=%.1fpips  TP=%.1fpips", price, sl_p, tp_p)
+        sl = round(price - ATR_SL_MULT * atr_val, dec)
+        tp = round(price + ATR_TP_MULT * atr_val, dec)
+        log.info(">>> BUY SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, price, dec, sl, dec, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"💱 <b>FOREX SIGNAL — {SYMBOL_NAME}</b>\n"
@@ -217,22 +217,22 @@ def check_signal() -> None:
             f"📈 <b>Signal    :</b> 🟢 BUY\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> Open BUY at your broker NOW\n"
-            f"🛑 <b>Stop Loss :</b> <code>{sl_p}</code> pips BELOW your entry\n"
-            f"🎯 <b>Target    :</b> <code>{tp_p}</code> pips ABOVE your entry\n\n"
+            f"📍 <b>Entry     :</b> <code>{price:.{dec}f}</code>\n"
+            f"🛑 <b>Stop Loss :</b> <code>{sl:.{dec}f}</code>\n"
+            f"🎯 <b>Target    :</b> <code>{tp:.{dec}f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> {round(atr_val/pip, 1)} pips\n"
+            f"📊 <b>ATR(14)   :</b> {atr_val:.{dec}f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        sl = round(price - ATR_SL_MULT * atr_val, 5)
-        tp = round(price + ATR_TP_MULT * atr_val, 5)
         record_signal("BUY", price, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        log.info(">>> SELL SIGNAL <<<  Bar=%.5f  SL=%.1fpips  TP=%.1fpips", price, sl_p, tp_p)
+        sl = round(price + ATR_SL_MULT * atr_val, dec)
+        tp = round(price - ATR_TP_MULT * atr_val, dec)
+        log.info(">>> SELL SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, price, dec, sl, dec, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"💱 <b>FOREX SIGNAL — {SYMBOL_NAME}</b>\n"
@@ -240,18 +240,16 @@ def check_signal() -> None:
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> Open SELL at your broker NOW\n"
-            f"🛑 <b>Stop Loss :</b> <code>{sl_p}</code> pips ABOVE your entry\n"
-            f"🎯 <b>Target    :</b> <code>{tp_p}</code> pips BELOW your entry\n\n"
+            f"📍 <b>Entry     :</b> <code>{price:.{dec}f}</code>\n"
+            f"🛑 <b>Stop Loss :</b> <code>{sl:.{dec}f}</code>\n"
+            f"🎯 <b>Target    :</b> <code>{tp:.{dec}f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> {round(atr_val/pip, 1)} pips\n"
+            f"📊 <b>ATR(14)   :</b> {atr_val:.{dec}f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross confirmed\n"
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        sl = round(price + ATR_SL_MULT * atr_val, 5)
-        tp = round(price - ATR_TP_MULT * atr_val, 5)
         record_signal("SELL", price, sl, tp)
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -189,12 +189,12 @@ def check_signal() -> None:
              float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
              rsi_val, atr_val, bull_cross, bear_cross)
 
-    sl_d = round(ATR_SL_MULT * atr_val, 2)
-    tp_d = round(ATR_TP_MULT * atr_val, 2)
     rr   = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        log.info(">>> BUY SIGNAL <<<  Bar=$%.2f  SL=$%.2f  TP=$%.2f", price, sl_d, tp_d)
+        sl = round(price - ATR_SL_MULT * atr_val, 2)
+        tp = round(price + ATR_TP_MULT * atr_val, 2)
+        log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", price, sl, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🥇 <b>GOLD BOT — XAUUSD</b>\n"
@@ -202,9 +202,9 @@ def check_signal() -> None:
             f"📈 <b>Signal    :</b> 🟢 BUY\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> Open BUY at your broker NOW\n"
-            f"🛑 <b>Stop Loss :</b> $<code>{sl_d}</code> BELOW your entry\n"
-            f"🎯 <b>Target    :</b> $<code>{tp_d}</code> ABOVE your entry\n\n"
+            f"📍 <b>Entry     :</b> $<code>{price:.2f}</code>\n"
+            f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n"
+            f"🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
             f"📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
@@ -212,10 +212,12 @@ def check_signal() -> None:
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal("BUY", price, round(price - sl_d, 2), round(price + tp_d, 2))
+        record_signal("BUY", price, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        log.info(">>> SELL SIGNAL <<<  Bar=$%.2f  SL=$%.2f  TP=$%.2f", price, sl_d, tp_d)
+        sl = round(price + ATR_SL_MULT * atr_val, 2)
+        tp = round(price - ATR_TP_MULT * atr_val, 2)
+        log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", price, sl, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🥇 <b>GOLD BOT — XAUUSD</b>\n"
@@ -223,9 +225,9 @@ def check_signal() -> None:
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> Open SELL at your broker NOW\n"
-            f"🛑 <b>Stop Loss :</b> $<code>{sl_d}</code> ABOVE your entry\n"
-            f"🎯 <b>Target    :</b> $<code>{tp_d}</code> BELOW your entry\n\n"
+            f"📍 <b>Entry     :</b> $<code>{price:.2f}</code>\n"
+            f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n"
+            f"🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
             f"📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
@@ -233,7 +235,7 @@ def check_signal() -> None:
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal("SELL", price, round(price + sl_d, 2), round(price - tp_d, 2))
+        record_signal("SELL", price, sl, tp)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
