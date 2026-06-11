@@ -43,6 +43,10 @@ echo "  [6] Scanner   started  (PID $!)"
 python3 forex_scalper.py >> logs/scalper.log 2>&1 &
 echo "  [7] Scalper   started  (PID $!)"
 
+python3 token_updater_bot.py >> logs/token_updater.log 2>&1 &
+echo "  [8] TokenBot  started  (PID $!)"
+
 echo ""
-echo "All 7 bots running 24/7. Watchdog checks every 5 minutes."
+echo "All 8 bots running 24/7. Watchdog checks every 5 minutes."
+echo "Send /upstox <token> to Elite bot to refresh Upstox token."
 echo "==========================================="

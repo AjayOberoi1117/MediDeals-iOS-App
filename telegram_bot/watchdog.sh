@@ -71,3 +71,8 @@ pgrep -f "scanner_bot.py" > /dev/null || \
 pgrep -f "forex_scalper.py" > /dev/null || \
     restart_bot "ForexScalper" "logs/scalper.log" \
     python3 forex_scalper.py
+
+# Token Updater Bot
+pgrep -f "token_updater_bot.py" > /dev/null || \
+    restart_bot "TokenUpdater" "logs/token_updater.log" \
+    python3 token_updater_bot.py

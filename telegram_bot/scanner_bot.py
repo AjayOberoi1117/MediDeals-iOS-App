@@ -62,15 +62,17 @@ _UPSTOX_KEYS = {
     "POWERGRID.NS":  "NSE_EQ|POWERGRID",  "ADANIENT.NS":   "NSE_EQ|ADANIENT",
 }
 
-# ── Live price (Upstox) ───────────────────────────────────────────────────────
+# ── Live price (Upstox — requires daily trading token) ───────────────────────
 
 def fetch_live_price_upstox(ticker: str):
     ikey = _UPSTOX_KEYS.get(ticker)
-    if not UPSTOX_TOKEN or not ikey:
+    token = os.getenv("UPSTOX_TOKEN", "")
+    if not token or not ikey:
         return None
     try:
+        hdr = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
         r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
-                         headers=_UPSTOX_HDR,
+                         headers=hdr,
                          params={"instrument_key": ikey},
                          timeout=5)
         if r.status_code != 200:
@@ -78,6 +80,17 @@ def fetch_live_price_upstox(ticker: str):
         data = r.json().get("data", {})
         val  = data.get(ikey.replace("|", ":"), {}).get("last_price", 0)
         return float(val) if val else None
+    except Exception:
+        return None
+
+# ── Live price fallback (yfinance — no token needed) ─────────────────────────
+
+def fetch_live_price_yf(ticker: str):
+    """yfinance fast_info gives ~1-min fresh price with no API key."""
+    try:
+        info = yf.Ticker(ticker).fast_info
+        price = info.get("lastPrice") or info.get("last_price")
+        return float(price) if price and float(price) > 0 else None
     except Exception:
         return None
 
@@ -282,7 +295,8 @@ def run_scan():
             result = check_stock(ticker)
             if result:
                 direction, price, sl, tp, rsi_val, atr_val = result
-                live = fetch_live_price_upstox(ticker)
+                # Priority: Upstox (daily token) → yfinance fast_info → bar close
+                live = fetch_live_price_upstox(ticker) or fetch_live_price_yf(ticker)
                 if live:
                     entry = live
                     sl = round(entry - ATR_SL_MULT * atr_val, 2) if direction == "BUY" \

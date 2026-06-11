@@ -124,12 +124,13 @@ def maybe_send_daily_report():
 # ─────────────────────────────────────────────
 
 def get_live_price_upstox(symbol: str, ikey: str):
+    """Try Upstox market-quote API (requires valid daily trading token)."""
     if not UPSTOX_TOKEN:
         return None
     try:
-        # Market quote — true real-time last traded price
+        headers = {"Accept": "application/json", "Authorization": f"Bearer {os.getenv('UPSTOX_TOKEN', '')}"}
         r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
-                         headers=HEADERS,
+                         headers=headers,
                          params={"instrument_key": ikey},
                          timeout=5)
         if r.status_code == 200:
@@ -137,16 +138,20 @@ def get_live_price_upstox(symbol: str, ikey: str):
             val  = data.get(ikey.replace("|", ":"), {}).get("last_price", 0)
             if val:
                 return float(val)
-        # Fallback: last 1-min candle close
-        r = requests.get(
-            f"https://api.upstox.com/v2/historical-candle/intraday/{ikey}/1minute",
-            headers=HEADERS, timeout=10)
-        if r.status_code != 200:
-            return None
-        candles = r.json().get("data", {}).get("candles", [])
-        return float(candles[0][4]) if candles else None
+        return None
     except Exception:
         return None
+
+
+def get_live_price_yf(yf_ticker: str):
+    """Fallback: yfinance fast_info — no API key needed, ~1-min freshness."""
+    try:
+        info = yf.Ticker(yf_ticker).fast_info
+        price = info.get("lastPrice") or info.get("last_price")
+        return float(price) if price and float(price) > 0 else None
+    except Exception:
+        return None
+
 
 def fetch_15min_candles(symbol: str, yf_ticker: str, ikey: str) -> pd.DataFrame:
     try:
@@ -175,12 +180,17 @@ def fetch_15min_candles(symbol: str, yf_ticker: str, ikey: str) -> pd.DataFrame:
             print(f"  {symbol}: only {len(df)} 15-min candles")
             return pd.DataFrame()
 
+        # Priority: Upstox live (daily token) → yfinance fast_info → bar close
         live = get_live_price_upstox(symbol, ikey)
+        src  = "Upstox"
+        if not live:
+            live = get_live_price_yf(yf_ticker)
+            src  = "yfinance"
         if live:
             df.at[df.index[-1], "close"] = live
-            print(f"  {symbol}: {len(df)} candles | Live ₹{live:.2f} (Upstox)")
+            print(f"  {symbol}: {len(df)} candles | Live ₹{live:.2f} ({src})")
         else:
-            print(f"  {symbol}: {len(df)} candles | ₹{float(df['close'].iloc[-1]):.2f} (yfinance)")
+            print(f"  {symbol}: {len(df)} candles | ₹{float(df['close'].iloc[-1]):.2f} (bar close)")
         return df
     except Exception as e:
         print(f"  {symbol}: fetch error — {e}")
