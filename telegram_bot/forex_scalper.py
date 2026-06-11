@@ -227,6 +227,10 @@ def check_symbol(name, ticker):
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
 
+    # Minimum ATR floor — prevents unrealistically tight SL/TP on quiet data
+    _atr_min = {"EURUSD": 0.00100, "GBPUSD": 0.00120, "USDJPY": 0.12, "XAUUSD": 2.0}
+    atr_val = max(atr_val, _atr_min.get(name, atr_val))
+
     _seen_bars.setdefault(name, set()).add(bar_ts)
     _save_seen(name, bar_ts)
 

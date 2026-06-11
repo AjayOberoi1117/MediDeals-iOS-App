@@ -195,6 +195,9 @@ def check_signal() -> None:
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
 
+    # Minimum ATR floor for gold 1H — prevents $1 SL on quiet data
+    atr_val = max(atr_val, 3.0)
+
     _seen_bars.add(bar_ts)
     if len(_seen_bars) > 500:
         _seen_bars.clear()

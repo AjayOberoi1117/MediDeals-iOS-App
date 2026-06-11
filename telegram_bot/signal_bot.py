@@ -211,6 +211,10 @@ def check_signal() -> None:
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
 
+    # Minimum ATR floor for 1H bars
+    _atr_min = {"EURUSD": 0.00150, "GBPUSD": 0.00180, "USDJPY": 0.20}
+    atr_val = max(atr_val, _atr_min.get(SYMBOL_NAME, atr_val))
+
     _seen_bars.add(bar_ts)
     _save_seen_bar(bar_ts)
     if len(_seen_bars) > 1000:
