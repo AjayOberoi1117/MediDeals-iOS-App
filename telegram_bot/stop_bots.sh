@@ -2,6 +2,9 @@
 # stop_bots.sh — Stop all running signal bots
 
 echo "Stopping all signal bots..."
+pkill -f "eurusd_bot.py"   2>/dev/null || true
+pkill -f "gbpusd_bot.py"   2>/dev/null || true
+pkill -f "usdjpy_bot.py"   2>/dev/null || true
 pkill -f "signal_bot.py"   2>/dev/null || true
 pkill -f "gold_bot.py"     2>/dev/null || true
 pkill -f "nifty_scalper.py" 2>/dev/null || true
