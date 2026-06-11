@@ -34,6 +34,9 @@ ATR_PERIOD   = 14
 ATR_SL_MULT  = 1.0
 ATR_TP_MULT  = 2.0
 CHECK_SECS   = int(os.getenv("CHECK_SECS",  "60"))
+TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
+
+_TD_MAP = {"EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY", "XAUUSD": "XAU/USD"}
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -155,6 +158,21 @@ def fetch_ohlcv():
         log.warning("Data fetch error: %s", exc)
         return None
 
+# ── Live price (Twelve Data) ──────────────────────────────────────────────────
+
+def fetch_live_price():
+    td_sym = _TD_MAP.get(SYMBOL_NAME)
+    if not TWELVE_DATA_KEY or not td_sym:
+        return None
+    try:
+        r = requests.get("https://api.twelvedata.com/price",
+                         params={"symbol": td_sym, "apikey": TWELVE_DATA_KEY},
+                         timeout=5)
+        val = float(r.json().get("price", 0))
+        return val if val > 0 else None
+    except Exception:
+        return None
+
 # ── Signal check ──────────────────────────────────────────────────────────────
 
 def check_signal() -> None:
@@ -207,9 +225,10 @@ def check_signal() -> None:
     rr  = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        sl = round(price - ATR_SL_MULT * atr_val, dec)
-        tp = round(price + ATR_TP_MULT * atr_val, dec)
-        log.info(">>> BUY SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, price, dec, sl, dec, tp)
+        entry = fetch_live_price() or price
+        sl = round(entry - ATR_SL_MULT * atr_val, dec)
+        tp = round(entry + ATR_TP_MULT * atr_val, dec)
+        log.info(">>> BUY SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, entry, dec, sl, dec, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"💱 <b>FOREX SIGNAL — {SYMBOL_NAME}</b>\n"
@@ -217,7 +236,7 @@ def check_signal() -> None:
             f"📈 <b>Signal    :</b> 🟢 BUY\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> <code>{price:.{dec}f}</code>\n"
+            f"📍 <b>Entry     :</b> <code>{entry:.{dec}f}</code>\n"
             f"🛑 <b>Stop Loss :</b> <code>{sl:.{dec}f}</code>\n"
             f"🎯 <b>Target    :</b> <code>{tp:.{dec}f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
@@ -227,12 +246,13 @@ def check_signal() -> None:
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal("BUY", price, sl, tp)
+        record_signal("BUY", entry, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        sl = round(price + ATR_SL_MULT * atr_val, dec)
-        tp = round(price - ATR_TP_MULT * atr_val, dec)
-        log.info(">>> SELL SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, price, dec, sl, dec, tp)
+        entry = fetch_live_price() or price
+        sl = round(entry + ATR_SL_MULT * atr_val, dec)
+        tp = round(entry - ATR_TP_MULT * atr_val, dec)
+        log.info(">>> SELL SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, entry, dec, sl, dec, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"💱 <b>FOREX SIGNAL — {SYMBOL_NAME}</b>\n"
@@ -240,7 +260,7 @@ def check_signal() -> None:
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> <code>{price:.{dec}f}</code>\n"
+            f"📍 <b>Entry     :</b> <code>{entry:.{dec}f}</code>\n"
             f"🛑 <b>Stop Loss :</b> <code>{sl:.{dec}f}</code>\n"
             f"🎯 <b>Target    :</b> <code>{tp:.{dec}f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
@@ -250,7 +270,7 @@ def check_signal() -> None:
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal("SELL", price, sl, tp)
+        record_signal("SELL", entry, sl, tp)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 

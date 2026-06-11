@@ -34,6 +34,9 @@ ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 1.5    # 1:1.5 RR — tight scalp
 COOLDOWN_SECS  = 7200   # 2-hour cooldown per symbol
 SCAN_INTERVAL  = 60     # scan every 60 seconds
+TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
+
+_TD_MAP = {"EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY", "XAUUSD": "XAU/USD"}
 
 SYMBOLS = {
     "EURUSD": "EURUSD=X",
@@ -171,6 +174,21 @@ def fetch_data(ticker):
         log.debug("Fetch error %s: %s", ticker, exc)
         return None
 
+# ── Live price (Twelve Data) ──────────────────────────────────────────────────
+
+def fetch_live_price(name):
+    td_sym = _TD_MAP.get(name)
+    if not TWELVE_DATA_KEY or not td_sym:
+        return None
+    try:
+        r = requests.get("https://api.twelvedata.com/price",
+                         params={"symbol": td_sym, "apikey": TWELVE_DATA_KEY},
+                         timeout=5)
+        val = float(r.json().get("price", 0))
+        return val if val > 0 else None
+    except Exception:
+        return None
+
 # ── Signal check ──────────────────────────────────────────────────────────────
 
 def check_symbol(name, ticker):
@@ -218,9 +236,10 @@ def check_symbol(name, ticker):
     rr      = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        sl = round(price - ATR_SL_MULT * atr_val, dec)
-        tp = round(price + ATR_TP_MULT * atr_val, dec)
-        log.info("BUY  %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, price, dec, sl, dec, tp)
+        entry = fetch_live_price(name) or price
+        sl = round(entry - ATR_SL_MULT * atr_val, dec)
+        tp = round(entry + ATR_TP_MULT * atr_val, dec)
+        log.info("BUY  %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ <b>SCALPER — {name}</b>\n"
@@ -228,7 +247,7 @@ def check_symbol(name, ticker):
             f"📈 <b>Signal    :</b> 🟢 BUY\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
-            f"📍 <b>Entry     :</b> {pfx}<code>{price:.{dec}f}</code>\n"
+            f"📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
             f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n"
             f"🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
@@ -238,21 +257,22 @@ def check_symbol(name, ticker):
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal(name, "BUY", price, sl, tp)
+        record_signal(name, "BUY", entry, sl, tp)
         _last_signal[name] = now_ts
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        sl = round(price + ATR_SL_MULT * atr_val, dec)
-        tp = round(price - ATR_TP_MULT * atr_val, dec)
-        log.info("SELL %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, price, dec, sl, dec, tp)
+        entry = fetch_live_price(name) or price
+        sl = round(entry + ATR_SL_MULT * atr_val, dec)
+        tp = round(entry - ATR_TP_MULT * atr_val, dec)
+        log.info("SELL %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"⚡ <b>SCALPER — {name}</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-            f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
-            f"📍 <b>Entry     :</b> {pfx}<code>{price:.{dec}f}</code>\n"
+            f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
+            f"📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
             f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n"
             f"🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
@@ -262,7 +282,7 @@ def check_symbol(name, ticker):
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal(name, "SELL", price, sl, tp)
+        record_signal(name, "SELL", entry, sl, tp)
         _last_signal[name] = now_ts
 
 # ── Main loop ─────────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0    # SL = 1x ATR
 ATR_TP_MULT    = 2.0    # TP = 2x ATR  (1:2 risk-reward)
 CHECK_SECS     = 60
+TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -143,6 +144,20 @@ def fetch_ohlcv():
         log.warning("Data fetch error: %s", exc)
         return None
 
+# ── Live price (Twelve Data) ──────────────────────────────────────────────────
+
+def fetch_live_price():
+    if not TWELVE_DATA_KEY:
+        return None
+    try:
+        r = requests.get("https://api.twelvedata.com/price",
+                         params={"symbol": "XAU/USD", "apikey": TWELVE_DATA_KEY},
+                         timeout=5)
+        val = float(r.json().get("price", 0))
+        return val if val > 0 else None
+    except Exception:
+        return None
+
 # ── Signal check ──────────────────────────────────────────────────────────────
 
 def check_signal() -> None:
@@ -192,9 +207,10 @@ def check_signal() -> None:
     rr   = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        sl = round(price - ATR_SL_MULT * atr_val, 2)
-        tp = round(price + ATR_TP_MULT * atr_val, 2)
-        log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", price, sl, tp)
+        entry = fetch_live_price() or price
+        sl = round(entry - ATR_SL_MULT * atr_val, 2)
+        tp = round(entry + ATR_TP_MULT * atr_val, 2)
+        log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🥇 <b>GOLD BOT — XAUUSD</b>\n"
@@ -202,7 +218,7 @@ def check_signal() -> None:
             f"📈 <b>Signal    :</b> 🟢 BUY\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> $<code>{price:.2f}</code>\n"
+            f"📍 <b>Entry     :</b> $<code>{entry:.2f}</code>\n"
             f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n"
             f"🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
@@ -212,12 +228,13 @@ def check_signal() -> None:
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal("BUY", price, sl, tp)
+        record_signal("BUY", entry, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        sl = round(price + ATR_SL_MULT * atr_val, 2)
-        tp = round(price - ATR_TP_MULT * atr_val, 2)
-        log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", price, sl, tp)
+        entry = fetch_live_price() or price
+        sl = round(entry + ATR_SL_MULT * atr_val, 2)
+        tp = round(entry - ATR_TP_MULT * atr_val, 2)
+        log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🥇 <b>GOLD BOT — XAUUSD</b>\n"
@@ -225,7 +242,7 @@ def check_signal() -> None:
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> $<code>{price:.2f}</code>\n"
+            f"📍 <b>Entry     :</b> $<code>{entry:.2f}</code>\n"
             f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n"
             f"🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
@@ -235,7 +252,7 @@ def check_signal() -> None:
             f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
-        record_signal("SELL", price, sl, tp)
+        record_signal("SELL", entry, sl, tp)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
