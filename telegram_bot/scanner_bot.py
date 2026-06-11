@@ -27,8 +27,8 @@ TIMEFRAME      = "15m"
 FAST_EMA       = 10
 SLOW_EMA       = 50
 RSI_PERIOD     = 14
-RSI_BUY_MAX    = 65
-RSI_SELL_MIN   = 35
+RSI_BUY_MAX    = 70
+RSI_SELL_MIN   = 30
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 2.0
@@ -38,6 +38,9 @@ SCAN_INTERVAL  = 300           # scan every 5 minutes
 MARKET_OPEN    = (9, 15)
 MARKET_CLOSE   = (15, 30)
 
+UPSTOX_TOKEN   = os.getenv("UPSTOX_TOKEN", "")
+_UPSTOX_HDR    = {"Accept": "application/json", "Authorization": f"Bearer {UPSTOX_TOKEN}"}
+
 # NSE large-cap stocks to scan
 STOCKS = [
     "RELIANCE.NS", "TCS.NS",      "HDFCBANK.NS", "INFY.NS",    "ICICIBANK.NS",
@@ -45,6 +48,38 @@ STOCKS = [
     "LT.NS",       "MARUTI.NS",   "NTPC.NS",     "WIPRO.NS",   "HCLTECH.NS",
     "BAJFINANCE.NS","TITAN.NS",   "ULTRACEMCO.NS","POWERGRID.NS","ADANIENT.NS",
 ]
+
+_UPSTOX_KEYS = {
+    "RELIANCE.NS":   "NSE_EQ|RELIANCE",   "TCS.NS":        "NSE_EQ|TCS",
+    "HDFCBANK.NS":   "NSE_EQ|HDFCBANK",   "INFY.NS":       "NSE_EQ|INFY",
+    "ICICIBANK.NS":  "NSE_EQ|ICICIBANK",  "SBIN.NS":       "NSE_EQ|SBIN",
+    "BHARTIARTL.NS": "NSE_EQ|BHARTIARTL", "KOTAKBANK.NS":  "NSE_EQ|KOTAKBANK",
+    "ITC.NS":        "NSE_EQ|ITC",        "AXISBANK.NS":   "NSE_EQ|AXISBANK",
+    "LT.NS":         "NSE_EQ|LT",         "MARUTI.NS":     "NSE_EQ|MARUTI",
+    "NTPC.NS":       "NSE_EQ|NTPC",       "WIPRO.NS":      "NSE_EQ|WIPRO",
+    "HCLTECH.NS":    "NSE_EQ|HCLTECH",    "BAJFINANCE.NS": "NSE_EQ|BAJFINANCE",
+    "TITAN.NS":      "NSE_EQ|TITAN",      "ULTRACEMCO.NS": "NSE_EQ|ULTRACEMCO",
+    "POWERGRID.NS":  "NSE_EQ|POWERGRID",  "ADANIENT.NS":   "NSE_EQ|ADANIENT",
+}
+
+# ── Live price (Upstox) ───────────────────────────────────────────────────────
+
+def fetch_live_price_upstox(ticker: str):
+    ikey = _UPSTOX_KEYS.get(ticker)
+    if not UPSTOX_TOKEN or not ikey:
+        return None
+    try:
+        r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
+                         headers=_UPSTOX_HDR,
+                         params={"instrument_key": ikey},
+                         timeout=5)
+        if r.status_code != 200:
+            return None
+        data = r.json().get("data", {})
+        val  = data.get(ikey.replace("|", ":"), {}).get("last_price", 0)
+        return float(val) if val else None
+    except Exception:
+        return None
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -247,10 +282,19 @@ def run_scan():
             result = check_stock(ticker)
             if result:
                 direction, price, sl, tp, rsi_val, atr_val = result
+                live = fetch_live_price_upstox(ticker)
+                if live:
+                    entry = live
+                    sl = round(entry - ATR_SL_MULT * atr_val, 2) if direction == "BUY" \
+                         else round(entry + ATR_SL_MULT * atr_val, 2)
+                    tp = round(entry + ATR_TP_MULT * atr_val, 2) if direction == "BUY" \
+                         else round(entry - ATR_TP_MULT * atr_val, 2)
+                else:
+                    entry = price
                 log.info("SIGNAL %s %s | ₹%.2f → SL ₹%.2f  TP ₹%.2f",
-                         ticker, direction, price, sl, tp)
-                tg_send(format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val))
-                record_signal(ticker, direction, price, sl, tp)
+                         ticker, direction, entry, sl, tp)
+                tg_send(format_stock_signal(ticker, direction, entry, sl, tp, rsi_val, atr_val))
+                record_signal(ticker, direction, entry, sl, tp)
                 _last_signal[ticker] = time.time()
                 fired += 1
                 time.sleep(1)   # small gap between Telegram messages

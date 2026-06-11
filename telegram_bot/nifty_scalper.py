@@ -13,14 +13,17 @@ import time
 import os
 import yfinance as yf
 from datetime import datetime, date
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
 
-UPSTOX_TOKEN   = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTI1Y2VlYmIyODljMTU0NDM2MTkzMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzgwODYyNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTI0MDU2MDB9.IlPTIdhafzRLcBpdGt9zofG2BF46CCnA-pSuYyp_u68"
-TELEGRAM_TOKEN = "8649245457:AAFpe95Us_eiVTuewD1f7TJG2gRwUMX0zuA"
-CHAT_ID        = "1994067941"
+UPSTOX_TOKEN   = os.getenv("UPSTOX_TOKEN", "")
+TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "8649245457:AAFpe95Us_eiVTuewD1f7TJG2gRwUMX0zuA")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "1994067941")
 
 HEADERS = {
     "Accept": "application/json",
@@ -121,15 +124,27 @@ def maybe_send_daily_report():
 # ─────────────────────────────────────────────
 
 def get_live_price_upstox(symbol: str, ikey: str):
+    if not UPSTOX_TOKEN:
+        return None
     try:
-        url = f"https://api.upstox.com/v2/historical-candle/intraday/{ikey}/1minute"
-        r   = requests.get(url, headers=HEADERS, timeout=10)
+        # Market quote — true real-time last traded price
+        r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
+                         headers=HEADERS,
+                         params={"instrument_key": ikey},
+                         timeout=5)
+        if r.status_code == 200:
+            data = r.json().get("data", {})
+            val  = data.get(ikey.replace("|", ":"), {}).get("last_price", 0)
+            if val:
+                return float(val)
+        # Fallback: last 1-min candle close
+        r = requests.get(
+            f"https://api.upstox.com/v2/historical-candle/intraday/{ikey}/1minute",
+            headers=HEADERS, timeout=10)
         if r.status_code != 200:
             return None
         candles = r.json().get("data", {}).get("candles", [])
-        if candles:
-            return float(candles[0][4])
-        return None
+        return float(candles[0][4]) if candles else None
     except Exception:
         return None
 
