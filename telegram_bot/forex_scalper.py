@@ -204,6 +204,27 @@ def fetch_live_price(name):
             pass
     return None
 
+# ── Higher-timeframe trend filter ────────────────────────────────────────────
+# Only trade in the direction of the 1H trend. Prevents entering counter-trend
+# scalps that are the primary cause of SL hits on EMA crossover strategies.
+
+def get_1h_trend(yf_ticker: str) -> int:
+    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses 1H EMA(50)."""
+    try:
+        df = yf.download(yf_ticker, period="30d", interval="1h",
+                         progress=False, auto_adjust=True)
+        if df.empty or len(df) < 52:
+            return 0
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
+        close = df["Close"].squeeze()
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        ema50 = close.ewm(span=50, adjust=False).mean()
+        return 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
+    except Exception:
+        return 0
+
 # ── Signal check ──────────────────────────────────────────────────────────────
 
 def check_symbol(name, ticker):
@@ -255,8 +276,12 @@ def check_symbol(name, ticker):
     rr      = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     spread = _SPREAD.get(name, 0)
+    trend  = get_1h_trend(ticker)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
+        if trend == -1:
+            log.info("SKIP BUY  %s — 1H trend bearish (EMA50 above price)", name)
+            return
         mid = fetch_live_price(name) or price
         entry = round(mid + spread, dec)   # BUY fills at ASK = mid + spread
         sl = round(entry - ATR_SL_MULT * atr_val, dec)
@@ -283,6 +308,9 @@ def check_symbol(name, ticker):
         _last_signal[name] = now_ts
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
+        if trend == 1:
+            log.info("SKIP SELL %s — 1H trend bullish (EMA50 below price)", name)
+            return
         mid = fetch_live_price(name) or price
         entry = round(mid - spread, dec)   # SELL fills at BID = mid - spread
         sl = round(entry + ATR_SL_MULT * atr_val, dec)

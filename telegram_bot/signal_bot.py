@@ -187,6 +187,26 @@ def fetch_live_price():
             pass
     return None
 
+# ── Daily trend filter ───────────────────────────────────────────────────────
+# For 1H signals, only trade with the daily trend to avoid counter-trend entries.
+
+def get_daily_trend() -> int:
+    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses daily EMA(20)."""
+    try:
+        df = yf.download(SYMBOL, period="3mo", interval="1d",
+                         progress=False, auto_adjust=True)
+        if df.empty or len(df) < 22:
+            return 0
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
+        close = df["Close"].squeeze()
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        ema20 = close.ewm(span=20, adjust=False).mean()
+        return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
+    except Exception:
+        return 0
+
 # ── Signal check ──────────────────────────────────────────────────────────────
 
 def check_signal() -> None:
@@ -242,8 +262,12 @@ def check_signal() -> None:
     dec    = 3 if "JPY" in SYMBOL_NAME else 5
     rr     = round(ATR_TP_MULT / ATR_SL_MULT, 1)
     spread = _SPREAD.get(SYMBOL_NAME, 0)
+    trend  = get_daily_trend()
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
+        if trend == -1:
+            log.info("SKIP BUY — daily trend bearish (price below daily EMA20)")
+            return
         mid   = fetch_live_price() or price
         entry = round(mid + spread, dec)   # BUY fills at ASK = mid + spread
         sl = round(entry - ATR_SL_MULT * atr_val, dec)
@@ -269,6 +293,9 @@ def check_signal() -> None:
         record_signal("BUY", entry, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
+        if trend == 1:
+            log.info("SKIP SELL — daily trend bullish (price above daily EMA20)")
+            return
         mid   = fetch_live_price() or price
         entry = round(mid - spread, dec)   # SELL fills at BID = mid - spread
         sl = round(entry + ATR_SL_MULT * atr_val, dec)
