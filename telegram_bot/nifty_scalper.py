@@ -35,8 +35,8 @@ INSTRUMENTS = {
     "BANKNIFTY": {"upstox": "NSE_INDEX|Nifty Bank", "yf": "^NSEBANK"},
 }
 
-ST_PERIOD     = 10
-ST_MULTIPLIER = 3.0
+ST_PERIOD     = 7              # was 10 — faster Supertrend for intraday
+ST_MULTIPLIER = 2.0            # was 3.0 — tighter bands, more signal flips
 SL_PCT        = 0.4
 TP_PCT        = 0.8
 MARKET_OPEN   = (9, 15)
@@ -273,10 +273,12 @@ def check_signal(symbol: str, df: pd.DataFrame):
     vwap_gap   = abs(price - vwap) / price * 100
     direction  = None
 
-    if st_flipped and st_now == 1 and above_vwap:
+    # PRIMARY: Supertrend flip alone — strongest signal, no VWAP required
+    if st_flipped and st_now == 1:
         direction = "BUY"
-    elif st_flipped and st_now == -1 and below_vwap:
+    elif st_flipped and st_now == -1:
         direction = "SELL"
+    # SECONDARY: Supertrend already in direction + price just crossed VWAP
     elif st_now == 1 and above_vwap and float(prev["close"]) <= float(prev["vwap"]):
         direction = "BUY"
     elif st_now == -1 and below_vwap and float(prev["close"]) >= float(prev["vwap"]):
@@ -375,11 +377,14 @@ def main():
         "<i>Signals for Upstox MIS (Intraday)</i>"
     )
     while True:
-        maybe_send_daily_report()
-        if in_market_hours():
-            run_scan()
-        else:
-            print(f"[{datetime.now().strftime('%H:%M')}] Outside market hours. Waiting...")
+        try:
+            maybe_send_daily_report()
+            if in_market_hours():
+                run_scan()
+            else:
+                print(f"[{datetime.now().strftime('%H:%M')}] Outside market hours. Waiting...")
+        except Exception as exc:
+            print(f"[{datetime.now().strftime('%H:%M')}] Main loop error: {exc}")
         time.sleep(SCAN_INTERVAL)
 
 if __name__ == "__main__":

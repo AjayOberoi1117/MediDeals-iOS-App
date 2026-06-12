@@ -1,6 +1,6 @@
 """
 Upstox Stock Scanner Bot
-Strategy : EMA(10/50) crossover + RSI(14) on 15-minute bars
+Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars
 Universe : Top NSE large-cap stocks
 Session  : 9:15 AM – 3:30 PM IST only
 Signals  : Telegram via Elite bot with Entry, SL, TP (ATR-based)
@@ -24,16 +24,16 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("ELITE_BOT_TOKEN", "8708193257:AAG6wpyb8popoOmDxnmjP15OaTc2R0sf9Nc")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",  "1994067941")
 TIMEFRAME      = "15m"
-FAST_EMA       = 10
-SLOW_EMA       = 50
+FAST_EMA       = 9             # was 10 — EMA(9/21) standard for 15-min intraday
+SLOW_EMA       = 21            # was 50 — EMA(50) on 15-min = 12.5hrs, never crosses intraday
 RSI_PERIOD     = 14
-RSI_BUY_MAX    = 70
-RSI_SELL_MIN   = 30
+RSI_BUY_MAX    = 75            # was 70 — wider filter for volatile Indian markets
+RSI_SELL_MIN   = 25            # was 30
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 2.0
-MAX_SIGNALS_PER_SCAN = 3       # avoid Telegram spam
-COOLDOWN_SECS  = 3600          # 1 hour cooldown per stock
+MAX_SIGNALS_PER_SCAN = 5       # was 3 — allow more signals on volatile days
+COOLDOWN_SECS  = 1800          # was 3600 — 30 min cooldown (was 1 hour, too restrictive)
 SCAN_INTERVAL  = 300           # scan every 5 minutes
 MARKET_OPEN    = (9, 15)
 MARKET_CLOSE   = (15, 30)
@@ -191,7 +191,7 @@ def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> 
 
 def fetch_stock(ticker: str):
     try:
-        df = yf.download(ticker, period="5d", interval=TIMEFRAME,
+        df = yf.download(ticker, period="10d", interval=TIMEFRAME,
                          progress=False, auto_adjust=True)
         if df.empty or len(df) < SLOW_EMA + 5:
             return None
@@ -334,11 +334,14 @@ def main() -> None:
     )
 
     while True:
-        maybe_send_daily_report()
-        if in_market_hours():
-            run_scan()
-        else:
-            log.info("Outside market hours. Waiting...")
+        try:
+            maybe_send_daily_report()
+            if in_market_hours():
+                run_scan()
+            else:
+                log.info("Outside market hours. Waiting...")
+        except Exception as exc:
+            log.error("Main loop error: %s", exc)
         time.sleep(SCAN_INTERVAL)
 
 if __name__ == "__main__":
