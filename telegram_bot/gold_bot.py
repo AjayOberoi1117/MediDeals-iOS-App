@@ -144,20 +144,12 @@ def fetch_ohlcv():
         log.warning("Data fetch error: %s", exc)
         return None
 
-# ── Live price: yfinance (primary, ~1-3min) → Twelve Data (fallback) ─────────
+# ── Live price: Twelve Data (primary, real-time) → yfinance (fallback) ───────
 
 _GOLD_SPREAD = 0.30   # approximate half-spread: BUY at mid+0.30, SELL at mid-0.30
 
 def fetch_live_price():
-    # Primary: yfinance fast_info — no API key, ~1-3 min freshness
-    try:
-        info = yf.Ticker(SYMBOL).fast_info
-        price = info.get("lastPrice") or info.get("last_price")
-        if price and float(price) > 0:
-            return float(price)
-    except Exception:
-        pass
-    # Fallback: Twelve Data (free plan = 15-min delay)
+    # Primary: Twelve Data — real-time gold price
     if TWELVE_DATA_KEY:
         try:
             r = requests.get("https://api.twelvedata.com/price",
@@ -168,6 +160,14 @@ def fetch_live_price():
                 return val
         except Exception:
             pass
+    # Fallback: yfinance fast_info (used only if Twelve Data is unreachable)
+    try:
+        info = yf.Ticker(SYMBOL).fast_info
+        price = info.get("lastPrice") or info.get("last_price")
+        if price and float(price) > 0:
+            return float(price)
+    except Exception:
+        pass
     return None
 
 # ── Signal check ──────────────────────────────────────────────────────────────
