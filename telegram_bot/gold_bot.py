@@ -32,7 +32,7 @@ RSI_BUY_MAX    = 65
 RSI_SELL_MIN   = 35
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0    # SL = 1x ATR
-ATR_TP_MULT    = 2.0    # TP = 2x ATR  (1:2 risk-reward)
+ATR_TP_MULT    = 3.0    # TP = 3x ATR  (1:3 risk-reward — professional standard)
 CHECK_SECS     = 60
 TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
 

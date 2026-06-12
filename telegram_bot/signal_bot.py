@@ -32,7 +32,7 @@ RSI_BUY_MAX  = int(os.getenv("RSI_BUY_MAX", "65"))
 RSI_SELL_MIN = int(os.getenv("RSI_SELL_MIN","35"))
 ATR_PERIOD   = 14
 ATR_SL_MULT  = 1.0
-ATR_TP_MULT  = 2.0
+ATR_TP_MULT  = 3.0    # 1:3 RR — professional standard for 1H swing
 CHECK_SECS   = int(os.getenv("CHECK_SECS",  "60"))
 TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
 

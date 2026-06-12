@@ -31,7 +31,7 @@ RSI_BUY_MAX    = 60
 RSI_SELL_MIN   = 40
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
-ATR_TP_MULT    = 1.5    # 1:1.5 RR — tight scalp
+ATR_TP_MULT    = 2.0    # 1:2 RR — minimum worthwhile for scalping
 COOLDOWN_SECS  = 7200   # 2-hour cooldown per symbol
 SCAN_INTERVAL  = 60     # scan every 60 seconds
 TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
@@ -294,7 +294,7 @@ def check_symbol(name, ticker):
             f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📉 <b>Signal    :</b> 🔴 SELL\n"
             f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-            f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
+            f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
             f"📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
             f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n"
             f"🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
