@@ -36,7 +36,9 @@ ATR_TP_MULT  = 2.0
 CHECK_SECS   = int(os.getenv("CHECK_SECS",  "60"))
 TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
 
-_TD_MAP = {"EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY", "XAUUSD": "XAU/USD"}
+_TD_MAP    = {"EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY", "XAUUSD": "XAU/USD"}
+_YF_TICKER = {"EURUSD": "EURUSD=X", "GBPUSD": "GBPUSD=X", "USDJPY": "USDJPY=X", "XAUUSD": "XAUUSD=X"}
+_SPREAD    = {"EURUSD": 0.00010, "GBPUSD": 0.00015, "USDJPY": 0.012, "XAUUSD": 0.30}
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -158,20 +160,32 @@ def fetch_ohlcv():
         log.warning("Data fetch error: %s", exc)
         return None
 
-# ── Live price (Twelve Data) ──────────────────────────────────────────────────
+# ── Live price: yfinance (primary, ~1-3min) → Twelve Data (fallback) ─────────
 
 def fetch_live_price():
+    # Primary: yfinance fast_info — no API key, ~1-3 min freshness
+    yf_ticker = _YF_TICKER.get(SYMBOL_NAME)
+    if yf_ticker:
+        try:
+            info = yf.Ticker(yf_ticker).fast_info
+            price = info.get("lastPrice") or info.get("last_price")
+            if price and float(price) > 0:
+                return float(price)
+        except Exception:
+            pass
+    # Fallback: Twelve Data (free plan = 15-min delay)
     td_sym = _TD_MAP.get(SYMBOL_NAME)
-    if not TWELVE_DATA_KEY or not td_sym:
-        return None
-    try:
-        r = requests.get("https://api.twelvedata.com/price",
-                         params={"symbol": td_sym, "apikey": TWELVE_DATA_KEY},
-                         timeout=5)
-        val = float(r.json().get("price", 0))
-        return val if val > 0 else None
-    except Exception:
-        return None
+    if TWELVE_DATA_KEY and td_sym:
+        try:
+            r = requests.get("https://api.twelvedata.com/price",
+                             params={"symbol": td_sym, "apikey": TWELVE_DATA_KEY},
+                             timeout=5)
+            val = float(r.json().get("price", 0))
+            if val > 0:
+                return val
+        except Exception:
+            pass
+    return None
 
 # ── Signal check ──────────────────────────────────────────────────────────────
 
@@ -225,11 +239,13 @@ def check_signal() -> None:
              float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
              rsi_val, atr_val, bull_cross, bear_cross)
 
-    dec = 3 if "JPY" in SYMBOL_NAME else 5
-    rr  = round(ATR_TP_MULT / ATR_SL_MULT, 1)
+    dec    = 3 if "JPY" in SYMBOL_NAME else 5
+    rr     = round(ATR_TP_MULT / ATR_SL_MULT, 1)
+    spread = _SPREAD.get(SYMBOL_NAME, 0)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        entry = fetch_live_price() or price
+        mid   = fetch_live_price() or price
+        entry = round(mid + spread, dec)   # BUY fills at ASK = mid + spread
         sl = round(entry - ATR_SL_MULT * atr_val, dec)
         tp = round(entry + ATR_TP_MULT * atr_val, dec)
         log.info(">>> BUY SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, entry, dec, sl, dec, tp)
@@ -253,7 +269,8 @@ def check_signal() -> None:
         record_signal("BUY", entry, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        entry = fetch_live_price() or price
+        mid   = fetch_live_price() or price
+        entry = round(mid - spread, dec)   # SELL fills at BID = mid - spread
         sl = round(entry + ATR_SL_MULT * atr_val, dec)
         tp = round(entry - ATR_TP_MULT * atr_val, dec)
         log.info(">>> SELL SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, entry, dec, sl, dec, tp)

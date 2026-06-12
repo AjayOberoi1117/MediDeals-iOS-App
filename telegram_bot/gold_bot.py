@@ -144,19 +144,31 @@ def fetch_ohlcv():
         log.warning("Data fetch error: %s", exc)
         return None
 
-# ── Live price (Twelve Data) ──────────────────────────────────────────────────
+# ── Live price: yfinance (primary, ~1-3min) → Twelve Data (fallback) ─────────
+
+_GOLD_SPREAD = 0.30   # approximate half-spread: BUY at mid+0.30, SELL at mid-0.30
 
 def fetch_live_price():
-    if not TWELVE_DATA_KEY:
-        return None
+    # Primary: yfinance fast_info — no API key, ~1-3 min freshness
     try:
-        r = requests.get("https://api.twelvedata.com/price",
-                         params={"symbol": "XAU/USD", "apikey": TWELVE_DATA_KEY},
-                         timeout=5)
-        val = float(r.json().get("price", 0))
-        return val if val > 0 else None
+        info = yf.Ticker(SYMBOL).fast_info
+        price = info.get("lastPrice") or info.get("last_price")
+        if price and float(price) > 0:
+            return float(price)
     except Exception:
-        return None
+        pass
+    # Fallback: Twelve Data (free plan = 15-min delay)
+    if TWELVE_DATA_KEY:
+        try:
+            r = requests.get("https://api.twelvedata.com/price",
+                             params={"symbol": "XAU/USD", "apikey": TWELVE_DATA_KEY},
+                             timeout=5)
+            val = float(r.json().get("price", 0))
+            if val > 0:
+                return val
+        except Exception:
+            pass
+    return None
 
 # ── Signal check ──────────────────────────────────────────────────────────────
 
@@ -210,7 +222,8 @@ def check_signal() -> None:
     rr   = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        entry = fetch_live_price() or price
+        mid   = fetch_live_price() or price
+        entry = round(mid + _GOLD_SPREAD, 2)   # BUY at ASK = mid + spread
         sl = round(entry - ATR_SL_MULT * atr_val, 2)
         tp = round(entry + ATR_TP_MULT * atr_val, 2)
         log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
@@ -234,7 +247,8 @@ def check_signal() -> None:
         record_signal("BUY", entry, sl, tp)
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        entry = fetch_live_price() or price
+        mid   = fetch_live_price() or price
+        entry = round(mid - _GOLD_SPREAD, 2)   # SELL at BID = mid - spread
         sl = round(entry + ATR_SL_MULT * atr_val, 2)
         tp = round(entry - ATR_TP_MULT * atr_val, 2)
         log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
