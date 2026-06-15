@@ -1,6 +1,6 @@
 """
 Gold Trading Signal Bot — XAUUSD
-Strategy : EMA(10/50) crossover + RSI(14) on 1-hour bars
+Strategy : EMA(9/21) crossover + RSI(14) on 1-hour bars
 Data     : Yahoo Finance  GC=F  (Gold Futures — no API key needed)
 Signals  : Telegram via VantageEA bot with Entry, SL, TP
 Report   : Daily P&L summary at 10:00 PM IST
@@ -25,11 +25,11 @@ CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",   "1994067941")
 SYMBOL         = "XAUUSD=X"    # Yahoo Finance: Spot Gold (matches broker)
 DISPLAY_NAME   = "XAUUSD"
 TIMEFRAME      = "1h"
-FAST_EMA       = 10
-SLOW_EMA       = 50
+FAST_EMA       = 9      # was 10 — EMA(9/21) gives crossovers in sustained trends
+SLOW_EMA       = 21     # was 50 — EMA(50) on 1H = 7 days, never crosses in uptrend
 RSI_PERIOD     = 14
-RSI_BUY_MAX    = 65
-RSI_SELL_MIN   = 35
+RSI_BUY_MAX    = 70     # was 65 — wider to not block strong gold moves
+RSI_SELL_MIN   = 30     # was 35
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0    # SL = 1x ATR
 ATR_TP_MULT    = 3.0    # TP = 3x ATR  (1:3 risk-reward — professional standard)
