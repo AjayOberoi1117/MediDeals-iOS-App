@@ -43,34 +43,27 @@ MARKET_CLOSE   = (15, 30)
 UPSTOX_TOKEN   = os.getenv("UPSTOX_TOKEN", "")
 _UPSTOX_HDR    = {"Accept": "application/json", "Authorization": f"Bearer {UPSTOX_TOKEN}"}
 
-# NSE large-cap stocks to scan
+# Nifty 50 constituents
 STOCKS = [
-    "RELIANCE.NS", "TCS.NS",      "HDFCBANK.NS", "INFY.NS",    "ICICIBANK.NS",
-    "SBIN.NS",     "BHARTIARTL.NS","KOTAKBANK.NS","ITC.NS",     "AXISBANK.NS",
-    "LT.NS",       "MARUTI.NS",   "NTPC.NS",     "WIPRO.NS",   "HCLTECH.NS",
-    "BAJFINANCE.NS","TITAN.NS",   "ULTRACEMCO.NS","POWERGRID.NS","ADANIENT.NS",
+    "ADANIENT.NS",  "ADANIPORTS.NS","APOLLOHOSP.NS","ASIANPAINT.NS","AXISBANK.NS",
+    "BAJAJ-AUTO.NS","BAJFINANCE.NS","BAJAJFINSV.NS","BPCL.NS",      "BHARTIARTL.NS",
+    "BRITANNIA.NS", "CIPLA.NS",     "COALINDIA.NS", "DRREDDY.NS",   "EICHERMOT.NS",
+    "GRASIM.NS",    "HCLTECH.NS",   "HDFCBANK.NS",  "HDFCLIFE.NS",  "HEROMOTOCO.NS",
+    "HINDALCO.NS",  "HINDUNILVR.NS","ICICIBANK.NS", "ITC.NS",       "INDUSINDBK.NS",
+    "INFY.NS",      "JSWSTEEL.NS",  "KOTAKBANK.NS", "LT.NS",        "LTIM.NS",
+    "M&M.NS",       "MARUTI.NS",    "NTPC.NS",      "NESTLEIND.NS", "ONGC.NS",
+    "POWERGRID.NS", "RELIANCE.NS",  "SBILIFE.NS",   "SHRIRAMFIN.NS","SBIN.NS",
+    "SUNPHARMA.NS", "TCS.NS",       "TATACONSUM.NS","TATAMOTORS.NS","TATASTEEL.NS",
+    "TECHM.NS",     "TITAN.NS",     "TRENT.NS",     "ULTRACEMCO.NS","WIPRO.NS",
 ]
-
-_UPSTOX_KEYS = {
-    "RELIANCE.NS":   "NSE_EQ|RELIANCE",   "TCS.NS":        "NSE_EQ|TCS",
-    "HDFCBANK.NS":   "NSE_EQ|HDFCBANK",   "INFY.NS":       "NSE_EQ|INFY",
-    "ICICIBANK.NS":  "NSE_EQ|ICICIBANK",  "SBIN.NS":       "NSE_EQ|SBIN",
-    "BHARTIARTL.NS": "NSE_EQ|BHARTIARTL", "KOTAKBANK.NS":  "NSE_EQ|KOTAKBANK",
-    "ITC.NS":        "NSE_EQ|ITC",        "AXISBANK.NS":   "NSE_EQ|AXISBANK",
-    "LT.NS":         "NSE_EQ|LT",         "MARUTI.NS":     "NSE_EQ|MARUTI",
-    "NTPC.NS":       "NSE_EQ|NTPC",       "WIPRO.NS":      "NSE_EQ|WIPRO",
-    "HCLTECH.NS":    "NSE_EQ|HCLTECH",    "BAJFINANCE.NS": "NSE_EQ|BAJFINANCE",
-    "TITAN.NS":      "NSE_EQ|TITAN",      "ULTRACEMCO.NS": "NSE_EQ|ULTRACEMCO",
-    "POWERGRID.NS":  "NSE_EQ|POWERGRID",  "ADANIENT.NS":   "NSE_EQ|ADANIENT",
-}
 
 # ── Live price (Upstox — requires daily trading token) ───────────────────────
 
 def fetch_live_price_upstox(ticker: str):
-    ikey = _UPSTOX_KEYS.get(ticker)
     token = os.getenv("UPSTOX_TOKEN", "")
-    if not token or not ikey:
+    if not token:
         return None
+    ikey = f"NSE_EQ|{ticker.replace('.NS', '')}"
     try:
         hdr = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
         r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
