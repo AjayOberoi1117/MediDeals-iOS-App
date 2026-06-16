@@ -33,6 +33,7 @@ ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 2.0
 MAX_SIGNALS_PER_SCAN = 5       # was 3 — allow more signals on volatile days
+MAX_SIGNALS_PER_STOCK_PER_DAY = 2   # stop hammering the same 1-2 stocks all day
 COOLDOWN_SECS  = 1800          # was 3600 — 30 min cooldown (was 1 hour, too restrictive)
 SCAN_INTERVAL  = 300           # scan every 5 minutes
 MARKET_OPEN    = (9, 15)
@@ -104,9 +105,10 @@ log = logging.getLogger(__name__)
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
-_last_signal      = {}   # {symbol: timestamp}
-_daily_signals    = []
-_report_sent_date = None
+_last_signal         = {}   # {symbol: timestamp}
+_signal_count_today  = {}   # {symbol: count} — caps repeated signals on one stock
+_daily_signals       = []
+_report_sent_date    = None
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
@@ -169,6 +171,7 @@ def maybe_send_daily_report():
         send_daily_report()
     if now.hour == 0 and now.minute < 2 and _daily_signals:
         _daily_signals.clear()
+        _signal_count_today.clear()
 
 # ── Indicators ────────────────────────────────────────────────────────────────
 
@@ -209,6 +212,28 @@ def fetch_stock(ticker: str):
         log.debug("Fetch error %s: %s", ticker, exc)
         return None
 
+# ── Daily trend filter ───────────────────────────────────────────────────────
+# Without this, a noisy 15-min EMA(9/21) cross can fire BUY on a stock that's
+# actually trending down on the daily chart — exactly what happened with
+# repeated ADANIENT buys. Skip any signal that goes against the daily trend.
+
+def get_daily_trend(ticker: str) -> int:
+    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses daily EMA(20)."""
+    try:
+        df = yf.download(ticker, period="3mo", interval="1d",
+                         progress=False, auto_adjust=True)
+        if df.empty or len(df) < 22:
+            return 0
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
+        close = df["Close"].squeeze()
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        ema20 = close.ewm(span=20, adjust=False).mean()
+        return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
+    except Exception:
+        return 0
+
 # ── Signal check per stock ────────────────────────────────────────────────────
 
 def check_stock(ticker: str):
@@ -240,10 +265,16 @@ def check_stock(ticker: str):
     atr_val = float(atr.iloc[i])
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
+        if get_daily_trend(ticker) == -1:
+            log.info("SKIP BUY  %s — daily trend bearish", ticker)
+            return None
         sl = round(price - ATR_SL_MULT * atr_val, 2)
         tp = round(price + ATR_TP_MULT * atr_val, 2)
         return "BUY", price, sl, tp, rsi_val, atr_val
     elif bear_cross and rsi_val > RSI_SELL_MIN:
+        if get_daily_trend(ticker) == 1:
+            log.info("SKIP SELL %s — daily trend bullish", ticker)
+            return None
         sl = round(price + ATR_SL_MULT * atr_val, 2)
         tp = round(price - ATR_TP_MULT * atr_val, 2)
         return "SELL", price, sl, tp, rsi_val, atr_val
@@ -291,6 +322,8 @@ def run_scan():
         last_ts = _last_signal.get(ticker, 0)
         if time.time() - last_ts < COOLDOWN_SECS:
             continue
+        if _signal_count_today.get(ticker, 0) >= MAX_SIGNALS_PER_STOCK_PER_DAY:
+            continue
         try:
             result = check_stock(ticker)
             if result:
@@ -310,6 +343,7 @@ def run_scan():
                 tg_send(format_stock_signal(ticker, direction, entry, sl, tp, rsi_val, atr_val))
                 record_signal(ticker, direction, entry, sl, tp)
                 _last_signal[ticker] = time.time()
+                _signal_count_today[ticker] = _signal_count_today.get(ticker, 0) + 1
                 fired += 1
                 time.sleep(1)   # small gap between Telegram messages
         except Exception as exc:

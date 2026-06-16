@@ -42,7 +42,7 @@ TP_PCT        = 0.8
 MARKET_OPEN   = (9, 15)
 MARKET_CLOSE  = (15, 15)
 SCAN_INTERVAL = 60
-COOLDOWN      = 900
+COOLDOWN      = 1800            # was 900 — 15min was letting VWAP wiggles re-fire too fast
 
 # ─────────────────────────────────────────────
 # STATE
@@ -268,20 +268,16 @@ def check_signal(symbol: str, df: pd.DataFrame):
     st_now     = int(curr["st_direction"])
     st_prev    = int(prev["st_direction"])
     st_flipped = st_now != st_prev
-    above_vwap = price > vwap
-    below_vwap = price < vwap
     vwap_gap   = abs(price - vwap) / price * 100
     direction  = None
 
-    # PRIMARY: Supertrend flip alone — strongest signal, no VWAP required
+    # Signal ONLY on an actual Supertrend flip. Direction can only flip 1 <-> -1,
+    # so BUY and SELL are guaranteed to alternate with real trend reversals.
+    # (Previously also fired on every VWAP recross within an already-established
+    # trend, which re-triggered the same BUY every ~15min all morning with no SELL.)
     if st_flipped and st_now == 1:
         direction = "BUY"
     elif st_flipped and st_now == -1:
-        direction = "SELL"
-    # SECONDARY: Supertrend already in direction + price just crossed VWAP
-    elif st_now == 1 and above_vwap and float(prev["close"]) <= float(prev["vwap"]):
-        direction = "BUY"
-    elif st_now == -1 and below_vwap and float(prev["close"]) >= float(prev["vwap"]):
         direction = "SELL"
 
     if not direction:
