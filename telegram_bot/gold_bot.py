@@ -8,6 +8,7 @@ Report   : Daily P&L summary at 10:00 PM IST
 
 import os
 import time
+import socket
 import logging
 from datetime import datetime
 
@@ -17,6 +18,11 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
+# rate-limit/throttle episode can block the single-threaded main loop
+# indefinitely (observed: a 28-minute freeze on gold_bot.py during a 429).
+socket.setdefaulttimeout(30)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 

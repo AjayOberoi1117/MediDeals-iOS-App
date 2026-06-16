@@ -11,11 +11,17 @@ import pandas as pd
 import time
 import os
 import json
+import socket
 import yfinance as yf
 from datetime import datetime, date
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
+# rate-limit/throttle episode can block the single-threaded main loop
+# indefinitely.
+socket.setdefaulttimeout(30)
 
 # ─────────────────────────────────────────────
 # CONFIG
