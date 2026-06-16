@@ -1,6 +1,6 @@
 """
 Nifty / BankNifty Intraday Scalper
-Strategy : Supertrend + VWAP on 15-minute candles
+Strategy : Supertrend(7,2.0) flip on 15-minute candles (closed bars only)
 Session  : 9:15 AM – 3:15 PM IST (auto square-off before 3:30)
 Signals  : Telegram → trade manually in Upstox Scalper (MIS)
 Daily P&L report at 10:00 PM IST
@@ -8,7 +8,6 @@ Daily P&L report at 10:00 PM IST
 
 import requests
 import pandas as pd
-import numpy as np
 import time
 import os
 import yfinance as yf
@@ -241,40 +240,30 @@ def calculate_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float =
     df["lower_band"]   = lower_band
     return df
 
-def calculate_vwap(df: pd.DataFrame) -> pd.Series:
-    df = df.copy()
-    df["date"]      = df["time"].dt.date
-    df["tp"]        = (df["high"] + df["low"] + df["close"]) / 3
-    df["tp_vol"]    = df["tp"] * df["volume"]
-    df["cum_tpvol"] = df.groupby("date")["tp_vol"].cumsum()
-    df["cum_vol"]   = df.groupby("date")["volume"].cumsum()
-    return df["cum_tpvol"] / df["cum_vol"]
-
 # ─────────────────────────────────────────────
 # SIGNAL CHECK
 # ─────────────────────────────────────────────
 
 def check_signal(symbol: str, df: pd.DataFrame):
     df = calculate_supertrend(df, ST_PERIOD, ST_MULTIPLIER)
-    df["vwap"] = calculate_vwap(df)
-    if len(df) < 3:
+    if len(df) < 4:
         return None
 
-    prev = df.iloc[-2]
-    curr = df.iloc[-1]
+    # Direction comes from the last fully CLOSED candle only. The most recent
+    # row is still forming and its close is overwritten with a live tick every
+    # scan (see fetch_15min_candles) — basing the flip check on that row meant
+    # the Supertrend direction flapped with every price wiggle, re-firing the
+    # same BUY every ~30min all morning with no genuine reversal. The live
+    # price is still used for the entry value below.
+    live_price = float(df.iloc[-1]["close"])
+    curr = df.iloc[-2]
+    prev = df.iloc[-3]
 
-    price      = float(curr["close"])
-    vwap       = float(curr["vwap"])
     st_now     = int(curr["st_direction"])
     st_prev    = int(prev["st_direction"])
     st_flipped = st_now != st_prev
-    vwap_gap   = abs(price - vwap) / price * 100
     direction  = None
 
-    # Signal ONLY on an actual Supertrend flip. Direction can only flip 1 <-> -1,
-    # so BUY and SELL are guaranteed to alternate with real trend reversals.
-    # (Previously also fired on every VWAP recross within an already-established
-    # trend, which re-triggered the same BUY every ~15min all morning with no SELL.)
     if st_flipped and st_now == 1:
         direction = "BUY"
     elif st_flipped and st_now == -1:
@@ -283,6 +272,7 @@ def check_signal(symbol: str, df: pd.DataFrame):
     if not direction:
         return None
 
+    price = live_price
     if direction == "BUY":
         sl = round(price * (1 - SL_PCT / 100), 2)
         tp = round(price * (1 + TP_PCT / 100), 2)
@@ -290,16 +280,15 @@ def check_signal(symbol: str, df: pd.DataFrame):
         sl = round(price * (1 + SL_PCT / 100), 2)
         tp = round(price * (1 - TP_PCT / 100), 2)
 
-    return direction, price, sl, tp, vwap, vwap_gap, st_flipped
+    return direction, price, sl, tp
 
 # ─────────────────────────────────────────────
 # SIGNAL FORMATTER
 # ─────────────────────────────────────────────
 
-def format_signal(symbol, direction, price, sl, tp, vwap, vwap_gap, st_flipped):
+def format_signal(symbol, direction, price, sl, tp):
     emoji   = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
     now_ist = datetime.now().strftime("%d %b %Y %I:%M %p IST")
-    flip    = "🔄 Supertrend just flipped!" if st_flipped else "📐 VWAP crossover confirmation"
     rr      = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
     return (
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -311,9 +300,8 @@ def format_signal(symbol, direction, price, sl, tp, vwap, vwap_gap, st_flipped):
         f"📍 <b>Entry     :</b> ₹<code>{price:.2f}</code>\n"
         f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
         f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
-        f"📊 <b>VWAP      :</b> ₹{vwap:.2f}  ({'+' if price > vwap else '-'}{vwap_gap:.2f}% from VWAP)\n"
         f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
-        f"💡 {flip}\n\n"
+        f"💡 🔄 Supertrend flipped — fresh trend reversal\n\n"
         f"🏦 <i>Place as MIS (Intraday) in Upstox Scalper</i>\n"
         f"⚠️ <i>Set SL first! Square off before 3:15 PM IST</i>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━"
@@ -350,10 +338,9 @@ def run_scan():
 
         result = check_signal(symbol, df)
         if result:
-            direction, price, sl, tp, vwap, vwap_gap, st_flipped = result
+            direction, price, sl, tp = result
             print(f"→ {direction} | Entry ₹{price} | SL ₹{sl} | TP ₹{tp}")
-            send_telegram(format_signal(symbol, direction, price, sl, tp,
-                                        vwap, vwap_gap, st_flipped))
+            send_telegram(format_signal(symbol, direction, price, sl, tp))
             record_signal(symbol, direction, price, sl, tp)
             _last_signal[symbol] = {"direction": direction, "timestamp": time.time()}
         else:
@@ -362,12 +349,12 @@ def run_scan():
 def main():
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")
-    print("  Supertrend(10,3) + VWAP | 15-min | MIS")
+    print(f"  Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15-min | MIS")
     print("=" * 55)
     send_telegram(
         "⚡ <b>Nifty Scalper Started</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        "📊 Supertrend + VWAP | 15min\n"
+        f"📊 Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15min\n"
         "🎯 NIFTY + BANKNIFTY\n"
         "🕙 Daily report at 10:00 PM IST\n"
         "<i>Signals for Upstox MIS (Intraday)</i>"
