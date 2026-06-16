@@ -10,6 +10,7 @@ Report   : Daily summary at 10:00 PM IST
 import os
 import time
 import logging
+import json
 from datetime import datetime
 
 import pandas as pd
@@ -109,6 +110,40 @@ _last_signal         = {}   # {symbol: timestamp}
 _signal_count_today  = {}   # {symbol: count} — caps repeated signals on one stock
 _daily_signals       = []
 _report_sent_date    = None
+
+STATE_FILE = os.path.join(os.path.dirname(__file__), ".state_scanner.json")
+
+def _load_state():
+    """Restore cooldown + daily cap across restarts — without this, a process
+    restart (crash or watchdog) wipes the in-memory cooldown and lets the same
+    stock fire again immediately, which looked like a signal every ~15min."""
+    global _last_signal, _signal_count_today
+    try:
+        with open(STATE_FILE) as f:
+            data = json.load(f)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        for ticker, info in data.items():
+            _last_signal[ticker] = info.get("last_ts", 0)
+            if info.get("date") == today_str:
+                _signal_count_today[ticker] = info.get("count", 0)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+def _save_state():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    data = {
+        ticker: {
+            "last_ts": _last_signal.get(ticker, 0),
+            "count":   _signal_count_today.get(ticker, 0),
+            "date":    today_str,
+        }
+        for ticker in set(_last_signal) | set(_signal_count_today)
+    }
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
@@ -344,6 +379,7 @@ def run_scan():
                 record_signal(ticker, direction, entry, sl, tp)
                 _last_signal[ticker] = time.time()
                 _signal_count_today[ticker] = _signal_count_today.get(ticker, 0) + 1
+                _save_state()
                 fired += 1
                 time.sleep(1)   # small gap between Telegram messages
         except Exception as exc:
@@ -355,6 +391,7 @@ def run_scan():
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
+    _load_state()
     log.info("Stock Scanner started | stocks=%d  tf=%s  ema=%d/%d  rsi=%d  scan_every=%ds",
              len(STOCKS), TIMEFRAME, FAST_EMA, SLOW_EMA, RSI_PERIOD, SCAN_INTERVAL)
 

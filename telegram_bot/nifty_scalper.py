@@ -10,6 +10,7 @@ import requests
 import pandas as pd
 import time
 import os
+import json
 import yfinance as yf
 from datetime import datetime, date
 from dotenv import load_dotenv
@@ -50,6 +51,27 @@ COOLDOWN      = 1800            # was 900 — 15min was letting VWAP wiggles re-
 _last_signal       = {}
 _daily_signals     = []
 _report_sent_date  = None
+
+STATE_FILE = os.path.join(os.path.dirname(__file__), ".state_nifty_scalper.json")
+
+def _load_state():
+    """Restore cooldown across restarts — without this, a process restart
+    (crash or watchdog) wipes the in-memory cooldown and lets the same
+    symbol fire again immediately, which looked like a signal every ~15min
+    despite COOLDOWN being set to 30 minutes."""
+    global _last_signal
+    try:
+        with open(STATE_FILE) as f:
+            _last_signal = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+def _save_state():
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(_last_signal, f)
+    except Exception:
+        pass
 
 # ─────────────────────────────────────────────
 # TELEGRAM
@@ -343,10 +365,12 @@ def run_scan():
             send_telegram(format_signal(symbol, direction, price, sl, tp))
             record_signal(symbol, direction, price, sl, tp)
             _last_signal[symbol] = {"direction": direction, "timestamp": time.time()}
+            _save_state()
         else:
             print("no signal")
 
 def main():
+    _load_state()
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")
     print(f"  Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15-min | MIS")
