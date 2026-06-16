@@ -76,3 +76,8 @@ pgrep -f "forex_scalper.py" > /dev/null || \
 pgrep -f "token_updater_bot.py" > /dev/null || \
     restart_bot "TokenUpdater" "logs/token_updater.log" \
     python3 token_updater_bot.py
+
+# BTC Bot
+pgrep -f "btc_bot.py" > /dev/null || \
+    restart_bot "BTCUSD" "logs/btc.log" \
+    python3 btc_bot.py

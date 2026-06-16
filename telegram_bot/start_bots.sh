@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# start_bots.sh — Launch all 7 trading signal bots (runs 24/7)
+# start_bots.sh — Launch all 9 trading signal bots (runs 24/7)
 
 cd "$(dirname "$0")"
 set -a; source .env; set +a
@@ -46,7 +46,10 @@ echo "  [7] Scalper   started  (PID $!)"
 python3 token_updater_bot.py >> logs/token_updater.log 2>&1 &
 echo "  [8] TokenBot  started  (PID $!)"
 
+python3 btc_bot.py >> logs/btc.log 2>&1 &
+echo "  [9] BTCUSD    started  (PID $!)"
+
 echo ""
-echo "All 8 bots running 24/7. Watchdog checks every 5 minutes."
+echo "All 9 bots running 24/7. Watchdog checks every 5 minutes."
 echo "Send /upstox <token> to Elite bot to refresh Upstox token."
 echo "==========================================="
