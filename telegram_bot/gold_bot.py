@@ -22,7 +22,7 @@ load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("VANTAGE_EA_TOKEN", "8034731398:AAHHAKJaYEn_u0M_TzwSJr8e7tNtQIwN5BM")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",   "1994067941")
-SYMBOL         = "XAUUSD=X"    # Yahoo Finance: Spot Gold (matches broker)
+SYMBOL         = "GC=F"        # Yahoo Finance: COMEX Gold Futures — XAUUSD=X was delisted by Yahoo
 DISPLAY_NAME   = "XAUUSD"
 TIMEFRAME      = "1h"
 FAST_EMA       = 9      # was 10 — EMA(9/21) gives crossovers in sustained trends
@@ -49,6 +49,20 @@ log = logging.getLogger(__name__)
 _seen_bars        = set()
 _daily_signals    = []
 _report_sent_date = None
+
+SEEN_FILE = os.path.join(os.path.dirname(__file__), ".seen_gold")
+
+def _load_seen_bars():
+    try:
+        with open(SEEN_FILE) as f:
+            for line in f:
+                _seen_bars.add(line.strip())
+    except FileNotFoundError:
+        pass
+
+def _save_seen_bar(bar_ts):
+    with open(SEEN_FILE, "a") as f:
+        f.write(bar_ts + "\n")
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
@@ -230,6 +244,7 @@ def check_signal() -> None:
     atr_val = max(atr_val, 3.0)
 
     _seen_bars.add(bar_ts)
+    _save_seen_bar(bar_ts)
     if len(_seen_bars) > 500:
         _seen_bars.clear()
 
@@ -244,7 +259,6 @@ def check_signal() -> None:
     if bull_cross and rsi_val < RSI_BUY_MAX:
         if trend == -1:
             log.info("SKIP BUY XAUUSD — daily trend bearish")
-            _seen_bars.add(bar_ts)
             return
         mid   = fetch_live_price() or price
         entry = round(mid + _GOLD_SPREAD, 2)   # BUY at ASK = mid + spread
@@ -273,7 +287,6 @@ def check_signal() -> None:
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if trend == 1:
             log.info("SKIP SELL XAUUSD — daily trend bullish")
-            _seen_bars.add(bar_ts)
             return
         mid   = fetch_live_price() or price
         entry = round(mid - _GOLD_SPREAD, 2)   # SELL at BID = mid - spread
@@ -305,6 +318,7 @@ def main() -> None:
     if not TELEGRAM_TOKEN:
         raise SystemExit("VANTAGE_EA_TOKEN not set in .env")
 
+    _load_seen_bars()
     log.info("Gold Bot started | ema=%d/%d  rsi=%d  atr_sl=%.1fx  atr_tp=%.1fx  poll=%ds",
              FAST_EMA, SLOW_EMA, RSI_PERIOD, ATR_SL_MULT, ATR_TP_MULT, CHECK_SECS)
 
