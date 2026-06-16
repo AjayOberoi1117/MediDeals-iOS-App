@@ -45,7 +45,7 @@ SYMBOLS = {
     "EURUSD": "EURUSD=X",
     "GBPUSD": "GBPUSD=X",
     "USDJPY": "USDJPY=X",
-    "XAUUSD": "XAUUSD=X",
+    "XAUUSD": "GC=F",   # XAUUSD=X was delisted by Yahoo — use Gold Futures instead
 }
 
 # ── Logging ───────────────────────────────────────────────────────────────────
