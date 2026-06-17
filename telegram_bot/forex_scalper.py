@@ -16,6 +16,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
+from whatsapp import wapp_send
 
 load_dotenv()
 
@@ -98,6 +99,7 @@ def tg_send(text: str) -> None:
             log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
+    wapp_send(text)
 
 # ── Daily report ──────────────────────────────────────────────────────────────
 

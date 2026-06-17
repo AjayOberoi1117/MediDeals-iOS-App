@@ -15,6 +15,7 @@ import socket
 import yfinance as yf
 from datetime import datetime, date
 from dotenv import load_dotenv
+from whatsapp import wapp_send
 
 load_dotenv()
 
@@ -92,6 +93,7 @@ def send_telegram(msg: str):
             print(f"Telegram error: {r.status_code}")
     except Exception as e:
         print(f"Telegram exception: {e}")
+    wapp_send(msg)
 
 # ─────────────────────────────────────────────
 # DAILY P&L REPORT

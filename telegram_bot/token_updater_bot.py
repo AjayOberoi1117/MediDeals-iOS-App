@@ -92,6 +92,7 @@ _BOT_LABELS = [
     ("scanner_bot.py",       "Scanner 15m"),
     ("forex_scalper.py",     "Forex Scalper"),
     ("token_updater_bot.py", "Token Updater"),
+    ("btc_bot.py",           "BTCUSD 1H"),
 ]
 
 def build_status_message() -> str:
