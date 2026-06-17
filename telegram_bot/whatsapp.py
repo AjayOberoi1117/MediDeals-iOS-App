@@ -1,7 +1,7 @@
-"""WhatsApp notification helper via Interakt API (freeform/session messages).
+"""WhatsApp notification helper via Meta WhatsApp Cloud API.
 
 Converts Telegram HTML markup to WhatsApp-style formatting before sending.
-Reads INTERAKT_API_KEY and WHATSAPP_RECIPIENTS from .env at import time.
+Reads META_WA_TOKEN and WHATSAPP_RECIPIENTS from .env at import time.
 """
 
 import os
@@ -14,14 +14,16 @@ load_dotenv()
 
 log = logging.getLogger(__name__)
 
-_API_KEY    = os.getenv("INTERAKT_API_KEY", "")
+_WA_TOKEN   = os.getenv("META_WA_TOKEN", "")
+_PHONE_ID   = os.getenv("META_WA_PHONE_ID", "1181643655024251")
 _RECIPIENTS = [r.strip() for r in os.getenv("WHATSAPP_RECIPIENTS", "").split(",") if r.strip()]
+_API_URL    = f"https://graph.facebook.com/v19.0/{_PHONE_ID}/messages"
 
 
 def _html_to_wa(text: str) -> str:
     """Convert Telegram HTML to WhatsApp plaintext with basic bold/italic."""
-    text = re.sub(r"<b>(.*?)</b>",      r"*\1*",  text, flags=re.DOTALL)
-    text = re.sub(r"<i>(.*?)</i>",      r"_\1_",  text, flags=re.DOTALL)
+    text = re.sub(r"<b>(.*?)</b>",       r"*\1*", text, flags=re.DOTALL)
+    text = re.sub(r"<i>(.*?)</i>",       r"_\1_", text, flags=re.DOTALL)
     text = re.sub(r"<code>(.*?)</code>", r"`\1`",  text, flags=re.DOTALL)
     text = re.sub(r"<[^>]+>", "", text)
     return (text.replace("&amp;", "&")
@@ -31,29 +33,26 @@ def _html_to_wa(text: str) -> str:
 
 
 def wapp_send(text: str) -> None:
-    if not _API_KEY or not _RECIPIENTS:
+    if not _WA_TOKEN or not _RECIPIENTS:
         return
     plain = _html_to_wa(text)
     for number in _RECIPIENTS:
-        # Interakt expects the 10-digit local number; country code is separate
-        phone = number[2:] if (number.startswith("91") and len(number) == 12) else number
         try:
             r = requests.post(
-                "https://api.interakt.ai/v1/public/message/",
+                _API_URL,
                 headers={
-                    "Authorization": f"Basic {_API_KEY}",
+                    "Authorization": f"Bearer {_WA_TOKEN}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "countryCode": "91",
-                    "phoneNumber": phone,
-                    "callbackData": "signal",
-                    "type": "Text",
-                    "data": {"message": plain},
+                    "messaging_product": "whatsapp",
+                    "to": number,
+                    "type": "text",
+                    "text": {"body": plain},
                 },
                 timeout=10,
             )
             if r.status_code not in (200, 201):
-                log.warning("Interakt %s: HTTP %d %s", number, r.status_code, r.text[:120])
+                log.warning("WhatsApp %s: HTTP %d %s", number, r.status_code, r.text[:120])
         except Exception as exc:
-            log.warning("Interakt error %s: %s", number, exc)
+            log.warning("WhatsApp error %s: %s", number, exc)
