@@ -49,7 +49,11 @@ echo "  [8] TokenBot  started  (PID $!)"
 python3 btc_bot.py >> logs/btc.log 2>&1 &
 echo "  [9] BTCUSD    started  (PID $!)"
 
+python3 trader.py >> logs/trader.log 2>&1 &
+echo " [10] MT5Trader started  (PID $!)"
+
 echo ""
-echo "All 9 bots running 24/7. Watchdog checks every 5 minutes."
+echo "All 10 processes running 24/7. Watchdog checks every 5 minutes."
 echo "Send /upstox <token> to Elite bot to refresh Upstox token."
+echo "Set META_API_TOKEN in .env to activate MT5 auto-trading."
 echo "==========================================="

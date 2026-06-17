@@ -17,6 +17,7 @@ import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
+from trade_executor import queue_trade
 
 load_dotenv()
 
@@ -313,6 +314,7 @@ def check_symbol(name, ticker):
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal(name, "BUY", entry, sl, tp)
+        queue_trade(name, "BUY", sl, tp, source="scalper")
         _last_signal[name] = now_ts
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
@@ -342,6 +344,7 @@ def check_symbol(name, ticker):
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal(name, "SELL", entry, sl, tp)
+        queue_trade(name, "SELL", sl, tp, source="scalper")
         _last_signal[name] = now_ts
 
 # ── Main loop ─────────────────────────────────────────────────────────────────

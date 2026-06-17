@@ -81,3 +81,10 @@ pgrep -f "token_updater_bot.py" > /dev/null || \
 pgrep -f "btc_bot.py" > /dev/null || \
     restart_bot "BTCUSD" "logs/btc.log" \
     python3 btc_bot.py
+
+# MT5 Auto-Trader (only restart if META_API_TOKEN is configured)
+if [ -n "$META_API_TOKEN" ]; then
+    pgrep -f "trader.py" > /dev/null || \
+        restart_bot "MT5Trader" "logs/trader.log" \
+        python3 trader.py
+fi
