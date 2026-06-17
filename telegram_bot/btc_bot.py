@@ -292,7 +292,7 @@ def check_signal() -> None:
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("BUY", entry, sl, tp)
-        queue_trade("BTCUSD", "BUY", sl, tp, source="btc_bot")
+        queue_trade("BTCUSD", "BUY", sl, tp, source="BTCUSD_1H")
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if trend == 1:
@@ -320,7 +320,7 @@ def check_signal() -> None:
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("SELL", entry, sl, tp)
-        queue_trade("BTCUSD", "SELL", sl, tp, source="btc_bot")
+        queue_trade("BTCUSD", "SELL", sl, tp, source="BTCUSD_1H")
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 

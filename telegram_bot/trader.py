@@ -55,6 +55,22 @@ SYMBOL_MAP = {
     "BTCUSD": "BTCUSD",
 }
 
+# Magic numbers per source — visible in MT5 History / Journal tab.
+# Format: 1 0 [symbol_id 01-05] [tf_id 1=1H 2=15m]
+# This lets you filter trades by bot in MT5 terminal.
+MAGIC_MAP = {
+    "EURUSD_1H":  10101,
+    "GBPUSD_1H":  10201,
+    "USDJPY_1H":  10301,
+    "XAUUSD_1H":  10401,
+    "BTCUSD_1H":  10501,
+    "EURUSD_15m": 10102,
+    "GBPUSD_15m": 10202,
+    "USDJPY_15m": 10302,
+    "XAUUSD_15m": 10402,
+}
+DEFAULT_MAGIC = 10000
+
 
 def _read_and_clear_queue() -> list:
     """Atomically read and empty the queue file."""
@@ -173,16 +189,19 @@ async def run_trader():
             tp        = float(sig["tp"])
             src       = sig.get("source", "")
 
-            log.info("Placing %s %s  lot=%.2f  SL=%.5g  TP=%.5g  src=%s",
-                     direction, symbol, LOT_SIZE, sl, tp, src)
+            magic   = MAGIC_MAP.get(src, DEFAULT_MAGIC)
+            comment = f"{src} #{magic}"
+            log.info("Placing %s %s  lot=%.2f  SL=%.5g  TP=%.5g  magic=%d  src=%s",
+                     direction, symbol, LOT_SIZE, sl, tp, magic, src)
             try:
+                opts = {"comment": comment, "magic": magic}
                 if direction == "BUY":
                     result = await conn.create_market_buy_order(
-                        symbol, LOT_SIZE, sl, tp, {"comment": f"bot:{src}"}
+                        symbol, LOT_SIZE, sl, tp, opts
                     )
                 else:
                     result = await conn.create_market_sell_order(
-                        symbol, LOT_SIZE, sl, tp, {"comment": f"bot:{src}"}
+                        symbol, LOT_SIZE, sl, tp, opts
                     )
                 order_id = result.get("orderId", "?")
                 log.info("Trade placed: orderId=%s", order_id)
