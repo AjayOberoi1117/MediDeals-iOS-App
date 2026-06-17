@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 _WA_TOKEN   = os.getenv("META_WA_TOKEN", "")
 _PHONE_ID   = os.getenv("META_WA_PHONE_ID", "1181643655024251")
 _RECIPIENTS = [r.strip() for r in os.getenv("WHATSAPP_RECIPIENTS", "").split(",") if r.strip()]
-_API_URL    = f"https://graph.facebook.com/v19.0/{_PHONE_ID}/messages"
+_API_URL    = f"https://graph.facebook.com/v25.0/{_PHONE_ID}/messages"
 
 
 def _html_to_wa(text: str) -> str:
