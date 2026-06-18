@@ -1,27 +1,21 @@
 """
-MT5 Auto-Trader via MetaAPI Cloud
-===================================
-Daemon that reads trade signals from .trade_queue.jsonl written by signal bots
-and executes them on the Vantage demo MT5 account via MetaAPI.
+MT5 Auto-Trader via Wine bridge (mt5linux)
+============================================
+No MetaAPI signup needed. MT5 terminal runs headlessly on this VPS under Wine.
+wine_server.py must be running before this script starts.
 
-One-time setup on VPS:
-  1. Sign up free at https://metaapi.cloud
-  2. Click "Add account" → MetaTrader 5 → enter your broker credentials:
-       Login:    25285913  (or your login from MT5 terminal)
-       Password: <your Vantage demo password>
-       Server:   VantageMarkets-Demo
-  3. Profile → API Tokens → copy your token
-  4. On VPS: sed -i 's/^META_API_TOKEN=.*/META_API_TOKEN=<token>/' /root/MediDeals-iOS-App/telegram_bot/.env
-  5. Also set MT5_PASSWORD in .env if not already set
+Architecture:
+  [MT5 terminal (Wine)] ← [MetaTrader5 pkg (Wine Python)] ← [wine_server.py :18812]
+                                                                       ↑
+  [trader.py - native Python] ← mt5linux client ────────────────────────
 
-This script auto-finds your account by MT5 login number on first run.
+Setup: run setup_wine_mt5.sh once, then start_mt5_bridge.sh on every boot.
 """
 
 import os
 import sys
 import json
 import time
-import asyncio
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
@@ -34,30 +28,21 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-META_API_TOKEN = os.getenv("META_API_TOKEN", "")
-MT5_LOGIN      = os.getenv("MT5_LOGIN",    "25285913")
-MT5_PASSWORD   = os.getenv("MT5_PASSWORD", "")
-MT5_SERVER     = os.getenv("MT5_SERVER",   "VantageMarkets-Demo")
+MT5_HOST     = os.getenv("MT5_HOST",     "localhost")
+MT5_PORT     = int(os.getenv("MT5_PORT", "18812"))
+MT5_LOGIN    = int(os.getenv("MT5_LOGIN",    "25285913"))
+MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
+MT5_SERVER   = os.getenv("MT5_SERVER",   "VantageMarkets-Demo")
 
 QUEUE_FILE   = os.path.join(os.path.dirname(__file__), ".trade_queue.jsonl")
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), ".trade_history.jsonl")
 
-LOT_SIZE      = 0.01    # micro lot — safe for demo testing
-POLL_SECS     = 5       # check queue every 5 seconds
-MAX_QUEUE_AGE = 300     # discard signals older than 5 minutes (stale price)
+LOT_SIZE      = 0.01   # micro lot — safe for demo
+POLL_SECS     = 5
+MAX_QUEUE_AGE = 300    # skip signals older than 5 minutes
+DEVIATION     = 20     # max price slippage in points
 
-# MT5 symbol names on Vantage (bot names → broker symbol)
-SYMBOL_MAP = {
-    "EURUSD": "EURUSD",
-    "GBPUSD": "GBPUSD",
-    "USDJPY": "USDJPY",
-    "XAUUSD": "XAUUSD",
-    "BTCUSD": "BTCUSD",
-}
-
-# Magic numbers per source — visible in MT5 History / Journal tab.
-# Format: 1 0 [symbol_id 01-05] [tf_id 1=1H 2=15m]
-# This lets you filter trades by bot in MT5 terminal.
+# Magic numbers per bot+timeframe — visible in MT5 History tab
 MAGIC_MAP = {
     "EURUSD_1H":  10101,
     "GBPUSD_1H":  10201,
@@ -73,7 +58,6 @@ DEFAULT_MAGIC = 10000
 
 
 def _read_and_clear_queue() -> list:
-    """Atomically read and empty the queue file."""
     if not os.path.exists(QUEUE_FILE):
         return []
     try:
@@ -106,113 +90,115 @@ def _write_history(signal: dict, result: str) -> None:
         pass
 
 
-async def _get_or_create_account(api):
-    """Find existing MetaAPI account by MT5 login, or register it fresh."""
-    try:
-        result = await api.metatrader_account_api.get_accounts_with_infinite_scroll_pagination(
-            {"limit": 100, "offset": 0}
-        )
-        for acc in result.get("items", []):
-            if str(acc.login) == str(MT5_LOGIN):
-                log.info("Found existing MetaAPI account: %s (id=%s)", acc.name, acc.id)
-                return acc
-    except Exception as exc:
-        log.warning("Could not list MetaAPI accounts: %s", exc)
-
-    log.info("Registering MT5 account %s on MetaAPI for the first time...", MT5_LOGIN)
-    account = await api.metatrader_account_api.create_account({
-        "name":     f"Vantage Demo {MT5_LOGIN}",
-        "type":     "cloud",
-        "login":    str(MT5_LOGIN),
-        "password": MT5_PASSWORD,
-        "server":   MT5_SERVER,
-        "platform": "mt5",
-        "magic":    47,
-    })
-    log.info("Account registered: id=%s", account.id)
-    return account
+def connect_mt5(mt5) -> bool:
+    if not mt5.initialize():
+        log.error("MT5 initialize failed: %s", mt5.last_error())
+        return False
+    if not mt5.login(MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
+        log.error("MT5 login failed: %s", mt5.last_error())
+        mt5.shutdown()
+        return False
+    info = mt5.account_info()
+    log.info("MT5 connected | Login: %s | Balance: %.2f %s | Server: %s",
+             info.login, info.balance, info.currency, MT5_SERVER)
+    return True
 
 
-async def run_trader():
-    if not META_API_TOKEN:
-        log.error("META_API_TOKEN not set in .env")
-        log.error("  1. Sign up at https://metaapi.cloud (free)")
-        log.error("  2. Add MT5 account: login=%s  server=%s", MT5_LOGIN, MT5_SERVER)
-        log.error("  3. Copy token from Profile → API Tokens")
-        log.error("  4. Set META_API_TOKEN=<token> in .env")
-        sys.exit(1)
+def place_order(mt5, symbol: str, direction: str, sl: float, tp: float,
+                magic: int, comment: str):
+    # Make sure symbol is in Market Watch
+    if not mt5.symbol_select(symbol, True):
+        log.warning("symbol_select failed for %s — adding to Market Watch", symbol)
 
+    tick = mt5.symbol_info_tick(symbol)
+    if tick is None:
+        log.error("No tick for %s — symbol unavailable on this account", symbol)
+        return None
+
+    order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+    price      = tick.ask              if direction == "BUY" else tick.bid
+
+    request = {
+        "action":       mt5.TRADE_ACTION_DEAL,
+        "symbol":       symbol,
+        "volume":       LOT_SIZE,
+        "type":         order_type,
+        "price":        price,
+        "sl":           sl,
+        "tp":           tp,
+        "deviation":    DEVIATION,
+        "magic":        magic,
+        "comment":      comment,
+        "type_time":    mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC,
+    }
+    result = mt5.order_send(request)
+    if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
+        code = result.retcode if result else "None"
+        msg  = result.comment if result else ""
+        log.error("Order FAILED: %s %s  retcode=%s  %s", direction, symbol, code, msg)
+        return None
+
+    log.info("Trade placed: %s %s  lot=%.2f  price=%.5g  ticket=%d  magic=%d",
+             direction, symbol, LOT_SIZE, result.price, result.order, magic)
+    return result
+
+
+def main():
     if not MT5_PASSWORD:
-        log.error("MT5_PASSWORD not set in .env — cannot connect to broker")
+        log.error("MT5_PASSWORD not set in .env")
         sys.exit(1)
 
     try:
-        from metaapi_cloud_sdk import MetaApi
+        from mt5linux import MetaTrader5
     except ImportError:
-        log.error("metaapi-cloud-sdk not installed. Run: pip install metaapi-cloud-sdk")
+        log.error("mt5linux not installed. Run: pip install mt5linux")
         sys.exit(1)
 
-    log.info("Connecting to MetaAPI (login=%s  server=%s)...", MT5_LOGIN, MT5_SERVER)
-    api = MetaApi(META_API_TOKEN)
+    mt5 = MetaTrader5(host=MT5_HOST, port=MT5_PORT)
 
-    account = await _get_or_create_account(api)
+    log.info("Connecting to MT5 bridge at %s:%d ...", MT5_HOST, MT5_PORT)
+    while not connect_mt5(mt5):
+        log.warning("Retrying in 30s — make sure start_mt5_bridge.sh is running")
+        time.sleep(30)
 
-    log.info("Deploying account and connecting to broker...")
-    await account.deploy()
-    await account.wait_connected()
-
-    conn = account.get_rpc_connection()
-    await conn.connect()
-    await conn.wait_synchronized()
-
-    log.info("Ready to trade | lot=%.2f  poll=%ds  account=%s", LOT_SIZE, POLL_SECS, MT5_LOGIN)
-    log.info("Watching queue: %s", QUEUE_FILE)
+    log.info("Trader ready | lot=%.2f  poll=%ds  login=%d", LOT_SIZE, POLL_SECS, MT5_LOGIN)
 
     while True:
-        await asyncio.sleep(POLL_SECS)
+        time.sleep(POLL_SECS)
+
+        # Reconnect if connection dropped
+        if mt5.account_info() is None:
+            log.warning("MT5 connection lost — reconnecting...")
+            if not connect_mt5(mt5):
+                time.sleep(30)
+                continue
 
         signals = _read_and_clear_queue()
-        if not signals:
-            continue
-
         for sig in signals:
             age = time.time() - sig.get("ts", 0)
             if age > MAX_QUEUE_AGE:
-                log.warning("SKIP stale: %s %s (age=%.0fs > %ds)",
-                            sig.get("direction"), sig.get("symbol"), age, MAX_QUEUE_AGE)
+                log.warning("SKIP stale %s %s (age=%.0fs)",
+                            sig.get("direction"), sig.get("symbol"), age)
                 _write_history(sig, f"skipped_stale age={age:.0f}s")
                 continue
 
-            symbol    = SYMBOL_MAP.get(sig["symbol"], sig["symbol"])
+            symbol    = sig["symbol"]
             direction = sig["direction"].upper()
             sl        = float(sig["sl"])
             tp        = float(sig["tp"])
             src       = sig.get("source", "")
+            magic     = MAGIC_MAP.get(src, DEFAULT_MAGIC)
+            comment   = f"{src} #{magic}"
 
-            magic   = MAGIC_MAP.get(src, DEFAULT_MAGIC)
-            comment = f"{src} #{magic}"
-            log.info("Placing %s %s  lot=%.2f  SL=%.5g  TP=%.5g  magic=%d  src=%s",
-                     direction, symbol, LOT_SIZE, sl, tp, magic, src)
-            try:
-                opts = {"comment": comment, "magic": magic}
-                if direction == "BUY":
-                    result = await conn.create_market_buy_order(
-                        symbol, LOT_SIZE, sl, tp, opts
-                    )
-                else:
-                    result = await conn.create_market_sell_order(
-                        symbol, LOT_SIZE, sl, tp, opts
-                    )
-                order_id = result.get("orderId", "?")
-                log.info("Trade placed: orderId=%s", order_id)
-                _write_history(sig, f"ok orderId={order_id}")
-            except Exception as exc:
-                log.error("Trade execution error (%s %s): %s", direction, symbol, exc)
-                _write_history(sig, f"error: {exc}")
+            log.info("Signal: %s %s  SL=%.5g  TP=%.5g  magic=%d  src=%s",
+                     direction, symbol, sl, tp, magic, src)
 
-
-def main():
-    asyncio.run(run_trader())
+            result = place_order(mt5, symbol, direction, sl, tp, magic, comment)
+            if result:
+                _write_history(sig, f"ok ticket={result.order} price={result.price}")
+            else:
+                _write_history(sig, "error: order_send failed — check trader.log")
 
 
 if __name__ == "__main__":

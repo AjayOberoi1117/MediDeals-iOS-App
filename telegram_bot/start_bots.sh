@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# start_bots.sh — Launch all 9 trading signal bots (runs 24/7)
+# start_bots.sh — Launch all 9 trading signal bots + MT5 auto-trader (runs 24/7)
 
 cd "$(dirname "$0")"
 set -a; source .env; set +a
 mkdir -p logs
 
 CHAT_ID="${SIGNAL_CHAT_ID:-1994067941}"
+
+# Start MT5 bridge first (Xvfb + MT5 terminal + wine_server.py)
+bash start_mt5_bridge.sh
 
 # Create named symlinks so watchdog can identify each process uniquely
 ln -sf signal_bot.py eurusd_bot.py

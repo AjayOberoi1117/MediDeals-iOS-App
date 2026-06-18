@@ -82,9 +82,28 @@ pgrep -f "btc_bot.py" > /dev/null || \
     restart_bot "BTCUSD" "logs/btc.log" \
     python3 btc_bot.py
 
-# MT5 Auto-Trader (only restart if META_API_TOKEN is configured)
-if [ -n "$META_API_TOKEN" ]; then
-    pgrep -f "trader.py" > /dev/null || \
-        restart_bot "MT5Trader" "logs/trader.log" \
-        python3 trader.py
+# MT5 Auto-Trader
+pgrep -f "trader.py" > /dev/null || \
+    restart_bot "MT5Trader" "logs/trader.log" \
+    python3 trader.py
+
+# MT5 Wine bridge components
+export WINEPREFIX=/root/.wine_mt5 WINEARCH=win64 DISPLAY=:99
+
+if ! pgrep -x Xvfb > /dev/null; then
+    Xvfb :99 -screen 0 1024x768x24 &
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Xvfb restarted" >> "$LOG"
+fi
+
+if ! pgrep -f "wine_server.py" > /dev/null; then
+    WINEDEBUG=-all wine python "$DIR/wine_server.py" >> "$DIR/logs/wine_server.log" 2>&1 &
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] wine_server.py restarted" >> "$LOG"
+    tg_alert "⚠️ <b>MT5 Bridge Restarted</b>\nwine_server.py was down and has been restarted."
+fi
+
+if ! pgrep -f "terminal64.exe" > /dev/null; then
+    MT5_EXE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
+    WINEDEBUG=-all wine "$MT5_EXE" /portable >> "$DIR/logs/mt5.log" 2>&1 &
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] MT5 terminal restarted" >> "$LOG"
+    tg_alert "⚠️ <b>MT5 Terminal Restarted</b>\nMT5 terminal was down and has been restarted."
 fi
