@@ -15,10 +15,17 @@ echo "[1/6] Installing Wine + Xvfb + VNC..."
 sudo dpkg --add-architecture i386
 sudo apt update -y
 sudo apt install -y \
-    wine wine32 wine64 winetricks \
+    wine wine32 wine64 \
     xvfb x11vnc \
     wget curl python3-pip \
-    libglib2.0-0:i386 libsm6 libxrender1 libxext6
+    libglib2.0-0t64:i386 libsm6 libxrender1 libxext6
+
+# Install winetricks directly (removed from Ubuntu 24.04 repos)
+if ! command -v winetricks &>/dev/null; then
+    wget -q -O /usr/local/bin/winetricks \
+        https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks
+    chmod +x /usr/local/bin/winetricks
+fi
 
 # ── Step 2: Wine environment ──────────────────────────────────
 echo "[2/6] Initialising Wine prefix..."
@@ -75,7 +82,7 @@ echo "       DISPLAY=:99 WINEPREFIX=/root/.wine_mt5 wine \\"
 echo "         '/root/.wine_mt5/drive_c/Program Files/MetaTrader 5/terminal64.exe' &"
 echo ""
 echo "  2. On your Mac, open Finder → Go → Connect to Server:"
-echo "       vnc://168.144.30.182:5900"
+echo "       vnc://$(curl -s ifconfig.me):5900"
 echo ""
 echo "  3. In the MT5 window:"
 echo "       File → Login to Trade Account"
