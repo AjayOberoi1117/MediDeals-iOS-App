@@ -11,6 +11,9 @@ set -a; source .env; set +a
 CHAT_ID="${SIGNAL_CHAT_ID:-1994067941}"
 TOKEN="${ELITE_BOT_TOKEN}"
 
+PYTHON="${BOTENV_PYTHON:-/root/botenv/bin/python3}"
+[ -x "$PYTHON" ] || PYTHON=python3
+
 tg_alert() {
     curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
         -d "chat_id=${CHAT_ID}" \
@@ -36,56 +39,56 @@ pgrep -f "eurusd_bot.py" > /dev/null || \
     restart_bot "EURUSD" "logs/eurusd.log" \
     env SIGNAL_SYMBOL="EURUSD=X" SIGNAL_NAME="EURUSD" \
         SIGNAL_TOKEN="$ELITE_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-    python3 eurusd_bot.py
+    $PYTHON eurusd_bot.py
 
 # GBPUSD
 pgrep -f "gbpusd_bot.py" > /dev/null || \
     restart_bot "GBPUSD" "logs/gbpusd.log" \
     env SIGNAL_SYMBOL="GBPUSD=X" SIGNAL_NAME="GBPUSD" \
         SIGNAL_TOKEN="$STOCX_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-    python3 gbpusd_bot.py
+    $PYTHON gbpusd_bot.py
 
 # USDJPY
 pgrep -f "usdjpy_bot.py" > /dev/null || \
     restart_bot "USDJPY" "logs/usdjpy.log" \
     env SIGNAL_SYMBOL="USDJPY=X" SIGNAL_NAME="USDJPY" \
         SIGNAL_TOKEN="$STOCX_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-    python3 usdjpy_bot.py
+    $PYTHON usdjpy_bot.py
 
 # Gold
 pgrep -f "gold_bot.py" > /dev/null || \
     restart_bot "XAUUSD" "logs/gold.log" \
-    python3 gold_bot.py
+    $PYTHON gold_bot.py
 
 # Nifty Scalper
 pgrep -f "nifty_scalper.py" > /dev/null || \
     restart_bot "NiftyScalper" "logs/nifty.log" \
-    python3 nifty_scalper.py
+    $PYTHON nifty_scalper.py
 
 # Stock Scanner
 pgrep -f "scanner_bot.py" > /dev/null || \
     restart_bot "StockScanner" "logs/scanner.log" \
-    python3 scanner_bot.py
+    $PYTHON scanner_bot.py
 
 # Forex+Gold Scalper
 pgrep -f "forex_scalper.py" > /dev/null || \
     restart_bot "ForexScalper" "logs/scalper.log" \
-    python3 forex_scalper.py
+    $PYTHON forex_scalper.py
 
 # Token Updater Bot
 pgrep -f "token_updater_bot.py" > /dev/null || \
     restart_bot "TokenUpdater" "logs/token_updater.log" \
-    python3 token_updater_bot.py
+    $PYTHON token_updater_bot.py
 
 # BTC Bot
 pgrep -f "btc_bot.py" > /dev/null || \
     restart_bot "BTCUSD" "logs/btc.log" \
-    python3 btc_bot.py
+    $PYTHON btc_bot.py
 
 # MT5 Auto-Trader
 pgrep -f "trader.py" > /dev/null || \
     restart_bot "MT5Trader" "logs/trader.log" \
-    python3 trader.py
+    $PYTHON trader.py
 
 # MT5 Wine bridge components
 export WINEPREFIX=/root/.wine_mt5 WINEARCH=win64 DISPLAY=:99
