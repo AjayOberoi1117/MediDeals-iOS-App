@@ -1,9 +1,13 @@
 python-telegram-bot==20.7
-mt5linux==0.1.4
 requests==2.31.0
 python-dotenv==1.0.0
 yfinance>=0.2.40
 pandas>=2.0.0
+numpy>=1.26
+
+# mt5linux has a broken numpy pin — install separately with:
+#   pip3 install mt5linux --no-deps --break-system-packages
+# (mt5linux itself works fine without numpy==1.21.4)
 
 # Windows only (skip on macOS — mt5linux replaces this)
 # MetaTrader5==5.0.45
