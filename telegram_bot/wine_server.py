@@ -19,6 +19,7 @@ print("Starting MT5 Wine bridge server on localhost:18812 ...")
 print("Keep this terminal open while bot.py is running.")
 print("Press Ctrl+C to stop.\n")
 
-# MetaTrader5Server listens for connections from native Python (bot.py)
-# and proxies all calls to the real MT5 terminal running under Wine.
-MetaTrader5(host="localhost", port=18812).run_server()
+# Start rpyc server that listens for connections from native Linux Python.
+# Must be called as a class method — NOT MetaTrader5(host, port).run_server()
+# because the constructor tries to CONNECT (client), not listen (server).
+MetaTrader5.run_server(host="localhost", port=18812)
