@@ -49,7 +49,9 @@ void ProcessSignals()
    int count = 0;
    while (!FileIsEnding(handle))
    {
-      string line = StringTrimRight(StringTrimLeft(FileReadString(handle)));
+      string line = FileReadString(handle);
+      StringTrimLeft(line);
+      StringTrimRight(line);
       if (StringLen(line) > 5)
       {
          ArrayResize(lines, count + 1);
