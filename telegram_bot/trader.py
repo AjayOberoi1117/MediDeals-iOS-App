@@ -33,6 +33,9 @@ MT5_PORT     = int(os.getenv("MT5_PORT", "18812"))
 MT5_LOGIN    = int(os.getenv("MT5_LOGIN",    "25285913"))
 MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
 MT5_SERVER   = os.getenv("MT5_SERVER",   "VantageMarkets-Demo")
+# Windows path inside Wine — MetaTrader5.initialize() starts & logs in MT5 automatically
+MT5_TERMINAL = os.getenv("MT5_TERMINAL",
+                         r"C:\Program Files\MetaTrader 5\terminal64.exe")
 
 QUEUE_FILE   = os.path.join(os.path.dirname(__file__), ".trade_queue.jsonl")
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), ".trade_history.jsonl")
@@ -91,14 +94,18 @@ def _write_history(signal: dict, result: str) -> None:
 
 
 def connect_mt5(mt5) -> bool:
-    if not mt5.initialize():
+    # Pass path + credentials so MT5 terminal auto-starts and logs in — no VNC needed
+    if not mt5.initialize(MT5_TERMINAL,
+                          login=MT5_LOGIN,
+                          password=MT5_PASSWORD,
+                          server=MT5_SERVER):
         log.error("MT5 initialize failed: %s", mt5.last_error())
         return False
-    if not mt5.login(MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
-        log.error("MT5 login failed: %s", mt5.last_error())
+    info = mt5.account_info()
+    if info is None:
+        log.error("account_info() returned None after initialize — %s", mt5.last_error())
         mt5.shutdown()
         return False
-    info = mt5.account_info()
     log.info("MT5 connected | Login: %s | Balance: %.2f %s | Server: %s",
              info.login, info.balance, info.currency, MT5_SERVER)
     return True

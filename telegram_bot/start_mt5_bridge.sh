@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# start_mt5_bridge.sh — Start headless MT5 + Wine bridge server
-# Run this BEFORE start_bots.sh on every reboot.
-# After the first manual login via VNC, MT5 auto-connects (saved credentials).
+# start_mt5_bridge.sh — Start Xvfb virtual display + Wine bridge server.
+# trader.py calls mt5.initialize(path, login, password, server) which auto-starts
+# and logs in to MT5 terminal — no VNC manual login needed.
 
 export WINEPREFIX=/root/.wine_mt5
 export WINEARCH=win64
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$DIR/logs"
-
-MT5_EXE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
 
 # ── 1. Virtual display ────────────────────────────────────────
 if ! pgrep -x Xvfb > /dev/null; then
@@ -21,16 +19,8 @@ else
 fi
 export DISPLAY=:99
 
-# ── 2. MT5 terminal ──────────────────────────────────────────
-if ! pgrep -f "terminal64.exe" > /dev/null; then
-    WINEDEBUG=-all wine "$MT5_EXE" /portable >> "$DIR/logs/mt5.log" 2>&1 &
-    echo "[bridge] MT5 terminal starting (waiting 20s to connect to broker)..."
-    sleep 20
-else
-    echo "[bridge] MT5 terminal already running"
-fi
-
-# ── 3. Wine bridge server ─────────────────────────────────────
+# ── 2. Wine bridge server ─────────────────────────────────────
+# MT5 terminal is started automatically by trader.py via mt5.initialize(path, login, ...)
 if ! pgrep -f "wine_server.py" > /dev/null; then
     WINEDEBUG=-all wine python "$DIR/wine_server.py" >> "$DIR/logs/wine_server.log" 2>&1 &
     sleep 3
@@ -39,4 +29,5 @@ else
     echo "[bridge] wine_server.py already running"
 fi
 
-echo "[bridge] MT5 bridge ready. Start bots with: bash start_bots.sh"
+echo "[bridge] Bridge ready. trader.py will auto-start + log in to MT5 on first connection."
+echo "[bridge] Start all bots with: bash start_bots.sh"
