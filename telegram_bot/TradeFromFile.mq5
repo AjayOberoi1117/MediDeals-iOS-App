@@ -7,7 +7,6 @@
 //+------------------------------------------------------------------+
 #property copyright "MediDeals Trading Bots"
 #property version   "1.00"
-#property strict
 
 #include <Trade\Trade.mqh>
 
