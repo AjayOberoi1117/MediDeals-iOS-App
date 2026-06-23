@@ -16,6 +16,7 @@ import yfinance as yf
 from datetime import datetime, date
 from dotenv import load_dotenv
 from whatsapp import wapp_send
+from emailer import email_send
 
 load_dotenv()
 
@@ -94,6 +95,7 @@ def send_telegram(msg: str):
     except Exception as e:
         print(f"Telegram exception: {e}")
     wapp_send(msg)
+    email_send("Trading Signal: Nifty Scalper", msg)
 
 # ─────────────────────────────────────────────
 # DAILY P&L REPORT

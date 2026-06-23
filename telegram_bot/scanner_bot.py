@@ -19,6 +19,7 @@ import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
+from emailer import email_send
 
 load_dotenv()
 
@@ -158,6 +159,7 @@ def tg_send(text: str) -> None:
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
     wapp_send(text)
+    email_send("Trading Signal: Stock Scanner", text)
 
 # ── Daily report ──────────────────────────────────────────────────────────────
 
