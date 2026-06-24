@@ -57,16 +57,14 @@ COOLDOWN      = 1800            # was 900 — 15min was letting VWAP wiggles re-
 # ─────────────────────────────────────────────
 
 _last_signal       = {}
+_seen_bars         = {}   # {symbol: set of bar timestamps already signalled}
 _daily_signals     = []
 _report_sent_date  = None
 
-STATE_FILE = os.path.join(os.path.dirname(__file__), ".state_nifty_scalper.json")
+STATE_FILE  = os.path.join(os.path.dirname(__file__), ".state_nifty_scalper.json")
+SEEN_FILE   = os.path.join(os.path.dirname(__file__), ".seen_nifty")
 
 def _load_state():
-    """Restore cooldown across restarts — without this, a process restart
-    (crash or watchdog) wipes the in-memory cooldown and lets the same
-    symbol fire again immediately, which looked like a signal every ~15min
-    despite COOLDOWN being set to 30 minutes."""
     global _last_signal
     try:
         with open(STATE_FILE) as f:
@@ -80,6 +78,21 @@ def _save_state():
             json.dump(_last_signal, f)
     except Exception:
         pass
+
+def _load_seen():
+    try:
+        with open(SEEN_FILE) as f:
+            for line in f:
+                parts = line.strip().split("|")
+                if len(parts) == 2:
+                    sym, bar = parts
+                    _seen_bars.setdefault(sym, set()).add(bar)
+    except FileNotFoundError:
+        pass
+
+def _save_seen(symbol, bar_ts):
+    with open(SEEN_FILE, "a") as f:
+        f.write(f"{symbol}|{bar_ts}\n")
 
 # ─────────────────────────────────────────────
 # TELEGRAM
@@ -291,6 +304,10 @@ def check_signal(symbol: str, df: pd.DataFrame):
     curr = df.iloc[-2]
     prev = df.iloc[-3]
 
+    bar_ts = str(curr.get("time", df.index[-2]))
+    if bar_ts in _seen_bars.get(symbol, set()):
+        return None
+
     st_now     = int(curr["st_direction"])
     st_prev    = int(prev["st_direction"])
     st_flipped = st_now != st_prev
@@ -302,6 +319,7 @@ def check_signal(symbol: str, df: pd.DataFrame):
         direction = "SELL"
 
     if not direction:
+        _seen_bars.setdefault(symbol, set()).add(bar_ts)
         return None
 
     price = live_price
@@ -371,6 +389,9 @@ def run_scan():
         result = check_signal(symbol, df)
         if result:
             direction, price, sl, tp = result
+            bar_ts = str(df.iloc[-2].get("time", ""))
+            _seen_bars.setdefault(symbol, set()).add(bar_ts)
+            _save_seen(symbol, bar_ts)
             print(f"→ {direction} | Entry ₹{price} | SL ₹{sl} | TP ₹{tp}")
             send_telegram(format_signal(symbol, direction, price, sl, tp))
             record_signal(symbol, direction, price, sl, tp)
@@ -381,6 +402,7 @@ def run_scan():
 
 def main():
     _load_state()
+    _load_seen()
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")
     print(f"  Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15-min | MIS")
