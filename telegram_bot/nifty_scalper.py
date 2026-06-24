@@ -2,6 +2,7 @@
 Nifty / BankNifty Intraday Scalper
 Strategy : Supertrend(7,2.0) flip on 15-minute candles (closed bars only)
 Session  : 9:15 AM – 3:15 PM IST (auto square-off before 3:30)
+Data     : TradingView via tvdatafeed (no API key, no rate limits)
 Signals  : Telegram → trade manually in Upstox Scalper (MIS)
 Daily P&L report at 10:00 PM IST
 """
@@ -11,53 +12,45 @@ import pandas as pd
 import time
 import os
 import json
-import socket
-import yfinance as yf
-from datetime import datetime, date
+from datetime import datetime
 from dotenv import load_dotenv
+from tvdatafeed import TvDatafeed, Interval
 from whatsapp import wapp_send
 from emailer import email_send
 
 load_dotenv()
 
-# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
-# rate-limit/throttle episode can block the single-threaded main loop
-# indefinitely.
-socket.setdefaulttimeout(30)
+# ── TradingView data source ────────────────────────────────────────────────────
+
+tv = TvDatafeed()
 
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
 
-UPSTOX_TOKEN   = os.getenv("UPSTOX_TOKEN", "")
 TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "8649245457:AAFpe95Us_eiVTuewD1f7TJG2gRwUMX0zuA")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "1994067941")
 
-HEADERS = {
-    "Accept": "application/json",
-    "Authorization": f"Bearer {UPSTOX_TOKEN}"
-}
-
 INSTRUMENTS = {
-    "NIFTY":     {"upstox": "NSE_INDEX|Nifty 50",  "yf": "^NSEI"},
-    "BANKNIFTY": {"upstox": "NSE_INDEX|Nifty Bank", "yf": "^NSEBANK"},
+    "NIFTY":     "NSE",
+    "BANKNIFTY": "NSE",
 }
 
-ST_PERIOD     = 7              # was 10 — faster Supertrend for intraday
-ST_MULTIPLIER = 2.0            # was 3.0 — tighter bands, more signal flips
+ST_PERIOD     = 7
+ST_MULTIPLIER = 2.0
 SL_PCT        = 0.4
 TP_PCT        = 0.8
 MARKET_OPEN   = (9, 15)
 MARKET_CLOSE  = (15, 15)
 SCAN_INTERVAL = 60
-COOLDOWN      = 1800            # was 900 — 15min was letting VWAP wiggles re-fire too fast
+COOLDOWN      = 1800
 
 # ─────────────────────────────────────────────
 # STATE
 # ─────────────────────────────────────────────
 
 _last_signal       = {}
-_seen_bars         = {}   # {symbol: set of bar timestamps already signalled}
+_seen_bars         = {}
 _daily_signals     = []
 _report_sent_date  = None
 
@@ -154,11 +147,9 @@ def maybe_send_daily_report():
     global _report_sent_date, _daily_signals
     now   = datetime.now()
     today = now.date()
-    # Send at exactly 10:00 PM IST (22:00)
     if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
         _report_sent_date = today
         send_daily_report()
-    # Clear yesterday's log at midnight
     if now.hour == 0 and now.minute < 2:
         if _daily_signals and _daily_signals[0]["time"] != datetime.now().strftime("%I:%M %p"):
             _daily_signals.clear()
@@ -167,74 +158,22 @@ def maybe_send_daily_report():
 # DATA FETCHING
 # ─────────────────────────────────────────────
 
-def get_live_price_upstox(symbol: str, ikey: str):
-    """Try Upstox market-quote API (requires valid daily trading token)."""
-    if not UPSTOX_TOKEN:
-        return None
+def fetch_15min_candles(symbol: str, exchange: str) -> pd.DataFrame:
     try:
-        headers = {"Accept": "application/json", "Authorization": f"Bearer {os.getenv('UPSTOX_TOKEN', '')}"}
-        r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
-                         headers=headers,
-                         params={"instrument_key": ikey},
-                         timeout=5)
-        if r.status_code == 200:
-            data = r.json().get("data", {})
-            val  = data.get(ikey.replace("|", ":"), {}).get("last_price", 0)
-            if val:
-                return float(val)
-        return None
-    except Exception:
-        return None
-
-
-def get_live_price_yf(yf_ticker: str):
-    """Fallback: yfinance fast_info — no API key needed, ~1-min freshness."""
-    try:
-        info = yf.Ticker(yf_ticker).fast_info
-        price = info.get("lastPrice") or info.get("last_price")
-        return float(price) if price and float(price) > 0 else None
-    except Exception:
-        return None
-
-
-def fetch_15min_candles(symbol: str, yf_ticker: str, ikey: str) -> pd.DataFrame:
-    try:
-        df = yf.download(yf_ticker, period="5d", interval="15m",
-                         auto_adjust=True, progress=False)
+        df = tv.get_hist(symbol, exchange, interval=Interval.in_15_minute, n_bars=100)
         if df is None or df.empty:
-            print(f"  {symbol}: yfinance returned no data")
+            print(f"  {symbol}: tvdatafeed returned no data")
             return pd.DataFrame()
 
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0].lower() for col in df.columns]
-        else:
-            df.columns = [str(c).lower() for c in df.columns]
-
+        df.columns = [c.lower() for c in df.columns]
         df = df[["open", "high", "low", "close", "volume"]].copy()
-        df.index = pd.to_datetime(df.index)
-        df = df.between_time("03:45", "10:00")
         df.dropna(inplace=True)
-        df.reset_index(inplace=True)
-        df.rename(columns={"index": "time", "datetime": "time", "date": "time"},
-                  errors="ignore", inplace=True)
-        if "time" not in df.columns:
-            df.rename(columns={df.columns[0]: "time"}, inplace=True)
 
         if len(df) < 10:
             print(f"  {symbol}: only {len(df)} 15-min candles")
             return pd.DataFrame()
 
-        # Priority: Upstox live (daily token) → yfinance fast_info → bar close
-        live = get_live_price_upstox(symbol, ikey)
-        src  = "Upstox"
-        if not live:
-            live = get_live_price_yf(yf_ticker)
-            src  = "yfinance"
-        if live:
-            df.at[df.index[-1], "close"] = live
-            print(f"  {symbol}: {len(df)} candles | Live ₹{live:.2f} ({src})")
-        else:
-            print(f"  {symbol}: {len(df)} candles | ₹{float(df['close'].iloc[-1]):.2f} (bar close)")
+        print(f"  {symbol}: {len(df)} candles | ₹{float(df['close'].iloc[-1]):.2f}")
         return df
     except Exception as e:
         print(f"  {symbol}: fetch error — {e}")
@@ -294,17 +233,11 @@ def check_signal(symbol: str, df: pd.DataFrame):
     if len(df) < 4:
         return None
 
-    # Direction comes from the last fully CLOSED candle only. The most recent
-    # row is still forming and its close is overwritten with a live tick every
-    # scan (see fetch_15min_candles) — basing the flip check on that row meant
-    # the Supertrend direction flapped with every price wiggle, re-firing the
-    # same BUY every ~30min all morning with no genuine reversal. The live
-    # price is still used for the entry value below.
     live_price = float(df.iloc[-1]["close"])
     curr = df.iloc[-2]
     prev = df.iloc[-3]
 
-    bar_ts = str(curr.get("time", df.index[-2]))
+    bar_ts = str(df.index[-2])
     if bar_ts in _seen_bars.get(symbol, set()):
         return None
 
@@ -371,9 +304,7 @@ def in_market_hours():
 
 def run_scan():
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Scanning Nifty + BankNifty...")
-    for symbol, keys in INSTRUMENTS.items():
-        ikey      = keys["upstox"]
-        yf_ticker = keys["yf"]
+    for symbol, exchange in INSTRUMENTS.items():
         print(f"  {symbol:<12}", end=" ")
 
         last = _last_signal.get(symbol, {})
@@ -382,14 +313,14 @@ def run_scan():
             print(f"cooldown ({remaining}m remaining)")
             continue
 
-        df = fetch_15min_candles(symbol, yf_ticker, ikey)
+        df = fetch_15min_candles(symbol, exchange)
         if df.empty:
             continue
 
         result = check_signal(symbol, df)
         if result:
             direction, price, sl, tp = result
-            bar_ts = str(df.iloc[-2].get("time", ""))
+            bar_ts = str(df.index[-2])
             _seen_bars.setdefault(symbol, set()).add(bar_ts)
             _save_seen(symbol, bar_ts)
             print(f"→ {direction} | Entry ₹{price} | SL ₹{sl} | TP ₹{tp}")
@@ -406,11 +337,12 @@ def main():
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")
     print(f"  Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15-min | MIS")
+    print("  Data: TradingView (tvdatafeed)")
     print("=" * 55)
     send_telegram(
         "⚡ <b>Nifty Scalper Started</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15min\n"
+        f"📊 Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15min  [TradingView data]\n"
         "🎯 NIFTY + BANKNIFTY\n"
         "🕙 Daily report at 10:00 PM IST\n"
         "<i>Signals for Upstox MIS (Intraday)</i>"

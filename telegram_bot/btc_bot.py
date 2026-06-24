@@ -1,51 +1,49 @@
 """
 Crypto Trading Signal Bot — BTCUSD
 Strategy : EMA(9/21) crossover + RSI(14) on 1-hour bars
-Data     : Yahoo Finance  BTC-USD  (no API key needed)
+Data     : TradingView via tvdatafeed (no API key, no rate limits)
 Signals  : Telegram via dedicated Crypto bot with Entry, SL, TP
 Report   : Daily P&L summary at 10:00 PM IST
 """
 
 import os
 import time
-import socket
 import logging
 from datetime import datetime
 
 import pandas as pd
-import yfinance as yf
+from tvdatafeed import TvDatafeed, Interval
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
-from trade_executor import queue_trade
+
+try:
+    from trade_executor import queue_trade
+except ImportError:
+    def queue_trade(*args, **kwargs): pass
 
 load_dotenv()
 
-# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
-# rate-limit/throttle episode can block the single-threaded main loop
-# indefinitely.
-socket.setdefaulttimeout(30)
+# ── TradingView data source ────────────────────────────────────────────────────
+
+tv = TvDatafeed()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
 TELEGRAM_TOKEN = os.getenv("BTC_BOT_TOKEN", "")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "1994067941")
-SYMBOL         = "BTC-USD"     # Yahoo Finance: Bitcoin / US Dollar
 DISPLAY_NAME   = "BTCUSD"
-TIMEFRAME      = "1h"
 FAST_EMA       = 9
 SLOW_EMA       = 21
 RSI_PERIOD     = 14
 RSI_BUY_MAX    = 70
 RSI_SELL_MIN   = 30
 ATR_PERIOD     = 14
-ATR_SL_MULT    = 1.0    # SL = 1x ATR
-ATR_TP_MULT    = 3.0    # TP = 3x ATR  (1:3 risk-reward)
-ATR_FLOOR_PCT  = 0.003  # ATR floor = 0.3% of price — BTC's price scale varies too
-                        # much over time for a fixed-dollar floor like gold's $3
+ATR_SL_MULT    = 1.0
+ATR_TP_MULT    = 3.0
+ATR_FLOOR_PCT  = 0.003   # 0.3% of price — scales with BTC's price level
 CHECK_SECS     = 60
-TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -159,56 +157,23 @@ def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> 
 
 def fetch_ohlcv():
     try:
-        df = yf.download(SYMBOL, period="60d", interval=TIMEFRAME,
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < SLOW_EMA + 10:
-            log.warning("Not enough bars (%d). Will retry.", len(df))
+        df = tv.get_hist("BTCUSD", "BITSTAMP", interval=Interval.in_1_hour, n_bars=200)
+        if df is None or df.empty or len(df) < SLOW_EMA + 10:
+            log.warning("Not enough bars (%d). Will retry.", 0 if df is None else len(df))
             return None
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
+        df.columns = [c.lower() for c in df.columns]
         return df
     except Exception as exc:
         log.warning("Data fetch error: %s", exc)
         return None
 
-# ── Live price: Twelve Data (primary, real-time) → yfinance (fallback) ───────
-
-def fetch_live_price():
-    # Primary: Twelve Data — real-time BTC price
-    if TWELVE_DATA_KEY:
-        try:
-            r = requests.get("https://api.twelvedata.com/price",
-                             params={"symbol": "BTC/USD", "apikey": TWELVE_DATA_KEY},
-                             timeout=5)
-            val = float(r.json().get("price", 0))
-            if val > 0:
-                return val
-        except Exception:
-            pass
-    # Fallback: yfinance fast_info (used only if Twelve Data is unreachable)
-    try:
-        info = yf.Ticker(SYMBOL).fast_info
-        price = info.get("lastPrice") or info.get("last_price")
-        if price and float(price) > 0:
-            return float(price)
-    except Exception:
-        pass
-    return None
-
-# ── Daily trend filter ───────────────────────────────────────────────────────
-
 def get_daily_trend() -> int:
-    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses daily EMA(20)."""
     try:
-        df = yf.download(SYMBOL, period="3mo", interval="1d",
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < 22:
+        df = tv.get_hist("BTCUSD", "BITSTAMP", interval=Interval.in_daily, n_bars=30)
+        if df is None or df.empty or len(df) < 22:
             return 0
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        close = df["Close"].squeeze()
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
+        df.columns = [c.lower() for c in df.columns]
+        close = df["close"]
         ema20 = close.ewm(span=20, adjust=False).mean()
         return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
     except Exception:
@@ -221,16 +186,9 @@ def check_signal() -> None:
     if df is None:
         return
 
-    close = df["Close"].squeeze()
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
-    high  = df["High"].squeeze()
-    low   = df["Low"].squeeze()
-    if isinstance(high, pd.DataFrame):
-        high = high.iloc[:, 0]
-    if isinstance(low, pd.DataFrame):
-        low = low.iloc[:, 0]
-    close = close.dropna()
+    close = df["close"].dropna()
+    high  = df["high"]
+    low   = df["low"]
 
     fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
@@ -250,9 +208,6 @@ def check_signal() -> None:
     rsi_val = float(rsi.iloc[i])
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
-
-    # ATR floor scales with price — prevents an unrealistically tight SL/TP
-    # on quiet data regardless of what price level BTC is trading at.
     atr_val = max(atr_val, price * ATR_FLOOR_PCT)
 
     _seen_bars.add(bar_ts)
@@ -272,7 +227,7 @@ def check_signal() -> None:
         if trend == -1:
             log.info("SKIP BUY BTCUSD — daily trend bearish")
             return
-        entry = fetch_live_price() or price
+        entry = round(price, 2)
         sl = round(entry - ATR_SL_MULT * atr_val, 2)
         tp = round(entry + ATR_TP_MULT * atr_val, 2)
         log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
@@ -300,7 +255,7 @@ def check_signal() -> None:
         if trend == 1:
             log.info("SKIP SELL BTCUSD — daily trend bullish")
             return
-        entry = fetch_live_price() or price
+        entry = round(price, 2)
         sl = round(entry + ATR_SL_MULT * atr_val, 2)
         tp = round(entry - ATR_TP_MULT * atr_val, 2)
         log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
@@ -331,13 +286,13 @@ def main() -> None:
         raise SystemExit("BTC_BOT_TOKEN not set in .env")
 
     _load_seen_bars()
-    log.info("Crypto Bot started | symbol=%s  ema=%d/%d  rsi=%d  atr_sl=%.1fx  atr_tp=%.1fx  poll=%ds",
-             SYMBOL, FAST_EMA, SLOW_EMA, RSI_PERIOD, ATR_SL_MULT, ATR_TP_MULT, CHECK_SECS)
+    log.info("Crypto Bot started | ema=%d/%d  rsi=%d  atr_sl=%.1fx  atr_tp=%.1fx  poll=%ds",
+             FAST_EMA, SLOW_EMA, RSI_PERIOD, ATR_SL_MULT, ATR_TP_MULT, CHECK_SECS)
 
     tg_send(
         "₿ <b>Crypto Bot Online — BTCUSD</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n"
+        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H  [TradingView data]\n"
         f"⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
         "<i>Trades 24/7 — no market-hours restriction</i>\n"
         f"🕙 Daily report at 10:00 PM IST"

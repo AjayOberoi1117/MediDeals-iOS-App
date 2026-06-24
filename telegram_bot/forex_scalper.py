@@ -2,30 +2,40 @@
 Forex + Gold 15-Minute Scalper Bot
 Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars
 Symbols  : EURUSD, GBPUSD, USDJPY, XAUUSD
-Signals  : Entry, SL, TP (ATR-based 1:1.5 RR) via Telegram
+Data     : TradingView via tvdatafeed (no API key, no rate limits)
+Signals  : Entry, SL, TP (ATR-based 1:2 RR) via Telegram
 Report   : Daily summary at 10:00 PM IST
 """
 
 import os
 import time
-import socket
 import logging
 from datetime import datetime
 
 import pandas as pd
-import yfinance as yf
+from tvdatafeed import TvDatafeed, Interval
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
-from trade_executor import queue_trade
+
+try:
+    from trade_executor import queue_trade
+except ImportError:
+    def queue_trade(*args, **kwargs): pass
 
 load_dotenv()
 
-# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
-# rate-limit/throttle episode can block the single-threaded main loop
-# indefinitely.
-socket.setdefaulttimeout(30)
+# ── TradingView data source ────────────────────────────────────────────────────
+
+tv = TvDatafeed()
+
+_TV_MAP = {
+    "EURUSD": ("EURUSD", "FX_IDC"),
+    "GBPUSD": ("GBPUSD", "FX_IDC"),
+    "USDJPY": ("USDJPY", "FX_IDC"),
+    "XAUUSD": ("XAUUSD", "OANDA"),
+}
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -40,22 +50,11 @@ RSI_BUY_MAX    = 60
 RSI_SELL_MIN   = 40
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
-ATR_TP_MULT    = 2.0    # 1:2 RR — minimum worthwhile for scalping
-COOLDOWN_SECS  = 7200   # 2-hour cooldown per symbol
-SCAN_INTERVAL  = 60     # scan every 60 seconds
-TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
+ATR_TP_MULT    = 2.0
+COOLDOWN_SECS  = 7200
+SCAN_INTERVAL  = 60
 
-_TD_MAP = {"EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY", "XAUUSD": "XAU/USD"}
-
-# Approximate half-spread per symbol (mid → ASK for BUY, mid → BID for SELL)
-_SPREAD = {"EURUSD": 0.00010, "GBPUSD": 0.00015, "USDJPY": 0.012, "XAUUSD": 0.30}
-
-SYMBOLS = {
-    "EURUSD": "EURUSD=X",
-    "GBPUSD": "GBPUSD=X",
-    "USDJPY": "USDJPY=X",
-    "XAUUSD": "GC=F",   # XAUUSD=X was delisted by Yahoo — use Gold Futures instead
-}
+SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"]
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -67,8 +66,8 @@ log = logging.getLogger(__name__)
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
-_last_signal      = {}   # {name: timestamp}
-_seen_bars        = {}   # {name: set of bar timestamps}
+_last_signal      = {}
+_seen_bars        = {}
 _daily_signals    = []
 _report_sent_date = None
 
@@ -173,64 +172,26 @@ def calc_atr(high, low, close, period):
 
 # ── Data fetch ────────────────────────────────────────────────────────────────
 
-def fetch_data(ticker):
+def fetch_data(name):
+    sym, exch = _TV_MAP[name]
     try:
-        df = yf.download(ticker, period="5d", interval=TIMEFRAME,
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < SLOW_EMA + 5:
+        df = tv.get_hist(sym, exch, interval=Interval.in_15_minute, n_bars=100)
+        if df is None or df.empty or len(df) < SLOW_EMA + 5:
             return None
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
-        df.dropna(inplace=True)
-        return df if len(df) >= SLOW_EMA + 5 else None
+        df.columns = [c.lower() for c in df.columns]
+        return df
     except Exception as exc:
-        log.debug("Fetch error %s: %s", ticker, exc)
+        log.debug("Fetch error %s: %s", name, exc)
         return None
 
-# ── Live price: Twelve Data (primary, real-time) → yfinance (fallback) ───────
-
-def fetch_live_price(name):
-    # Primary: Twelve Data — real-time forex prices
-    td_sym = _TD_MAP.get(name)
-    if TWELVE_DATA_KEY and td_sym:
-        try:
-            r = requests.get("https://api.twelvedata.com/price",
-                             params={"symbol": td_sym, "apikey": TWELVE_DATA_KEY},
-                             timeout=5)
-            val = float(r.json().get("price", 0))
-            if val > 0:
-                return val
-        except Exception:
-            pass
-    # Fallback: yfinance fast_info (used only if Twelve Data is unreachable)
-    ticker = SYMBOLS.get(name)
-    if ticker:
-        try:
-            info = yf.Ticker(ticker).fast_info
-            price = info.get("lastPrice") or info.get("last_price")
-            if price and float(price) > 0:
-                return float(price)
-        except Exception:
-            pass
-    return None
-
-# ── Higher-timeframe trend filter ────────────────────────────────────────────
-# Only trade in the direction of the 1H trend. Prevents entering counter-trend
-# scalps that are the primary cause of SL hits on EMA crossover strategies.
-
-def get_1h_trend(yf_ticker: str) -> int:
-    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses 1H EMA(50)."""
+def get_1h_trend(name) -> int:
+    sym, exch = _TV_MAP[name]
     try:
-        df = yf.download(yf_ticker, period="30d", interval="1h",
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < 52:
+        df = tv.get_hist(sym, exch, interval=Interval.in_1_hour, n_bars=60)
+        if df is None or df.empty or len(df) < 52:
             return 0
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        close = df["Close"].squeeze()
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
+        df.columns = [c.lower() for c in df.columns]
+        close = df["close"]
         ema50 = close.ewm(span=50, adjust=False).mean()
         return 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
     except Exception:
@@ -238,8 +199,8 @@ def get_1h_trend(yf_ticker: str) -> int:
 
 # ── Signal check ──────────────────────────────────────────────────────────────
 
-def check_symbol(name, ticker):
-    df = fetch_data(ticker)
+def check_symbol(name):
+    df = fetch_data(name)
     if df is None:
         return
 
@@ -247,12 +208,9 @@ def check_symbol(name, ticker):
     if now_ts - _last_signal.get(name, 0) < COOLDOWN_SECS:
         return
 
-    close = df["Close"].squeeze()
-    high  = df["High"].squeeze()
-    low   = df["Low"].squeeze()
-    if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
-    if isinstance(high,  pd.DataFrame): high  = high.iloc[:,  0]
-    if isinstance(low,   pd.DataFrame): low   = low.iloc[:,   0]
+    close = df["close"]
+    high  = df["high"]
+    low   = df["low"]
 
     fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
@@ -274,7 +232,6 @@ def check_symbol(name, ticker):
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
 
-    # Minimum ATR floor — prevents unrealistically tight SL/TP on quiet data
     _atr_min = {"EURUSD": 0.00100, "GBPUSD": 0.00120, "USDJPY": 0.12, "XAUUSD": 2.0}
     atr_val = max(atr_val, _atr_min.get(name, atr_val))
 
@@ -286,15 +243,11 @@ def check_symbol(name, ticker):
     pfx     = "$" if is_gold else ""
     rr      = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
-    spread = _SPREAD.get(name, 0)
-    trend  = get_1h_trend(ticker)
-
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        if trend == -1:
-            log.info("SKIP BUY  %s — 1H trend bearish (EMA50 above price)", name)
+        if get_1h_trend(name) == -1:
+            log.info("SKIP BUY  %s — 1H trend bearish", name)
             return
-        mid = fetch_live_price(name) or price
-        entry = round(mid + spread, dec)   # BUY fills at ASK = mid + spread
+        entry = round(price, dec)
         sl = round(entry - ATR_SL_MULT * atr_val, dec)
         tp = round(entry + ATR_TP_MULT * atr_val, dec)
         log.info("BUY  %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
@@ -320,11 +273,10 @@ def check_symbol(name, ticker):
         _last_signal[name] = now_ts
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        if trend == 1:
-            log.info("SKIP SELL %s — 1H trend bullish (EMA50 below price)", name)
+        if get_1h_trend(name) == 1:
+            log.info("SKIP SELL %s — 1H trend bullish", name)
             return
-        mid = fetch_live_price(name) or price
-        entry = round(mid - spread, dec)   # SELL fills at BID = mid - spread
+        entry = round(price, dec)
         sl = round(entry + ATR_SL_MULT * atr_val, dec)
         tp = round(entry - ATR_TP_MULT * atr_val, dec)
         log.info("SELL %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
@@ -363,18 +315,18 @@ def main():
     tg_send(
         "⚡ <b>Forex + Gold Scalper Online</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
+        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min  [TradingView data]\n"
         f"💱 EURUSD  •  GBPUSD  •  USDJPY  •  XAUUSD\n"
-        f"⚖️ SL = 1x ATR  |  TP = 1.5x ATR\n"
+        f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n"
         f"🕙 Daily report at 10:00 PM IST"
     )
 
     while True:
         try:
             maybe_send_daily_report()
-            for name, ticker in SYMBOLS.items():
+            for name in SYMBOLS:
                 try:
-                    check_symbol(name, ticker)
+                    check_symbol(name)
                 except Exception as exc:
                     log.debug("Error on %s: %s", name, exc)
                 time.sleep(2)

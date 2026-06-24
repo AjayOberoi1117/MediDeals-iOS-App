@@ -1,7 +1,8 @@
 """
 Upstox Stock Scanner Bot
 Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars
-Universe : Top NSE large-cap stocks
+Universe : Top NSE large-cap stocks (Nifty 50)
+Data     : TradingView via tvdatafeed (no API key, no rate limits)
 Session  : 9:15 AM – 3:30 PM IST only
 Signals  : Telegram via Elite bot with Entry, SL, TP (ATR-based)
 Report   : Daily summary at 10:00 PM IST
@@ -9,13 +10,12 @@ Report   : Daily summary at 10:00 PM IST
 
 import os
 import time
-import socket
 import logging
 import json
 from datetime import datetime
 
 import pandas as pd
-import yfinance as yf
+from tvdatafeed import TvDatafeed, Interval
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
@@ -23,79 +23,43 @@ from emailer import email_send
 
 load_dotenv()
 
-# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
-# rate-limit/throttle episode can block the single-threaded main loop
-# indefinitely.
-socket.setdefaulttimeout(30)
+# ── TradingView data source ────────────────────────────────────────────────────
+
+tv = TvDatafeed()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
 TELEGRAM_TOKEN = os.getenv("ELITE_BOT_TOKEN", "8708193257:AAG6wpyb8popoOmDxnmjP15OaTc2R0sf9Nc")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",  "1994067941")
 TIMEFRAME      = "15m"
-FAST_EMA       = 9             # was 10 — EMA(9/21) standard for 15-min intraday
-SLOW_EMA       = 21            # was 50 — EMA(50) on 15-min = 12.5hrs, never crosses intraday
+FAST_EMA       = 9
+SLOW_EMA       = 21
 RSI_PERIOD     = 14
-RSI_BUY_MAX    = 75            # was 70 — wider filter for volatile Indian markets
-RSI_SELL_MIN   = 25            # was 30
+RSI_BUY_MAX    = 75
+RSI_SELL_MIN   = 25
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 2.0
-MAX_SIGNALS_PER_SCAN = 5       # was 3 — allow more signals on volatile days
-MAX_SIGNALS_PER_STOCK_PER_DAY = 2   # stop hammering the same 1-2 stocks all day
-COOLDOWN_SECS  = 1800          # was 3600 — 30 min cooldown (was 1 hour, too restrictive)
-SCAN_INTERVAL  = 300           # scan every 5 minutes
+MAX_SIGNALS_PER_SCAN = 5
+MAX_SIGNALS_PER_STOCK_PER_DAY = 2
+COOLDOWN_SECS  = 1800
+SCAN_INTERVAL  = 300
 MARKET_OPEN    = (9, 15)
 MARKET_CLOSE   = (15, 30)
 
-UPSTOX_TOKEN   = os.getenv("UPSTOX_TOKEN", "")
-_UPSTOX_HDR    = {"Accept": "application/json", "Authorization": f"Bearer {UPSTOX_TOKEN}"}
-
-# Nifty 50 constituents
+# Nifty 50 constituents — symbol names as used on TradingView NSE
 STOCKS = [
-    "ADANIENT.NS",  "ADANIPORTS.NS","APOLLOHOSP.NS","ASIANPAINT.NS","AXISBANK.NS",
-    "BAJAJ-AUTO.NS","BAJFINANCE.NS","BAJAJFINSV.NS","BPCL.NS",      "BHARTIARTL.NS",
-    "BRITANNIA.NS", "CIPLA.NS",     "COALINDIA.NS", "DRREDDY.NS",   "EICHERMOT.NS",
-    "GRASIM.NS",    "HCLTECH.NS",   "HDFCBANK.NS",  "HDFCLIFE.NS",  "HEROMOTOCO.NS",
-    "HINDALCO.NS",  "HINDUNILVR.NS","ICICIBANK.NS", "ITC.NS",       "INDUSINDBK.NS",
-    "INFY.NS",      "JSWSTEEL.NS",  "KOTAKBANK.NS", "LT.NS",        "LTIM.NS",
-    "M&M.NS",       "MARUTI.NS",    "NTPC.NS",      "NESTLEIND.NS", "ONGC.NS",
-    "POWERGRID.NS", "RELIANCE.NS",  "SBILIFE.NS",   "SHRIRAMFIN.NS","SBIN.NS",
-    "SUNPHARMA.NS", "TCS.NS",       "TATACONSUM.NS","TATAMOTORS.NS","TATASTEEL.NS",
-    "TECHM.NS",     "TITAN.NS",     "TRENT.NS",     "ULTRACEMCO.NS","WIPRO.NS",
+    "ADANIENT",  "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK",
+    "BAJAJ-AUTO","BAJFINANCE", "BAJAJFINSV", "BPCL",       "BHARTIARTL",
+    "BRITANNIA", "CIPLA",      "COALINDIA",  "DRREDDY",    "EICHERMOT",
+    "GRASIM",    "HCLTECH",    "HDFCBANK",   "HDFCLIFE",   "HEROMOTOCO",
+    "HINDALCO",  "HINDUNILVR", "ICICIBANK",  "ITC",        "INDUSINDBK",
+    "INFY",      "JSWSTEEL",   "KOTAKBANK",  "LT",         "LTIM",
+    "M&M",       "MARUTI",     "NTPC",       "NESTLEIND",  "ONGC",
+    "POWERGRID", "RELIANCE",   "SBILIFE",    "SHRIRAMFIN", "SBIN",
+    "SUNPHARMA", "TCS",        "TATACONSUM", "TATAMOTORS", "TATASTEEL",
+    "TECHM",     "TITAN",      "TRENT",      "ULTRACEMCO", "WIPRO",
 ]
-
-# ── Live price (Upstox — requires daily trading token) ───────────────────────
-
-def fetch_live_price_upstox(ticker: str):
-    token = os.getenv("UPSTOX_TOKEN", "")
-    if not token:
-        return None
-    ikey = f"NSE_EQ|{ticker.replace('.NS', '')}"
-    try:
-        hdr = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
-        r = requests.get("https://api.upstox.com/v2/market-quote/quotes",
-                         headers=hdr,
-                         params={"instrument_key": ikey},
-                         timeout=5)
-        if r.status_code != 200:
-            return None
-        data = r.json().get("data", {})
-        val  = data.get(ikey.replace("|", ":"), {}).get("last_price", 0)
-        return float(val) if val else None
-    except Exception:
-        return None
-
-# ── Live price fallback (yfinance — no token needed) ─────────────────────────
-
-def fetch_live_price_yf(ticker: str):
-    """yfinance fast_info gives ~1-min fresh price with no API key."""
-    try:
-        info = yf.Ticker(ticker).fast_info
-        price = info.get("lastPrice") or info.get("last_price")
-        return float(price) if price and float(price) > 0 else None
-    except Exception:
-        return None
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -107,17 +71,14 @@ log = logging.getLogger(__name__)
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
-_last_signal         = {}   # {symbol: timestamp}
-_signal_count_today  = {}   # {symbol: count} — caps repeated signals on one stock
+_last_signal         = {}
+_signal_count_today  = {}
 _daily_signals       = []
 _report_sent_date    = None
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), ".state_scanner.json")
 
 def _load_state():
-    """Restore cooldown + daily cap across restarts — without this, a process
-    restart (crash or watchdog) wipes the in-memory cooldown and lets the same
-    stock fire again immediately, which looked like a signal every ~15min."""
     global _last_signal, _signal_count_today
     try:
         with open(STATE_FILE) as f:
@@ -165,7 +126,7 @@ def tg_send(text: str) -> None:
 
 def record_signal(symbol, direction, price, sl, tp):
     _daily_signals.append({
-        "symbol":    symbol.replace(".NS", ""),
+        "symbol":    symbol,
         "direction": direction,
         "price":     price,
         "sl":        sl,
@@ -232,41 +193,24 @@ def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> 
 
 def fetch_stock(ticker: str):
     try:
-        df = yf.download(ticker, period="10d", interval=TIMEFRAME,
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < SLOW_EMA + 5:
+        df = tv.get_hist(ticker, "NSE", interval=Interval.in_15_minute, n_bars=100)
+        if df is None or df.empty or len(df) < SLOW_EMA + 5:
             return None
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-
-        df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
-        df.index = pd.to_datetime(df.index)
-        # Keep only IST market hours (UTC 03:45–10:00)
-        df = df.between_time("03:45", "10:00")
+        df.columns = [c.lower() for c in df.columns]
+        df = df[["open", "high", "low", "close", "volume"]].copy()
         df.dropna(inplace=True)
         return df if len(df) >= SLOW_EMA + 5 else None
     except Exception as exc:
         log.debug("Fetch error %s: %s", ticker, exc)
         return None
 
-# ── Daily trend filter ───────────────────────────────────────────────────────
-# Without this, a noisy 15-min EMA(9/21) cross can fire BUY on a stock that's
-# actually trending down on the daily chart — exactly what happened with
-# repeated ADANIENT buys. Skip any signal that goes against the daily trend.
-
 def get_daily_trend(ticker: str) -> int:
-    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses daily EMA(20)."""
     try:
-        df = yf.download(ticker, period="3mo", interval="1d",
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < 22:
+        df = tv.get_hist(ticker, "NSE", interval=Interval.in_daily, n_bars=30)
+        if df is None or df.empty or len(df) < 22:
             return 0
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        close = df["Close"].squeeze()
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
+        df.columns = [c.lower() for c in df.columns]
+        close = df["close"]
         ema20 = close.ewm(span=20, adjust=False).mean()
         return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
     except Exception:
@@ -279,13 +223,9 @@ def check_stock(ticker: str):
     if df is None:
         return None
 
-    close    = df["Close"].squeeze()
-    high     = df["High"].squeeze()
-    low      = df["Low"].squeeze()
-
-    if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
-    if isinstance(high,  pd.DataFrame): high  = high.iloc[:,  0]
-    if isinstance(low,   pd.DataFrame): low   = low.iloc[:,   0]
+    close = df["close"]
+    high  = df["high"]
+    low   = df["low"]
 
     fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
@@ -321,12 +261,11 @@ def check_stock(ticker: str):
 # ── Signal formatter ──────────────────────────────────────────────────────────
 
 def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
-    name = ticker.replace(".NS", "")
-    em   = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
-    rr   = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
+    em  = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
+    rr  = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
     return (
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔍 <b>STOCK SCANNER — {name}</b>\n"
+        f"🔍 <b>STOCK SCANNER — {ticker}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📈 <b>Signal    :</b> {em}\n"
         f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
@@ -366,25 +305,15 @@ def run_scan():
             result = check_stock(ticker)
             if result:
                 direction, price, sl, tp, rsi_val, atr_val = result
-                # Priority: Upstox (daily token) → yfinance fast_info → bar close
-                live = fetch_live_price_upstox(ticker) or fetch_live_price_yf(ticker)
-                if live:
-                    entry = live
-                    sl = round(entry - ATR_SL_MULT * atr_val, 2) if direction == "BUY" \
-                         else round(entry + ATR_SL_MULT * atr_val, 2)
-                    tp = round(entry + ATR_TP_MULT * atr_val, 2) if direction == "BUY" \
-                         else round(entry - ATR_TP_MULT * atr_val, 2)
-                else:
-                    entry = price
                 log.info("SIGNAL %s %s | ₹%.2f → SL ₹%.2f  TP ₹%.2f",
-                         ticker, direction, entry, sl, tp)
-                tg_send(format_stock_signal(ticker, direction, entry, sl, tp, rsi_val, atr_val))
-                record_signal(ticker, direction, entry, sl, tp)
+                         ticker, direction, price, sl, tp)
+                tg_send(format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val))
+                record_signal(ticker, direction, price, sl, tp)
                 _last_signal[ticker] = time.time()
                 _signal_count_today[ticker] = _signal_count_today.get(ticker, 0) + 1
                 _save_state()
                 fired += 1
-                time.sleep(1)   # small gap between Telegram messages
+                time.sleep(1)
         except Exception as exc:
             log.debug("Error scanning %s: %s", ticker, exc)
 
@@ -401,7 +330,7 @@ def main() -> None:
     tg_send(
         "🔍 <b>Stock Scanner Online</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
+        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min  [TradingView data]\n"
         f"📋 Watching {len(STOCKS)} NSE stocks\n"
         f"🕙 Daily report at 10:00 PM IST\n"
         "<i>Active during market hours only (9:15–3:30 IST)</i>"

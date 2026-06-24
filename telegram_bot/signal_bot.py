@@ -1,53 +1,55 @@
 """
 signal_bot.py — Telegram Forex Signal Bot
-Strategy : EMA(10/50) crossover + RSI(14) on 1H bars
-Data     : Yahoo Finance — no API key needed
+Strategy : EMA(9/21) crossover + RSI(14) on 1H bars
+Data     : TradingView via tvdatafeed (no API key, no rate limits)
 Signals  : Entry, Stop Loss, Take Profit (ATR-based), Risk/Reward
 Report   : Daily summary at 10:00 PM IST
 """
 
 import os
 import time
-import socket
 import logging
 from datetime import datetime
 
 import pandas as pd
-import yfinance as yf
+from tvdatafeed import TvDatafeed, Interval
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
-from trade_executor import queue_trade
+
+try:
+    from trade_executor import queue_trade
+except ImportError:
+    def queue_trade(*args, **kwargs): pass
 
 load_dotenv()
 
-# Yahoo Finance calls have no built-in timeout — without this, a Yahoo
-# rate-limit/throttle episode can block the single-threaded main loop
-# indefinitely.
-socket.setdefaulttimeout(30)
+# ── TradingView data source ────────────────────────────────────────────────────
+
+tv = TvDatafeed()
+
+_TV_MAP = {
+    "EURUSD": ("EURUSD", "FX_IDC"),
+    "GBPUSD": ("GBPUSD", "FX_IDC"),
+    "USDJPY": ("USDJPY", "FX_IDC"),
+    "XAUUSD": ("XAUUSD", "OANDA"),
+}
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-SYMBOL       = os.getenv("SIGNAL_SYMBOL",   "EURUSD=X")
-SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     SYMBOL)
+SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     "EURUSD")
 BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("ELITE_BOT_TOKEN", ""))
 CHAT_ID      = os.getenv("SIGNAL_CHAT_ID",  "1994067941")
-TIMEFRAME    = os.getenv("SIGNAL_TF",       "1h")
-FAST_EMA     = int(os.getenv("FAST_EMA",    "10"))
-SLOW_EMA     = int(os.getenv("SLOW_EMA",    "50"))
+FAST_EMA     = int(os.getenv("FAST_EMA",    "9"))
+SLOW_EMA     = int(os.getenv("SLOW_EMA",    "21"))
 RSI_PERIOD   = int(os.getenv("RSI_PERIOD",  "14"))
 RSI_BUY_MAX  = int(os.getenv("RSI_BUY_MAX", "65"))
 RSI_SELL_MIN = int(os.getenv("RSI_SELL_MIN","35"))
 ATR_PERIOD   = 14
 ATR_SL_MULT  = 1.0
-ATR_TP_MULT  = 3.0    # 1:3 RR — professional standard for 1H swing
+ATR_TP_MULT  = 3.0
 CHECK_SECS   = int(os.getenv("CHECK_SECS",  "60"))
-TWELVE_DATA_KEY = os.getenv("TWELVE_DATA_KEY", "")
-
-_TD_MAP    = {"EURUSD": "EUR/USD", "GBPUSD": "GBP/USD", "USDJPY": "USD/JPY", "XAUUSD": "XAU/USD"}
-_YF_TICKER = {"EURUSD": "EURUSD=X", "GBPUSD": "GBPUSD=X", "USDJPY": "USDJPY=X", "XAUUSD": "XAUUSD=X"}
-_SPREAD    = {"EURUSD": 0.00010, "GBPUSD": 0.00015, "USDJPY": 0.012, "XAUUSD": 0.30}
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -106,6 +108,7 @@ def record_signal(direction, price, sl, tp):
 def send_daily_report():
     today = datetime.now().strftime("%d %b %Y")
     n     = len(_daily_signals)
+    dec   = 3 if "JPY" in SYMBOL_NAME else 5
     lines = [
         f"📊 <b>Daily Signal Report — {today}</b>",
         "━━━━━━━━━━━━━━━━━━━━━━",
@@ -120,7 +123,7 @@ def send_daily_report():
             rr = round(abs(s["tp"] - s["price"]) / max(abs(s["sl"] - s["price"]), 0.0001), 1)
             lines.append(
                 f"{i}. {em} <b>{SYMBOL_NAME}</b> {s['direction']}  @  {s['time']}\n"
-                f"   Entry {s['price']:.5f}  •  SL {s['sl']:.5f}  •  TP {s['tp']:.5f}  •  RR 1:{rr}"
+                f"   Entry {s['price']:.{dec}f}  •  SL {s['sl']:.{dec}f}  •  TP {s['tp']:.{dec}f}  •  RR 1:{rr}"
             )
     lines += [
         "",
@@ -160,59 +163,26 @@ def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> 
 # ── Data fetch ────────────────────────────────────────────────────────────────
 
 def fetch_ohlcv():
+    sym, exch = _TV_MAP.get(SYMBOL_NAME, (SYMBOL_NAME, "FX_IDC"))
     try:
-        df = yf.download(SYMBOL, period="30d", interval=TIMEFRAME,
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < SLOW_EMA + 10:
-            log.warning("Not enough bars (%d). Will retry.", len(df))
+        df = tv.get_hist(sym, exch, interval=Interval.in_1_hour, n_bars=200)
+        if df is None or df.empty or len(df) < SLOW_EMA + 10:
+            log.warning("Not enough bars. Will retry.")
             return None
+        df.columns = [c.lower() for c in df.columns]
         return df
     except Exception as exc:
         log.warning("Data fetch error: %s", exc)
         return None
 
-# ── Live price: Twelve Data (primary, real-time) → yfinance (fallback) ───────
-
-def fetch_live_price():
-    # Primary: Twelve Data — real-time forex prices
-    td_sym = _TD_MAP.get(SYMBOL_NAME)
-    if TWELVE_DATA_KEY and td_sym:
-        try:
-            r = requests.get("https://api.twelvedata.com/price",
-                             params={"symbol": td_sym, "apikey": TWELVE_DATA_KEY},
-                             timeout=5)
-            val = float(r.json().get("price", 0))
-            if val > 0:
-                return val
-        except Exception:
-            pass
-    # Fallback: yfinance fast_info (used only if Twelve Data is unreachable)
-    yf_ticker = _YF_TICKER.get(SYMBOL_NAME)
-    if yf_ticker:
-        try:
-            info = yf.Ticker(yf_ticker).fast_info
-            price = info.get("lastPrice") or info.get("last_price")
-            if price and float(price) > 0:
-                return float(price)
-        except Exception:
-            pass
-    return None
-
-# ── Daily trend filter ───────────────────────────────────────────────────────
-# For 1H signals, only trade with the daily trend to avoid counter-trend entries.
-
 def get_daily_trend() -> int:
-    """Returns 1 (bullish), -1 (bearish), 0 (unknown). Uses daily EMA(20)."""
+    sym, exch = _TV_MAP.get(SYMBOL_NAME, (SYMBOL_NAME, "FX_IDC"))
     try:
-        df = yf.download(SYMBOL, period="3mo", interval="1d",
-                         progress=False, auto_adjust=True)
-        if df.empty or len(df) < 22:
+        df = tv.get_hist(sym, exch, interval=Interval.in_daily, n_bars=30)
+        if df is None or df.empty or len(df) < 22:
             return 0
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        close = df["Close"].squeeze()
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
+        df.columns = [c.lower() for c in df.columns]
+        close = df["close"]
         ema20 = close.ewm(span=20, adjust=False).mean()
         return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
     except Exception:
@@ -225,16 +195,9 @@ def check_signal() -> None:
     if df is None:
         return
 
-    close = df["Close"].squeeze()
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
-    high = df["High"].squeeze()
-    if isinstance(high, pd.DataFrame):
-        high = high.iloc[:, 0]
-    low = df["Low"].squeeze()
-    if isinstance(low, pd.DataFrame):
-        low = low.iloc[:, 0]
-    close = close.dropna()
+    close = df["close"].dropna()
+    high  = df["high"]
+    low   = df["low"]
 
     fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
@@ -256,8 +219,7 @@ def check_signal() -> None:
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
 
-    # Minimum ATR floor for 1H bars
-    _atr_min = {"EURUSD": 0.00150, "GBPUSD": 0.00180, "USDJPY": 0.20}
+    _atr_min = {"EURUSD": 0.00150, "GBPUSD": 0.00180, "USDJPY": 0.20, "XAUUSD": 3.0}
     atr_val = max(atr_val, _atr_min.get(SYMBOL_NAME, atr_val))
 
     _seen_bars.add(bar_ts)
@@ -270,17 +232,14 @@ def check_signal() -> None:
              float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
              rsi_val, atr_val, bull_cross, bear_cross)
 
-    dec    = 3 if "JPY" in SYMBOL_NAME else 5
-    rr     = round(ATR_TP_MULT / ATR_SL_MULT, 1)
-    spread = _SPREAD.get(SYMBOL_NAME, 0)
-    trend  = get_daily_trend()
+    dec = 3 if "JPY" in SYMBOL_NAME else 5
+    rr  = round(ATR_TP_MULT / ATR_SL_MULT, 1)
 
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        if trend == -1:
-            log.info("SKIP BUY — daily trend bearish (price below daily EMA20)")
+        if get_daily_trend() == -1:
+            log.info("SKIP BUY — daily trend bearish")
             return
-        mid   = fetch_live_price() or price
-        entry = round(mid + spread, dec)   # BUY fills at ASK = mid + spread
+        entry = round(price, dec)
         sl = round(entry - ATR_SL_MULT * atr_val, dec)
         tp = round(entry + ATR_TP_MULT * atr_val, dec)
         log.info(">>> BUY SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, entry, dec, sl, dec, tp)
@@ -305,11 +264,10 @@ def check_signal() -> None:
         queue_trade(SYMBOL_NAME, "BUY", sl, tp, source=f"{SYMBOL_NAME}_1H")
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        if trend == 1:
-            log.info("SKIP SELL — daily trend bullish (price above daily EMA20)")
+        if get_daily_trend() == 1:
+            log.info("SKIP SELL — daily trend bullish")
             return
-        mid   = fetch_live_price() or price
-        entry = round(mid - spread, dec)   # SELL fills at BID = mid - spread
+        entry = round(price, dec)
         sl = round(entry + ATR_SL_MULT * atr_val, dec)
         tp = round(entry - ATR_TP_MULT * atr_val, dec)
         log.info(">>> SELL SIGNAL <<<  Entry=%.*f  SL=%.*f  TP=%.*f", dec, entry, dec, sl, dec, tp)
@@ -340,14 +298,14 @@ def main() -> None:
         raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or ELITE_BOT_TOKEN in .env")
 
     _load_seen_bars()
-    log.info("Starting | symbol=%s  tf=%s  ema=%d/%d  rsi=%d  poll=%ds",
-             SYMBOL_NAME, TIMEFRAME, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS)
+    log.info("Starting | symbol=%s  ema=%d/%d  rsi=%d  poll=%ds",
+             SYMBOL_NAME, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS)
 
     tg_send(
         f"💱 <b>{SYMBOL_NAME} Signal Bot Online</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n"
-        f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n"
+        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H  [TradingView data]\n"
+        f"⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
         f"🕙 Daily report at 10:00 PM IST"
     )
 
