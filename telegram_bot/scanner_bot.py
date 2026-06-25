@@ -190,9 +190,7 @@ def check_stock(ticker):
     if bull_cross and rsi_val < RSI_BUY_MAX:
         if get_daily_trend(ticker) == -1: log.info("SKIP BUY  %s — daily trend bearish", ticker); return None
         return "BUY", price, round(price - ATR_SL_MULT*atr_val, 2), round(price + ATR_TP_MULT*atr_val, 2), rsi_val, atr_val
-    elif bear_cross and rsi_val > RSI_SELL_MIN:
-        if get_daily_trend(ticker) == 1: log.info("SKIP SELL %s — daily trend bullish", ticker); return None
-        return "SELL", price, round(price + ATR_SL_MULT*atr_val, 2), round(price - ATR_TP_MULT*atr_val, 2), rsi_val, atr_val
+    # SELL signals disabled — Indian equity cannot be shorted in MIS
     return None
 
 def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
