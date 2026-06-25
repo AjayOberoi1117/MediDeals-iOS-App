@@ -1,18 +1,19 @@
 """
 Crypto Trading Signal Bot — BTCUSD
 Strategy : EMA(9/21) crossover + RSI(14) on 1-hour bars
-Data     : TradingView via tvdatafeed (no API key, no rate limits)
+Data     : Yahoo Finance BTC-USD with 14-min caching + retry (avoids rate limits)
 Signals  : Telegram via dedicated Crypto bot with Entry, SL, TP
 Report   : Daily P&L summary at 10:00 PM IST
 """
 
 import os
 import time
+import socket
 import logging
 from datetime import datetime
 
 import pandas as pd
-from tvdatafeed import TvDatafeed, Interval
+import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
@@ -24,15 +25,11 @@ except ImportError:
     def queue_trade(*args, **kwargs): pass
 
 load_dotenv()
-
-# ── TradingView data source ────────────────────────────────────────────────────
-
-tv = TvDatafeed()
-
-# ── Config ────────────────────────────────────────────────────────────────────
+socket.setdefaulttimeout(30)
 
 TELEGRAM_TOKEN = os.getenv("BTC_BOT_TOKEN", "")
 CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "1994067941")
+SYMBOL         = "BTC-USD"
 DISPLAY_NAME   = "BTCUSD"
 FAST_EMA       = 9
 SLOW_EMA       = 21
@@ -42,268 +39,169 @@ RSI_SELL_MIN   = 30
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 3.0
-ATR_FLOOR_PCT  = 0.003   # 0.3% of price — scales with BTC's price level
+ATR_FLOOR_PCT  = 0.003
 CHECK_SECS     = 60
+CACHE_TTL      = 840   # 14 min cache
 
-# ── Logging ───────────────────────────────────────────────────────────────────
-
-logging.basicConfig(
-    format="%(asctime)s | BTCUSD   | %(levelname)s | %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(format="%(asctime)s | BTCUSD   | %(levelname)s | %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
-
-# ── State ─────────────────────────────────────────────────────────────────────
 
 _seen_bars        = set()
 _daily_signals    = []
 _report_sent_date = None
+_cache            = {}
 
 SEEN_FILE = os.path.join(os.path.dirname(__file__), ".seen_btc")
 
 def _load_seen_bars():
     try:
         with open(SEEN_FILE) as f:
-            for line in f:
-                _seen_bars.add(line.strip())
-    except FileNotFoundError:
-        pass
+            for line in f: _seen_bars.add(line.strip())
+    except FileNotFoundError: pass
 
 def _save_seen_bar(bar_ts):
-    with open(SEEN_FILE, "a") as f:
-        f.write(bar_ts + "\n")
+    with open(SEEN_FILE, "a") as f: f.write(bar_ts + "\n")
 
-# ── Telegram ──────────────────────────────────────────────────────────────────
-
-def tg_send(text: str) -> None:
+def tg_send(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
-        r = requests.post(url,
-                          data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"},
-                          timeout=10)
-        if not r.json().get("ok"):
-            log.warning("Telegram send failed: %s", r.text[:120])
-    except Exception as exc:
-        log.warning("Telegram error: %s", exc)
+        r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
+        if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
+    except Exception as exc: log.warning("Telegram error: %s", exc)
     wapp_send(text)
     email_send("Trading Signal: BTCUSD Crypto", text)
 
-# ── Daily report ──────────────────────────────────────────────────────────────
-
 def record_signal(direction, price, sl, tp):
-    _daily_signals.append({
-        "direction": direction,
-        "price":     price,
-        "sl":        sl,
-        "tp":        tp,
-        "time":      datetime.now().strftime("%I:%M %p"),
-    })
+    _daily_signals.append({"direction": direction, "price": price, "sl": sl, "tp": tp,
+                            "time": datetime.now().strftime("%I:%M %p")})
 
 def send_daily_report():
-    today = datetime.now().strftime("%d %b %Y")
-    n     = len(_daily_signals)
-    lines = [
-        f"📊 <b>Daily Signal Report — {today}</b>",
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        f"<b>Crypto Bot (BTCUSD)</b>  |  Signals Today: <b>{n}</b>",
-        "",
-    ]
-    if n == 0:
-        lines.append("No signals were generated today.")
+    today = datetime.now().strftime("%d %b %Y"); n = len(_daily_signals)
+    lines = [f"📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
+             f"<b>Crypto Bot (BTCUSD)</b>  |  Signals Today: <b>{n}</b>", ""]
+    if n == 0: lines.append("No signals were generated today.")
     else:
         for i, s in enumerate(_daily_signals, 1):
             em = "🟢" if s["direction"] == "BUY" else "🔴"
             rr = round(abs(s["tp"] - s["price"]) / max(abs(s["sl"] - s["price"]), 0.01), 1)
-            lines.append(
-                f"{i}. {em} <b>BTCUSD</b> {s['direction']}  @  {s['time']}\n"
-                f"   Entry ${s['price']:,.2f}  •  SL ${s['sl']:,.2f}  •  TP ${s['tp']:,.2f}  •  RR 1:{rr}"
-            )
-    lines += [
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        "📌 <i>Check your exchange for actual P&amp;L</i>",
-    ]
-    tg_send("\n".join(lines))
-    log.info("Daily report sent.")
+            lines.append(f"{i}. {em} <b>BTCUSD</b> {s['direction']}  @  {s['time']}\n"
+                         f"   Entry ${s['price']:,.2f}  •  SL ${s['sl']:,.2f}  •  TP ${s['tp']:,.2f}  •  RR 1:{rr}")
+    lines += ["", "━━━━━━━━━━━━━━━━━━━━━━", "📌 <i>Check your exchange for actual P&amp;L</i>"]
+    tg_send("\n".join(lines)); log.info("Daily report sent.")
 
 def maybe_send_daily_report():
     global _report_sent_date, _daily_signals
-    now   = datetime.now()
-    today = now.date()
+    now = datetime.now(); today = now.date()
     if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
-        _report_sent_date = today
-        send_daily_report()
-    if now.hour == 0 and now.minute < 2 and _daily_signals:
-        _daily_signals.clear()
+        _report_sent_date = today; send_daily_report()
+    if now.hour == 0 and now.minute < 2 and _daily_signals: _daily_signals.clear()
 
-# ── Indicators ────────────────────────────────────────────────────────────────
+def calc_rsi(close, period):
+    delta = close.diff()
+    ag = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    al = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    return 100 - 100 / (1 + ag / al)
 
-def calc_rsi(close: pd.Series, period: int) -> pd.Series:
-    delta    = close.diff()
-    avg_gain = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    avg_loss = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    return 100 - 100 / (1 + avg_gain / avg_loss)
-
-def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> pd.Series:
-    prev_close = close.shift(1)
-    tr = pd.concat([
-        high - low,
-        (high - prev_close).abs(),
-        (low  - prev_close).abs(),
-    ], axis=1).max(axis=1)
+def calc_atr(high, low, close, period):
+    pc = close.shift(1)
+    tr = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
     return tr.ewm(span=period, adjust=False).mean()
 
-# ── Data fetch ────────────────────────────────────────────────────────────────
+def _yf_download(ticker, period, interval):
+    for attempt in range(3):
+        try:
+            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+            if df is not None and not df.empty: return df
+        except Exception as exc:
+            log.warning("yfinance attempt %d failed: %s", attempt + 1, exc)
+        if attempt < 2: time.sleep(5 * (2 ** attempt))
+    return None
 
 def fetch_ohlcv():
-    try:
-        df = tv.get_hist("BTCUSD", "BITSTAMP", interval=Interval.in_1_hour, n_bars=200)
-        if df is None or df.empty or len(df) < SLOW_EMA + 10:
-            log.warning("Not enough bars (%d). Will retry.", 0 if df is None else len(df))
-            return None
-        df.columns = [c.lower() for c in df.columns]
-        return df
-    except Exception as exc:
-        log.warning("Data fetch error: %s", exc)
-        return None
+    now = time.time()
+    cached = _cache.get("1h")
+    if cached and now - cached[0] < CACHE_TTL: return cached[1]
+    df = _yf_download(SYMBOL, "60d", "1h")
+    if df is None or len(df) < SLOW_EMA + 10:
+        log.warning("Not enough bars. Will retry."); return None
+    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
+    _cache["1h"] = (now, df)
+    log.info("Fetched %d 1H bars for BTC", len(df))
+    return df
 
-def get_daily_trend() -> int:
-    try:
-        df = tv.get_hist("BTCUSD", "BITSTAMP", interval=Interval.in_daily, n_bars=30)
-        if df is None or df.empty or len(df) < 22:
-            return 0
-        df.columns = [c.lower() for c in df.columns]
-        close = df["close"]
-        ema20 = close.ewm(span=20, adjust=False).mean()
-        return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
-    except Exception:
-        return 0
+def get_daily_trend():
+    now = time.time()
+    cached = _cache.get("1d")
+    if cached and now - cached[0] < 3600: return cached[1]
+    df = _yf_download(SYMBOL, "3mo", "1d")
+    if df is None or len(df) < 22: return 0
+    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
+    close = df["Close"].squeeze()
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    trend = 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
+    _cache["1d"] = (now, trend); return trend
 
-# ── Signal check ──────────────────────────────────────────────────────────────
-
-def check_signal() -> None:
+def check_signal():
     df = fetch_ohlcv()
-    if df is None:
-        return
-
-    close = df["close"].dropna()
-    high  = df["high"]
-    low   = df["low"]
-
+    if df is None: return
+    close = df["Close"].squeeze()
+    if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
+    high = df["High"].squeeze(); low = df["Low"].squeeze()
+    if isinstance(high, pd.DataFrame): high = high.iloc[:, 0]
+    if isinstance(low,  pd.DataFrame): low  = low.iloc[:,  0]
+    close = close.dropna()
     fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
-    rsi      = calc_rsi(close, RSI_PERIOD)
-    atr      = calc_atr(high, low, close, ATR_PERIOD)
-
-    i      = -2
-    bar_ts = str(df.index[i])
-    if bar_ts in _seen_bars:
-        return
-
-    bull_cross = (fast_ema.iloc[i]   > slow_ema.iloc[i]  ) and \
-                 (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
-    bear_cross = (fast_ema.iloc[i]   < slow_ema.iloc[i]  ) and \
-                 (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
-
-    rsi_val = float(rsi.iloc[i])
-    price   = float(close.iloc[i])
-    atr_val = float(atr.iloc[i])
-    atr_val = max(atr_val, price * ATR_FLOOR_PCT)
-
-    _seen_bars.add(bar_ts)
-    _save_seen_bar(bar_ts)
-    if len(_seen_bars) > 500:
-        _seen_bars.clear()
-
-    log.info("Bar %s  price=$%.2f  fast=%.2f  slow=%.2f  rsi=%.1f  atr=%.2f  bull=%s  bear=%s",
-             bar_ts, price,
-             float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
-             rsi_val, atr_val, bull_cross, bear_cross)
-
-    rr    = round(ATR_TP_MULT / ATR_SL_MULT, 1)
-    trend = get_daily_trend()
-
+    rsi = calc_rsi(close, RSI_PERIOD)
+    atr = calc_atr(high, low, close, ATR_PERIOD)
+    i = -2; bar_ts = str(df.index[i])
+    if bar_ts in _seen_bars: return
+    bull_cross = (fast_ema.iloc[i] > slow_ema.iloc[i]) and (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
+    bear_cross = (fast_ema.iloc[i] < slow_ema.iloc[i]) and (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
+    rsi_val = float(rsi.iloc[i]); price = float(close.iloc[i])
+    atr_val = max(float(atr.iloc[i]), price * ATR_FLOOR_PCT)
+    _seen_bars.add(bar_ts); _save_seen_bar(bar_ts)
+    if len(_seen_bars) > 500: _seen_bars.clear()
+    log.info("Bar %s  price=$%.2f  rsi=%.1f  atr=%.2f  bull=%s  bear=%s",
+             bar_ts, price, rsi_val, atr_val, bull_cross, bear_cross)
+    rr = round(ATR_TP_MULT / ATR_SL_MULT, 1); trend = get_daily_trend()
     if bull_cross and rsi_val < RSI_BUY_MAX:
-        if trend == -1:
-            log.info("SKIP BUY BTCUSD — daily trend bearish")
-            return
-        entry = round(price, 2)
-        sl = round(entry - ATR_SL_MULT * atr_val, 2)
-        tp = round(entry + ATR_TP_MULT * atr_val, 2)
+        if trend == -1: log.info("SKIP BUY BTCUSD — daily trend bearish"); return
+        entry = round(price, 2); sl = round(entry - ATR_SL_MULT * atr_val, 2); tp = round(entry + ATR_TP_MULT * atr_val, 2)
         log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
-        tg_send(
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"₿ <b>CRYPTO BOT — BTCUSD</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📈 <b>Signal    :</b> 🟢 BUY\n"
-            f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-            f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> $<code>{entry:,.2f}</code>\n"
-            f"🛑 <b>Stop Loss :</b> $<code>{sl:,.2f}</code>\n"
-            f"🎯 <b>Target    :</b> $<code>{tp:,.2f}</code>\n\n"
-            f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> ${atr_val:,.2f}\n"
-            f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
-            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
-            f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━"
-        )
-        record_signal("BUY", entry, sl, tp)
-        queue_trade("BTCUSD", "BUY", sl, tp, source="BTCUSD_1H")
-
+        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n₿ <b>CRYPTO BOT — BTCUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:,.2f}</code>\n"
+                f"🛑 <b>Stop Loss :</b> $<code>{sl:,.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:,.2f}</code>\n\n"
+                f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ${atr_val:,.2f}\n"
+                f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
+                f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+        record_signal("BUY", entry, sl, tp); queue_trade("BTCUSD", "BUY", sl, tp, source="BTCUSD_1H")
     elif bear_cross and rsi_val > RSI_SELL_MIN:
-        if trend == 1:
-            log.info("SKIP SELL BTCUSD — daily trend bullish")
-            return
-        entry = round(price, 2)
-        sl = round(entry + ATR_SL_MULT * atr_val, 2)
-        tp = round(entry - ATR_TP_MULT * atr_val, 2)
+        if trend == 1: log.info("SKIP SELL BTCUSD — daily trend bullish"); return
+        entry = round(price, 2); sl = round(entry + ATR_SL_MULT * atr_val, 2); tp = round(entry - ATR_TP_MULT * atr_val, 2)
         log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
-        tg_send(
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"₿ <b>CRYPTO BOT — BTCUSD</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📉 <b>Signal    :</b> 🔴 SELL\n"
-            f"📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-            f"⏱ <b>Timeframe :</b> 1 Hour\n\n"
-            f"📍 <b>Entry     :</b> $<code>{entry:,.2f}</code>\n"
-            f"🛑 <b>Stop Loss :</b> $<code>{sl:,.2f}</code>\n"
-            f"🎯 <b>Target    :</b> $<code>{tp:,.2f}</code>\n\n"
-            f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> ${atr_val:,.2f}\n"
-            f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
-            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross confirmed\n"
-            f"⚠️ <i>Set SL immediately after opening the trade!</i>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━"
-        )
-        record_signal("SELL", entry, sl, tp)
-        queue_trade("BTCUSD", "SELL", sl, tp, source="BTCUSD_1H")
+        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n₿ <b>CRYPTO BOT — BTCUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:,.2f}</code>\n"
+                f"🛑 <b>Stop Loss :</b> $<code>{sl:,.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:,.2f}</code>\n\n"
+                f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ${atr_val:,.2f}\n"
+                f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross confirmed\n"
+                f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+        record_signal("SELL", entry, sl, tp); queue_trade("BTCUSD", "SELL", sl, tp, source="BTCUSD_1H")
 
-# ── Entry point ───────────────────────────────────────────────────────────────
-
-def main() -> None:
-    if not TELEGRAM_TOKEN:
-        raise SystemExit("BTC_BOT_TOKEN not set in .env")
-
+def main():
+    if not TELEGRAM_TOKEN: raise SystemExit("BTC_BOT_TOKEN not set in .env")
     _load_seen_bars()
-    log.info("Crypto Bot started | ema=%d/%d  rsi=%d  atr_sl=%.1fx  atr_tp=%.1fx  poll=%ds",
-             FAST_EMA, SLOW_EMA, RSI_PERIOD, ATR_SL_MULT, ATR_TP_MULT, CHECK_SECS)
-
-    tg_send(
-        "₿ <b>Crypto Bot Online — BTCUSD</b>\n"
-        f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H  [TradingView data]\n"
-        f"⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
-        "<i>Trades 24/7 — no market-hours restriction</i>\n"
-        f"🕙 Daily report at 10:00 PM IST"
-    )
-
+    log.info("Crypto Bot started | ema=%d/%d  rsi=%d  cache=%ds  poll=%ds",
+             FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL, CHECK_SECS)
+    tg_send(f"₿ <b>Crypto Bot Online — BTCUSD</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+            f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
+            "<i>Trades 24/7 — no market-hours restriction</i>\n🕙 Daily report at 10:00 PM IST")
     while True:
         try:
-            maybe_send_daily_report()
-            check_signal()
-        except Exception as exc:
-            log.error("Unexpected error: %s", exc)
+            maybe_send_daily_report(); check_signal()
+        except Exception as exc: log.error("Unexpected error: %s", exc)
         time.sleep(CHECK_SECS)
 
 if __name__ == "__main__":

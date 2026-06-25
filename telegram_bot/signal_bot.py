@@ -1,18 +1,19 @@
 """
 signal_bot.py — Telegram Forex Signal Bot
 Strategy : EMA(9/21) crossover + RSI(14) on 1H bars
-Data     : TradingView via tvdatafeed (no API key, no rate limits)
+Data     : Yahoo Finance with 15-min caching + retry (avoids rate limits)
 Signals  : Entry, Stop Loss, Take Profit (ATR-based), Risk/Reward
 Report   : Daily summary at 10:00 PM IST
 """
 
 import os
 import time
+import socket
 import logging
 from datetime import datetime
 
 import pandas as pd
-from tvdatafeed import TvDatafeed, Interval
+import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
@@ -25,15 +26,15 @@ except ImportError:
 
 load_dotenv()
 
-# ── TradingView data source ────────────────────────────────────────────────────
+socket.setdefaulttimeout(30)
 
-tv = TvDatafeed()
+# ── YF ticker map ──────────────────────────────────────────────────────────────
 
-_TV_MAP = {
-    "EURUSD": ("EURUSD", "FX_IDC"),
-    "GBPUSD": ("GBPUSD", "FX_IDC"),
-    "USDJPY": ("USDJPY", "FX_IDC"),
-    "XAUUSD": ("XAUUSD", "OANDA"),
+_YF_MAP = {
+    "EURUSD": "EURUSD=X",
+    "GBPUSD": "GBPUSD=X",
+    "USDJPY": "USDJPY=X",
+    "XAUUSD": "GC=F",
 }
 
 # ── Configuration ─────────────────────────────────────────────────────────────
@@ -51,6 +52,9 @@ ATR_SL_MULT  = 1.0
 ATR_TP_MULT  = 3.0
 CHECK_SECS   = int(os.getenv("CHECK_SECS",  "60"))
 
+YF_TICKER    = _YF_MAP.get(SYMBOL_NAME, SYMBOL_NAME + "=X")
+CACHE_TTL    = 840   # re-fetch after 14 min — just before a new 1H bar closes
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
@@ -64,6 +68,7 @@ log = logging.getLogger(__name__)
 _seen_bars        = set()
 _daily_signals    = []
 _report_sent_date = None
+_cache            = {}   # {ticker: (fetched_ts, dataframe)}
 
 def _load_seen_bars():
     path = os.path.join(os.path.dirname(__file__), f".seen_{SYMBOL_NAME}")
@@ -125,11 +130,7 @@ def send_daily_report():
                 f"{i}. {em} <b>{SYMBOL_NAME}</b> {s['direction']}  @  {s['time']}\n"
                 f"   Entry {s['price']:.{dec}f}  •  SL {s['sl']:.{dec}f}  •  TP {s['tp']:.{dec}f}  •  RR 1:{rr}"
             )
-    lines += [
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        "📌 <i>Check your broker for actual P&amp;L</i>",
-    ]
+    lines += ["", "━━━━━━━━━━━━━━━━━━━━━━", "📌 <i>Check your broker for actual P&amp;L</i>"]
     tg_send("\n".join(lines))
     log.info("Daily report sent — %d signals", n)
 
@@ -145,48 +146,62 @@ def maybe_send_daily_report():
 
 # ── Indicators ────────────────────────────────────────────────────────────────
 
-def calc_rsi(close: pd.Series, period: int) -> pd.Series:
+def calc_rsi(close, period):
     delta    = close.diff()
     avg_gain = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
     avg_loss = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
     return 100 - 100 / (1 + avg_gain / avg_loss)
 
-def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int) -> pd.Series:
+def calc_atr(high, low, close, period):
     prev_close = close.shift(1)
-    tr = pd.concat([
-        high - low,
-        (high - prev_close).abs(),
-        (low  - prev_close).abs(),
-    ], axis=1).max(axis=1)
+    tr = pd.concat([high-low, (high-prev_close).abs(), (low-prev_close).abs()], axis=1).max(axis=1)
     return tr.ewm(span=period, adjust=False).mean()
 
-# ── Data fetch ────────────────────────────────────────────────────────────────
+# ── Data fetch with caching + retry ──────────────────────────────────────────
+
+def _yf_download(ticker, period, interval):
+    for attempt in range(3):
+        try:
+            df = yf.download(ticker, period=period, interval=interval,
+                             progress=False, auto_adjust=True)
+            if df is not None and not df.empty:
+                return df
+        except Exception as exc:
+            log.warning("yfinance attempt %d failed: %s", attempt + 1, exc)
+        if attempt < 2:
+            time.sleep(5 * (2 ** attempt))   # 5s, 10s backoff
+    return None
 
 def fetch_ohlcv():
-    sym, exch = _TV_MAP.get(SYMBOL_NAME, (SYMBOL_NAME, "FX_IDC"))
-    try:
-        df = tv.get_hist(sym, exch, interval=Interval.in_1_hour, n_bars=200)
-        if df is None or df.empty or len(df) < SLOW_EMA + 10:
-            log.warning("Not enough bars. Will retry.")
-            return None
-        df.columns = [c.lower() for c in df.columns]
-        return df
-    except Exception as exc:
-        log.warning("Data fetch error: %s", exc)
+    now = time.time()
+    cached = _cache.get("1h")
+    if cached and now - cached[0] < CACHE_TTL:
+        return cached[1]
+    df = _yf_download(YF_TICKER, "30d", "1h")
+    if df is None or len(df) < SLOW_EMA + 10:
+        log.warning("Not enough bars. Will retry.")
         return None
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+    _cache["1h"] = (now, df)
+    log.info("Fetched %d 1H bars for %s", len(df), SYMBOL_NAME)
+    return df
 
 def get_daily_trend() -> int:
-    sym, exch = _TV_MAP.get(SYMBOL_NAME, (SYMBOL_NAME, "FX_IDC"))
-    try:
-        df = tv.get_hist(sym, exch, interval=Interval.in_daily, n_bars=30)
-        if df is None or df.empty or len(df) < 22:
-            return 0
-        df.columns = [c.lower() for c in df.columns]
-        close = df["close"]
-        ema20 = close.ewm(span=20, adjust=False).mean()
-        return 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
-    except Exception:
+    now = time.time()
+    cached = _cache.get("1d")
+    if cached and now - cached[0] < 3600:   # cache daily trend for 1 hour
+        return cached[1]
+    df = _yf_download(YF_TICKER, "3mo", "1d")
+    if df is None or len(df) < 22:
         return 0
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+    close = df["Close"].squeeze()
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    trend = 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
+    _cache["1d"] = (now, trend)
+    return trend
 
 # ── Signal check ──────────────────────────────────────────────────────────────
 
@@ -195,9 +210,13 @@ def check_signal() -> None:
     if df is None:
         return
 
-    close = df["close"].dropna()
-    high  = df["high"]
-    low   = df["low"]
+    close = df["Close"].squeeze()
+    if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
+    high  = df["High"].squeeze()
+    low   = df["Low"].squeeze()
+    if isinstance(high, pd.DataFrame): high = high.iloc[:, 0]
+    if isinstance(low,  pd.DataFrame): low  = low.iloc[:,  0]
+    close = close.dropna()
 
     fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
@@ -206,14 +225,11 @@ def check_signal() -> None:
 
     i      = -2
     bar_ts = str(df.index[i])
-
     if bar_ts in _seen_bars:
         return
 
-    bull_cross = (fast_ema.iloc[i]   > slow_ema.iloc[i]  ) and \
-                 (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
-    bear_cross = (fast_ema.iloc[i]   < slow_ema.iloc[i]  ) and \
-                 (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
+    bull_cross = (fast_ema.iloc[i] > slow_ema.iloc[i]) and (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
+    bear_cross = (fast_ema.iloc[i] < slow_ema.iloc[i]) and (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
 
     rsi_val = float(rsi.iloc[i])
     price   = float(close.iloc[i])
@@ -228,8 +244,7 @@ def check_signal() -> None:
         _seen_bars.clear()
 
     log.info("Bar %s  price=%.5f  fast=%.5f  slow=%.5f  rsi=%.1f  atr=%.5f  bull=%s  bear=%s",
-             bar_ts, price,
-             float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
+             bar_ts, price, float(fast_ema.iloc[i]), float(slow_ema.iloc[i]),
              rsi_val, atr_val, bull_cross, bear_cross)
 
     dec = 3 if "JPY" in SYMBOL_NAME else 5
@@ -296,19 +311,16 @@ def check_signal() -> None:
 def main() -> None:
     if not BOT_TOKEN:
         raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or ELITE_BOT_TOKEN in .env")
-
     _load_seen_bars()
-    log.info("Starting | symbol=%s  ema=%d/%d  rsi=%d  poll=%ds",
-             SYMBOL_NAME, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS)
-
+    log.info("Starting | symbol=%s  yf=%s  ema=%d/%d  rsi=%d  poll=%ds  cache=%ds",
+             SYMBOL_NAME, YF_TICKER, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS, CACHE_TTL)
     tg_send(
         f"💱 <b>{SYMBOL_NAME} Signal Bot Online</b>\n"
         f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H  [TradingView data]\n"
+        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n"
         f"⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
         f"🕙 Daily report at 10:00 PM IST"
     )
-
     while True:
         try:
             maybe_send_daily_report()
@@ -316,7 +328,6 @@ def main() -> None:
         except Exception as exc:
             log.error("Unexpected error: %s", exc)
         time.sleep(CHECK_SECS)
-
 
 if __name__ == "__main__":
     main()
