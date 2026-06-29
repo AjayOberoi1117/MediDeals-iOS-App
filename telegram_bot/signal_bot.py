@@ -41,7 +41,7 @@ _YF_MAP = {
 
 SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     "EURUSD")
 BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("ELITE_BOT_TOKEN", ""))
-CHAT_ID      = os.getenv("SIGNAL_CHAT_ID",  "1994067941")
+CHAT_ID      = os.getenv("SIGNAL_CHAT_ID",  "7093601171")
 FAST_EMA     = int(os.getenv("FAST_EMA",    "9"))
 SLOW_EMA     = int(os.getenv("SLOW_EMA",    "21"))
 RSI_PERIOD   = int(os.getenv("RSI_PERIOD",  "14"))

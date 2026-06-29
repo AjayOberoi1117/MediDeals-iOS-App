@@ -25,8 +25,8 @@ from emailer import email_send
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("ELITE_BOT_TOKEN", "8708193257:AAG6wpyb8popoOmDxnmjP15OaTc2R0sf9Nc")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",  "1994067941")
+TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",  "7093601171")
 TIMEFRAME      = "15m"
 FAST_EMA       = 9
 SLOW_EMA       = 21

@@ -28,7 +28,7 @@ load_dotenv()
 socket.setdefaulttimeout(30)
 
 TELEGRAM_TOKEN = os.getenv("BTC_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "1994067941")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
 SYMBOL         = "BTC-USD"
 DISPLAY_NAME   = "BTCUSD"
 FAST_EMA       = 9
