@@ -75,6 +75,11 @@ echo "  [OK] nifty_scalper.py — PID $!"
 nohup $PYTHON scanner_bot.py >> logs/scanner_bot.log 2>&1 &
 echo "  [OK] scanner_bot.py — PID $!"
 
+# Signal server (serves trade signals to Mac sync script on port 8080)
+pkill -f "signal_server.py" 2>/dev/null || true
+nohup $PYTHON signal_server.py >> logs/signal_server.log 2>&1 &
+echo "  [OK] signal_server.py — PID $! (port 8080)"
+
 echo ""
 echo "All bots started. Logs in: $SCRIPT_DIR/logs/"
 echo ""
