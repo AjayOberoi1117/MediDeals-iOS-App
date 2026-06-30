@@ -77,18 +77,9 @@ void ProcessSignals()
       double tp        = StringToDouble(parts[3]);
       int    magic     = (int)StringToInteger(parts[4]);
 
-      // Skip signals older than 5 minutes
-      if (ArraySize(parts) >= 7)
-      {
-         double ts = StringToDouble(parts[6]);
-         if (ts > 0 && (TimeCurrent() - (datetime)ts) > 300)
-         {
-            Print("SKIP stale signal: ", direction, " ", symbol, " age=",
-                  (int)(TimeCurrent() - (datetime)ts), "s");
-            continue;
-         }
-      }
-
+      // No staleness check — file is cleared immediately after reading so
+      // each signal can only execute once. GCP and broker clocks differ by
+      // ~3 hours making timestamp comparison unreliable.
       ExecuteTrade(symbol, direction, sl, tp, magic);
    }
 }
