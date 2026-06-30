@@ -18,22 +18,16 @@ GCP_SIGNAL_URL = "http://34.47.230.185:8080/signal"
 POLL_SECS      = 30
 SIGNAL_FILE    = "mt5_signals.csv"
 
-# Auto-detect MT5 MQL5/Files path (XM Mac installs Wine internally)
-MT5_SEARCH_PATHS = [
-    # XM MT5 for Mac (Wine-based)
-    os.path.expanduser("~/Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/users/*/AppData/Roaming/MetaQuotes/Terminal/*/MQL5/Files/"),
-    # Generic Wine prefix
-    os.path.expanduser("~/.wine/drive_c/users/*/AppData/Roaming/MetaQuotes/Terminal/*/MQL5/Files/"),
-    # Common XM path variation
-    os.path.expanduser("~/Library/Application Support/MetaTrader 5/MQL5/Files/"),
-]
+# Confirmed path from: find ~/Library -name "MQL5" -type d
+MT5_FILES_DIR  = os.path.expanduser(
+    "~/Library/Application Support/net.metaquotes.wine.metatrader5"
+    "/drive_c/Program Files/MetaTrader 5/MQL5/Files"
+)
 
 
 def find_mt5_files_dir():
-    for pattern in MT5_SEARCH_PATHS:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
+    if os.path.isdir(MT5_FILES_DIR):
+        return MT5_FILES_DIR
     return None
 
 
