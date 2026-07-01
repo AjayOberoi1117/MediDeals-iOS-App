@@ -1,8 +1,8 @@
 """
 India Nifty 50 Scalper Bot
-Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars (1-bar confirmation)
+Strategy : EMA(9/21) crossover + RSI(14) on 30-minute bars (1-bar confirmation)
 Symbols  : All 50 Nifty 50 stocks (NSE)
-Data     : Yahoo Finance (.NS suffix) with 4-min caching + retry
+Data     : Upstox Historical Candle API (30m, native) with Yahoo Finance fallback
 Execution: Upstox v2 API — market order, MIS intraday
 Signals  : Telegram
 Hours    : 9:15 AM – 3:30 PM IST only (weekdays)
@@ -28,9 +28,10 @@ from emailer import email_send
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
-UPSTOX_TOKEN   = os.getenv("UPSTOX_TOKEN", "")
+TELEGRAM_TOKEN    = os.getenv("STOCX_BOT_TOKEN", "")
+CHAT_ID           = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+UPSTOX_TOKEN      = os.getenv("UPSTOX_TOKEN", "")
+UPSTOX_DATA_TOKEN = os.getenv("UPSTOX_DATA_TOKEN", "")
 
 FAST_EMA      = 9
 SLOW_EMA      = 21
@@ -42,8 +43,9 @@ ATR_SL_MULT   = 1.0
 ATR_TP_MULT   = 2.0
 COOLDOWN_SECS = 1800
 SCAN_INTERVAL = 60
-CACHE_TTL     = 240
+CACHE_TTL     = 600     # 10-min cache (30m bars change every 30 min)
 QTY           = 1       # shares per trade — increase as needed
+UPSTOX_INTERVAL = "30minute"
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -237,20 +239,39 @@ def calc_atr(high, low, close, period):
 
 # ── data ──────────────────────────────────────────────────────────────────────
 
-def fetch_data(name):
+def _upstox_candles(instrument_key, interval, days=10):
+    """Fetch OHLCV from Upstox Historical Candle API. Returns DataFrame or None."""
+    if not UPSTOX_DATA_TOKEN:
+        return None
+    from_date = (datetime.now(IST) - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+    to_date   = datetime.now(IST).strftime("%Y-%m-%d")
+    url = f"https://api.upstox.com/v2/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}"
+    try:
+        r = requests.get(url, headers={"Authorization": f"Bearer {UPSTOX_DATA_TOKEN}",
+                                        "Accept": "application/json"}, timeout=15)
+        data = r.json()
+        if data.get("status") != "success":
+            return None
+        candles = data["data"]["candles"]
+        if not candles:
+            return None
+        df = pd.DataFrame(candles, columns=["Datetime", "Open", "High", "Low", "Close", "Volume", "OI"])
+        df["Datetime"] = pd.to_datetime(df["Datetime"])
+        df = df.sort_values("Datetime").set_index("Datetime")
+        df = df[["Open", "High", "Low", "Close", "Volume"]].astype(float)
+        return df
+    except Exception as exc:
+        log.debug("Upstox candle error for %s: %s", instrument_key, exc)
+        return None
+
+def _yf_candles(name, interval, period):
     ticker = f"{name}.NS"
-    cache_key = f"{ticker}_15m"
-    now = time.time()
-    cached = _cache.get(cache_key)
-    if cached and now - cached[0] < CACHE_TTL:
-        return cached[1]
     for attempt in range(3):
         try:
-            df = yf.download(ticker, period="5d", interval="15m", progress=False, auto_adjust=True)
+            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
             if df is not None and not df.empty:
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = [col[0] for col in df.columns]
-                _cache[cache_key] = (now, df)
                 return df
         except Exception as exc:
             log.debug("yfinance attempt %d for %s: %s", attempt+1, name, exc)
@@ -258,26 +279,43 @@ def fetch_data(name):
             time.sleep(5 * (2 ** attempt))
     return None
 
+def fetch_data(name):
+    cache_key = f"{name}_30m"
+    now = time.time()
+    cached = _cache.get(cache_key)
+    if cached and now - cached[0] < CACHE_TTL:
+        return cached[1]
+    df = None
+    ikey = _instrument_keys.get(name)
+    if ikey:
+        df = _upstox_candles(ikey, UPSTOX_INTERVAL, days=10)
+    if df is None or len(df) < SLOW_EMA + 5:
+        log.debug("%s: Upstox data unavailable, falling back to Yahoo Finance", name)
+        df = _yf_candles(name, "30m", "10d")
+    if df is None or len(df) < SLOW_EMA + 5:
+        return None
+    _cache[cache_key] = (now, df)
+    return df
+
 def get_1h_trend(name):
-    ticker = f"{name}.NS"
-    cache_key = f"{ticker}_1h_trend"
+    cache_key = f"{name}_1h_trend"
     now = time.time()
     cached = _cache.get(cache_key)
     if cached and now - cached[0] < 3600:
         return cached[1]
-    try:
-        df = yf.download(ticker, period="30d", interval="1h", progress=False, auto_adjust=True)
-        if df is None or len(df) < 52:
-            return 0
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        close = df["Close"].squeeze()
-        ema50 = close.ewm(span=50, adjust=False).mean()
-        trend = 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
-        _cache[cache_key] = (now, trend)
-        return trend
-    except Exception:
+    df = None
+    ikey = _instrument_keys.get(name)
+    if ikey:
+        df = _upstox_candles(ikey, "1hour", days=30)
+    if df is None:
+        df = _yf_candles(name, "1h", "30d")
+    if df is None or len(df) < 52:
         return 0
+    close = df["Close"].squeeze()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    trend = 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
+    _cache[cache_key] = (now, trend)
+    return trend
 
 
 # ── signal logic ──────────────────────────────────────────────────────────────
@@ -323,14 +361,14 @@ def check_symbol(name):
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>INDIA SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {now_ist}\n"
-            f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
+            f"⏱ <b>Timeframe :</b> 30 Minutes\n\n"
             f"📍 <b>Entry     :</b> ₹<code>{entry:.2f}</code>\n"
             f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
             f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
             f"📊 <b>ATR(14)   :</b> ₹{atr_val:.2f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
-            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 15min\n"
+            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 30min\n"
             f"⚠️ <i>Set SL immediately! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal(name, "BUY", entry, sl, tp)
@@ -347,14 +385,14 @@ def check_symbol(name):
         tg_send(
             f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>INDIA SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {now_ist}\n"
-            f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
+            f"⏱ <b>Timeframe :</b> 30 Minutes\n\n"
             f"📍 <b>Entry     :</b> ₹<code>{entry:.2f}</code>\n"
             f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
             f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
             f"📊 <b>ATR(14)   :</b> ₹{atr_val:.2f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
-            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 15min\n"
+            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 30min\n"
             f"⚠️ <i>Set SL immediately! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal(name, "SELL", entry, sl, tp)
@@ -374,7 +412,7 @@ def main():
     tg_send(
         f"⚡ <b>India Nifty 50 Scalper Online</b>\n"
         f"📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
+        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 30min\n"
         f"📈 {len(NIFTY50)} Nifty 50 stocks | Upstox MIS\n"
         f"⏰ Active: 9:15 AM – 3:30 PM IST\n"
         f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n"
