@@ -38,7 +38,7 @@ RSI_SELL_MIN   = 40
 ATR_PERIOD     = 14
 ATR_SL_MULT    = 1.0
 ATR_TP_MULT    = 2.0
-COOLDOWN_SECS  = 7200
+COOLDOWN_SECS  = 1800
 SCAN_INTERVAL  = 60
 CACHE_TTL      = 240   # 4-min cache for 15m bars (fetch ~3-4x per bar)
 
@@ -169,8 +169,9 @@ def check_symbol(name):
     rsi = calc_rsi(close, RSI_PERIOD); atr = calc_atr(high, low, close, ATR_PERIOD)
     i = -2; bar_ts = str(df.index[i])
     if bar_ts in _seen_bars.get(name, set()): return
-    bull_cross = (fast_ema.iloc[i] > slow_ema.iloc[i]) and (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
-    bear_cross = (fast_ema.iloc[i] < slow_ema.iloc[i]) and (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
+    # Cross must have formed on bar[-3]; bar[-2] confirms fast EMA still holds the same side
+    bull_cross = (fast_ema.iloc[i-1] > slow_ema.iloc[i-1]) and (fast_ema.iloc[i-2] <= slow_ema.iloc[i-2]) and (fast_ema.iloc[i] > slow_ema.iloc[i])
+    bear_cross = (fast_ema.iloc[i-1] < slow_ema.iloc[i-1]) and (fast_ema.iloc[i-2] >= slow_ema.iloc[i-2]) and (fast_ema.iloc[i] < slow_ema.iloc[i])
     rsi_val = float(rsi.iloc[i]); price = float(close.iloc[i]); atr_val = float(atr.iloc[i])
     _atr_min = {"EURUSD": 0.00100, "GBPUSD": 0.00120, "USDJPY": 0.12, "XAUUSD": 2.0}
     atr_val = max(atr_val, _atr_min.get(name, atr_val))
