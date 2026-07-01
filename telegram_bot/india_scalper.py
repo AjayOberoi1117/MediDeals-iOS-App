@@ -134,9 +134,18 @@ def load_instrument_keys():
         url = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.csv.gz"
         r = requests.get(url, timeout=30)
         df = pd.read_csv(io.BytesIO(gzip.decompress(r.content)))
-        df = df[df["segment"] == "NSE_EQ"]
-        _instrument_keys.update(dict(zip(df["tradingsymbol"], df["instrument_key"])))
-        log.info("Loaded %d NSE instrument keys from Upstox", len(_instrument_keys))
+        log.debug("Upstox CSV columns: %s", list(df.columns))
+        # Detect segment / exchange column flexibly
+        seg_col = next((c for c in df.columns if c.lower() in ("segment", "exchange_segment", "exchange")), None)
+        if seg_col:
+            df = df[df[seg_col].astype(str).str.contains("NSE_EQ|NSE", na=False)]
+        sym_col = next((c for c in df.columns if c.lower() in ("tradingsymbol", "trading_symbol", "symbol")), None)
+        key_col = next((c for c in df.columns if "instrument_key" in c.lower()), None)
+        if not sym_col or not key_col:
+            log.warning("Upstox CSV format unexpected — columns: %s", list(df.columns))
+            return
+        _instrument_keys.update(dict(zip(df[sym_col], df[key_col])))
+        log.info("Loaded %d NSE instrument keys from Upstox (sym=%s key=%s)", len(_instrument_keys), sym_col, key_col)
     except Exception as exc:
         log.warning("Could not load Upstox instrument keys: %s — orders will be skipped", exc)
 
