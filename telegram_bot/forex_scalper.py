@@ -12,6 +12,9 @@ import time
 import socket
 import logging
 from datetime import datetime
+import pytz
+
+IST = pytz.timezone("Asia/Kolkata")
 
 import pandas as pd
 import yfinance as yf
@@ -87,7 +90,7 @@ def record_signal(name, direction, price, sl, tp):
                             "sl": sl, "tp": tp, "time": datetime.now().strftime("%I:%M %p")})
 
 def send_daily_report():
-    today = datetime.now().strftime("%d %b %Y"); n = len(_daily_signals)
+    today = datetime.now(IST).strftime("%d %b %Y"); n = len(_daily_signals)
     lines = [f"📊 <b>Daily Scalper Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
              f"<b>Forex + Gold Scalper</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0: lines.append("No signals were generated today.")
@@ -103,7 +106,7 @@ def send_daily_report():
 
 def maybe_send_daily_report():
     global _report_sent_date, _daily_signals
-    now = datetime.now(); today = now.date()
+    now = datetime.now(IST); today = now.date()
     if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
         _report_sent_date = today; send_daily_report()
     if now.hour == 0 and now.minute < 2 and _daily_signals: _daily_signals.clear()
@@ -183,7 +186,7 @@ def check_symbol(name):
         entry = round(price, dec); sl = round(entry - ATR_SL_MULT * atr_val, dec); tp = round(entry + ATR_TP_MULT * atr_val, dec)
         log.info("BUY  %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
         tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {pfx}{atr_val:.{dec}f}\n"
@@ -196,7 +199,7 @@ def check_symbol(name):
         entry = round(price, dec); sl = round(entry + ATR_SL_MULT * atr_val, dec); tp = round(entry - ATR_TP_MULT * atr_val, dec)
         log.info("SELL %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
         tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {pfx}{atr_val:.{dec}f}\n"
@@ -210,7 +213,7 @@ def main():
     _load_seen()
     log.info("Forex+Gold Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
              len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)
-    tg_send(f"⚡ <b>Forex + Gold Scalper Online</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+    tg_send(f"⚡ <b>Forex + Gold Scalper Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
             f"💱 EURUSD  •  GBPUSD  •  USDJPY  •  XAUUSD\n"
             f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n🕙 Daily report at 10:00 PM IST")

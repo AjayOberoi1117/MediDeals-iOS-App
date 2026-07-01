@@ -14,6 +14,7 @@ import socket
 import logging
 import json
 from datetime import datetime
+import pytz
 
 import pandas as pd
 import yfinance as yf
@@ -21,6 +22,8 @@ import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
+
+IST = pytz.timezone("Asia/Kolkata")
 
 load_dotenv()
 socket.setdefaulttimeout(30)
@@ -72,7 +75,7 @@ def _load_state():
     global _last_signal, _signal_count_today
     try:
         with open(STATE_FILE) as f: data = json.load(f)
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = datetime.now(IST).strftime("%Y-%m-%d")
         for ticker, info in data.items():
             _last_signal[ticker] = info.get("last_ts", 0)
             if info.get("date") == today_str:
@@ -80,7 +83,7 @@ def _load_state():
     except (FileNotFoundError, json.JSONDecodeError): pass
 
 def _save_state():
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = datetime.now(IST).strftime("%Y-%m-%d")
     data = {t: {"last_ts": _last_signal.get(t, 0), "count": _signal_count_today.get(t, 0), "date": today_str}
             for t in set(_last_signal) | set(_signal_count_today)}
     try:
@@ -98,10 +101,10 @@ def tg_send(text):
 
 def record_signal(symbol, direction, price, sl, tp):
     _daily_signals.append({"symbol": symbol.replace(".NS", ""), "direction": direction,
-                            "price": price, "sl": sl, "tp": tp, "time": datetime.now().strftime("%I:%M %p")})
+                            "price": price, "sl": sl, "tp": tp, "time": datetime.now(IST).strftime("%I:%M %p")})
 
 def send_daily_report():
-    today = datetime.now().strftime("%d %b %Y"); n = len(_daily_signals)
+    today = datetime.now(IST).strftime("%d %b %Y"); n = len(_daily_signals)
     lines = [f"📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
              f"<b>Stock Scanner</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0: lines.append("No signals were generated today.")
@@ -116,7 +119,7 @@ def send_daily_report():
 
 def maybe_send_daily_report():
     global _report_sent_date, _daily_signals
-    now = datetime.now(); today = now.date()
+    now = datetime.now(IST); today = now.date()
     if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
         _report_sent_date = today; send_daily_report()
     if now.hour == 0 and now.minute < 2 and _daily_signals:
@@ -197,7 +200,7 @@ def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
     name = ticker.replace(".NS", ""); em = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
     rr = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
     return (f"━━━━━━━━━━━━━━━━━━━━━━\n🔍 <b>STOCK SCANNER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📈 <b>Signal    :</b> {em}\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+            f"📈 <b>Signal    :</b> {em}\n📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
             f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> ₹<code>{price:.2f}</code>\n"
             f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ₹{atr_val:.2f}\n"
@@ -206,7 +209,7 @@ def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
             f"⚠️ <i>Set SL first! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━")
 
 def in_market_hours():
-    now = datetime.now(); return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
+    now = datetime.now(IST); return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
 
 def run_scan():
     log.info("Scanning %d stocks...", len(STOCKS)); fired = 0
@@ -232,7 +235,7 @@ def main():
     _load_state()
     log.info("Stock Scanner started | stocks=%d  tf=%s  ema=%d/%d  scan_every=%ds",
              len(STOCKS), TIMEFRAME, FAST_EMA, SLOW_EMA, SCAN_INTERVAL)
-    tg_send(f"🔍 <b>Stock Scanner Online</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+    tg_send(f"🔍 <b>Stock Scanner Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
             f"📋 Watching {len(STOCKS)} NSE stocks\n🕙 Daily report at 10:00 PM IST\n"
             "<i>Active during market hours only (9:15–3:30 IST)</i>")
