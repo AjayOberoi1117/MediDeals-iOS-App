@@ -24,9 +24,12 @@ from whatsapp import wapp_send
 from emailer import email_send
 
 try:
-    from trade_executor import queue_trade
+    from mac_trade_writer import queue_trade          # Mac: direct MT5 file write
 except ImportError:
-    def queue_trade(*args, **kwargs): pass
+    try:
+        from trade_executor import queue_trade       # GCP: HTTP queue
+    except ImportError:
+        def queue_trade(*args, **kwargs): pass
 
 load_dotenv()
 socket.setdefaulttimeout(30)
