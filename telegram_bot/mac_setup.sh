@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "=== Installing Python dependencies ==="
-pip3 install --user pandas yfinance requests python-dotenv pytz
+pip3 install --user --break-system-packages pandas yfinance requests python-dotenv pytz
 
 echo ""
 echo "=== Copying launchd plists ==="
