@@ -38,8 +38,10 @@ SLOW_EMA      = 21
 RSI_PERIOD    = 14
 RSI_BUY_MAX   = 60
 ATR_PERIOD    = 14
-ATR_SL_MULT   = 1.0
-ATR_TP_MULT   = 2.0
+ATR_SL_MULT   = 1.5
+ATR_TP_MULT   = 3.0
+ADX_PERIOD    = 14
+ADX_MIN       = 20    # only trade when trend strength confirms — filters choppy whipsaws
 COOLDOWN_SECS = 1800
 SCAN_INTERVAL = 60
 CACHE_TTL     = 600     # 10-min cache (30m bars change every 30 min)
@@ -244,6 +246,19 @@ def calc_atr(high, low, close, period):
     tr = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
     return tr.ewm(span=period, adjust=False).mean()
 
+def calc_adx(high, low, close, period):
+    up_move   = high.diff()
+    down_move = -low.diff()
+    plus_dm   = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm  = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    pc  = close.shift(1)
+    tr  = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    plus_di  = 100 * (plus_dm.ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr)
+    minus_di = 100 * (minus_dm.ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+    return dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+
 
 # ── data ──────────────────────────────────────────────────────────────────────
 
@@ -343,6 +358,7 @@ def check_symbol(name):
     slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
     rsi = calc_rsi(close, RSI_PERIOD)
     atr = calc_atr(high, low, close, ATR_PERIOD)
+    adx = calc_adx(high, low, close, ADX_PERIOD)
     i = -2
     bar_ts = str(df.index[i])
     if bar_ts in _seen_bars.get(name, set()):
@@ -353,8 +369,11 @@ def check_symbol(name):
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
     atr_val = max(atr_val, price * 0.002)   # floor at 0.2% of price
+    adx_val = float(adx.iloc[i])
     _seen_bars.setdefault(name, set()).add(bar_ts)
     _save_seen(name, bar_ts)
+    if bull_cross and adx_val < ADX_MIN:
+        log.info("SKIP %s — ADX %.1f < %d, market too choppy", name, adx_val, ADX_MIN); return
     rr      = round(ATR_TP_MULT / ATR_SL_MULT, 1)
     now_ist = datetime.now(IST).strftime("%d %b %Y %I:%M %p IST")
 
@@ -374,6 +393,7 @@ def check_symbol(name):
             f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
             f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
             f"📊 <b>ATR(14)   :</b> ₹{atr_val:.2f}\n"
+            f"📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
             f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
             f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 30min\n"
             f"⚠️ <i>Set SL immediately! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
