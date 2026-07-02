@@ -57,7 +57,7 @@ NIFTY50 = [
     "INDUSINDBK", "INFY",       "ITC",        "JIOFIN",     "JSWSTEEL",
     "KOTAKBANK",  "LT",         "M&M",        "MARUTI",     "NESTLEIND",
     "NTPC",       "ONGC",       "POWERGRID",  "RELIANCE",   "SBILIFE",
-    "SHRIRAMFIN", "SBIN",       "SUNPHARMA",  "TATACONSUM", "TATAMOTORS",
+    "SHRIRAMFIN", "SBIN",       "SUNPHARMA",  "TATACONSUM",
     "TATASTEEL",  "TCS",        "TECHM",      "TITAN",      "ULTRACEMCO",
 ]
 
