@@ -37,7 +37,6 @@ FAST_EMA      = 9
 SLOW_EMA      = 21
 RSI_PERIOD    = 14
 RSI_BUY_MAX   = 60
-RSI_SELL_MIN  = 40
 ATR_PERIOD    = 14
 ATR_SL_MULT   = 1.0
 ATR_TP_MULT   = 2.0
@@ -350,7 +349,6 @@ def check_symbol(name):
         return
     # 1-bar confirmation: cross on bar[-3], fast EMA holds same side on bar[-2]
     bull_cross = (fast_ema.iloc[i-1] > slow_ema.iloc[i-1]) and (fast_ema.iloc[i-2] <= slow_ema.iloc[i-2]) and (fast_ema.iloc[i] > slow_ema.iloc[i])
-    bear_cross = (fast_ema.iloc[i-1] < slow_ema.iloc[i-1]) and (fast_ema.iloc[i-2] >= slow_ema.iloc[i-2]) and (fast_ema.iloc[i] < slow_ema.iloc[i])
     rsi_val = float(rsi.iloc[i])
     price   = float(close.iloc[i])
     atr_val = float(atr.iloc[i])
@@ -383,30 +381,7 @@ def check_symbol(name):
         record_signal(name, "BUY", entry, sl, tp)
         upstox_place_order(name, "BUY")
         _last_signal[name] = now_ts
-
-    elif bear_cross and rsi_val > RSI_SELL_MIN:
-        if get_1h_trend(name) == 1:
-            log.info("SKIP SELL %s — 1H trend bullish", name); return
-        entry = round(price, 2)
-        sl    = round(entry + ATR_SL_MULT * atr_val, 2)
-        tp    = round(entry - ATR_TP_MULT * atr_val, 2)
-        log.info("SELL %s  entry=%.2f  sl=%.2f  tp=%.2f", name, entry, sl, tp)
-        tg_send(
-            f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>INDIA SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {now_ist}\n"
-            f"⏱ <b>Timeframe :</b> 30 Minutes\n\n"
-            f"📍 <b>Entry     :</b> ₹<code>{entry:.2f}</code>\n"
-            f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
-            f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
-            f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
-            f"📊 <b>ATR(14)   :</b> ₹{atr_val:.2f}\n"
-            f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
-            f"💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 30min\n"
-            f"⚠️ <i>Set SL immediately! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
-        )
-        record_signal(name, "SELL", entry, sl, tp)
-        upstox_place_order(name, "SELL")
-        _last_signal[name] = now_ts
+    # SELL signals disabled — Indian equity shorting via MIS is unreliable/meaningless for this strategy
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
