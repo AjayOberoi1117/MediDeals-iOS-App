@@ -209,7 +209,9 @@ def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
             f"⚠️ <i>Set SL first! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━")
 
 def in_market_hours():
-    now = datetime.now(IST); return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
+    now = datetime.now(IST)
+    if now.weekday() >= 5: return False   # Sat/Sun — NSE closed
+    return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
 
 def run_scan():
     log.info("Scanning %d stocks...", len(STOCKS)); fired = 0

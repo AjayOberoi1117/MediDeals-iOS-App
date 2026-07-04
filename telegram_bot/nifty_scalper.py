@@ -205,6 +205,7 @@ def format_signal(symbol, direction, price, sl, tp):
 
 def in_market_hours():
     now = datetime.now()
+    if now.weekday() >= 5: return False   # Sat/Sun — NSE closed
     return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
 
 def run_scan():
