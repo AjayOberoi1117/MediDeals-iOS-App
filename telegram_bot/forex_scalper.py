@@ -242,10 +242,13 @@ def main():
     while True:
         try:
             maybe_send_daily_report()
-            for name in SYMBOLS:
-                try: check_symbol(name)
-                except Exception as exc: log.debug("Error on %s: %s", name, exc)
-                time.sleep(3)
+            if datetime.now(IST).weekday() >= 5:   # Sat/Sun — forex market closed
+                log.debug("Weekend — forex market closed, skipping scan")
+            else:
+                for name in SYMBOLS:
+                    try: check_symbol(name)
+                    except Exception as exc: log.debug("Error on %s: %s", name, exc)
+                    time.sleep(3)
         except Exception as exc: log.error("Unexpected error: %s", exc)
         time.sleep(SCAN_INTERVAL)
 
