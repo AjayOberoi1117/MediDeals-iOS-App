@@ -18,6 +18,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
+from nse_holidays import is_nse_holiday
 
 load_dotenv()
 socket.setdefaulttimeout(30)
@@ -206,6 +207,7 @@ def format_signal(symbol, direction, price, sl, tp):
 def in_market_hours():
     now = datetime.now()
     if now.weekday() >= 5: return False   # Sat/Sun — NSE closed
+    if is_nse_holiday(now): return False  # NSE trading holiday
     return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
 
 def run_scan():

@@ -22,6 +22,7 @@ import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
+from nse_holidays import is_nse_holiday
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -211,6 +212,7 @@ def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
 def in_market_hours():
     now = datetime.now(IST)
     if now.weekday() >= 5: return False   # Sat/Sun — NSE closed
+    if is_nse_holiday(now): return False  # NSE trading holiday
     return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
 
 def run_scan():

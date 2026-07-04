@@ -24,6 +24,7 @@ import requests
 from dotenv import load_dotenv
 from whatsapp import wapp_send
 from emailer import email_send
+from nse_holidays import is_nse_holiday
 
 load_dotenv()
 socket.setdefaulttimeout(30)
@@ -122,6 +123,8 @@ def tg_send(text):
 def is_market_open():
     now = datetime.now(IST)
     if now.weekday() >= 5:
+        return False
+    if is_nse_holiday(now):
         return False
     open_  = now.replace(hour=9,  minute=15, second=0, microsecond=0)
     close_ = now.replace(hour=15, minute=30, second=0, microsecond=0)
