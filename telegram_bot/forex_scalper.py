@@ -1,10 +1,12 @@
 """
-Forex + Gold 15-Minute Scalper Bot
+Forex 15-Minute Scalper Bot
 Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars
-Symbols  : EURUSD, GBPUSD, USDJPY, XAUUSD
+Symbols  : EURUSD, GBPUSD, USDJPY
 Data     : Yahoo Finance with 4-min caching + retry (avoids rate limits)
 Signals  : Entry, SL, TP (ATR-based 1:2 RR) via Telegram
 Report   : Daily summary at 10:00 PM IST
+
+Gold (XAUUSD) is handled separately by gold_bot.py.
 """
 
 import os
@@ -54,7 +56,8 @@ SYMBOLS = {
     "EURUSD": "EURUSD=X",
     "GBPUSD": "GBPUSD=X",
     "USDJPY": "USDJPY=X",
-    "XAUUSD": "GC=F",
+    # XAUUSD removed — gold's ATR-based SL was disproportionately large in $ terms;
+    # gold is handled separately by gold_bot.py
 }
 
 logging.basicConfig(format="%(asctime)s | SCALPER  | %(levelname)s | %(message)s", level=logging.INFO)
@@ -97,7 +100,7 @@ def record_signal(name, direction, price, sl, tp):
 def send_daily_report():
     today = datetime.now(IST).strftime("%d %b %Y"); n = len(_daily_signals)
     lines = [f"📊 <b>Daily Scalper Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
-             f"<b>Forex + Gold Scalper</b>  |  Signals Today: <b>{n}</b>", ""]
+             f"<b>Forex Scalper</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0: lines.append("No signals were generated today.")
     else:
         for i, s in enumerate(_daily_signals, 1):
@@ -233,11 +236,11 @@ def check_symbol(name):
 def main():
     if not TELEGRAM_TOKEN: raise SystemExit("ELITE_BOT_TOKEN not set in .env")
     _load_seen()
-    log.info("Forex+Gold Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
+    log.info("Forex Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
              len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)
-    tg_send(f"⚡ <b>Forex + Gold Scalper Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
+    tg_send(f"⚡ <b>Forex Scalper Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
-            f"💱 EURUSD  •  GBPUSD  •  USDJPY  •  XAUUSD\n"
+            f"💱 EURUSD  •  GBPUSD  •  USDJPY\n"
             f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n🕙 Daily report at 10:00 PM IST")
     while True:
         try:
