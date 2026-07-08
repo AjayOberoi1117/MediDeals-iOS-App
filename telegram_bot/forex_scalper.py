@@ -1,7 +1,7 @@
 """
 Forex 15-Minute Scalper Bot
 Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars
-Symbols  : EURUSD, GBPUSD, USDJPY
+Symbols  : EURUSD, GBPUSD
 Data     : Yahoo Finance with 4-min caching + retry (avoids rate limits)
 Signals  : Entry, SL, TP (ATR-based 1:2 RR) via Telegram
 Report   : Daily summary at 10:00 PM IST
@@ -55,7 +55,8 @@ CACHE_TTL      = 240   # 4-min cache for 15m bars (fetch ~3-4x per bar)
 SYMBOLS = {
     "EURUSD": "EURUSD=X",
     "GBPUSD": "GBPUSD=X",
-    "USDJPY": "USDJPY=X",
+    # USDJPY removed — 60-day backtest: 21% win rate, -12R (worst of all pairs,
+    # in both normal and inverted direction). Strategy doesn't suit this pair.
     # XAUUSD removed — gold's ATR-based SL was disproportionately large in $ terms;
     # gold is handled separately by gold_bot.py
 }
@@ -240,7 +241,7 @@ def main():
              len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)
     tg_send(f"⚡ <b>Forex Scalper Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
-            f"💱 EURUSD  •  GBPUSD  •  USDJPY\n"
+            f"💱 EURUSD  •  GBPUSD\n"
             f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n🕙 Daily report at 10:00 PM IST")
     while True:
         try:
