@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.medideals.forex-scalper</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>caffeinate</string>
+        <string>-i</string>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>-u</string>
+        <string>/Users/ajayoberoi/MediDeals-iOS-App/telegram_bot/forex_scalper.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/ajayoberoi/MediDeals-iOS-App</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/forex-scalper.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/forex-scalper.log</string>
+</dict>
+</plist>

@@ -1,0 +1,15 @@
+[Unit]
+Description=Forex + Gold Scalper Bot (EMA/RSI 15m)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ajayoberoi1117/MediDeals-iOS-App
+ExecStart=/home/ajayoberoi1117/venv/bin/python3 -u telegram_bot/forex_scalper.py
+Restart=always
+RestartSec=15
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
