@@ -96,16 +96,23 @@ def simulate(df, entry_idx, direction, entry):
     return ret / SL_PCT                  # actual return in R units
 
 
+COOLDOWN_SECS = 1800   # matches live nifty_scalper.py COOLDOWN
+
+
 def backtest(name, ticker):
     df = fetch(ticker)
     if df is None or len(df) < 30:
         print(f"{name}: insufficient data"); return []
     df = calculate_supertrend(df, ST_PERIOD, ST_MULT)
     trades = []
+    last_signal_ts = None
     for i in range(2, len(df) - 1):
         st_now, st_prev = int(df["st_direction"].iloc[i]), int(df["st_direction"].iloc[i-1])
         if st_now == st_prev:
             continue                     # no flip, no signal
+        bar_ts = df.index[i]
+        if last_signal_ts is not None and (bar_ts - last_signal_ts).total_seconds() < COOLDOWN_SECS:
+            continue                     # live bot would skip — still in cooldown
         direction = "BUY" if st_now == 1 else "SELL"
         # enter on next bar's open, same day only
         if df["day"].iloc[i+1] != df["day"].iloc[i]:
@@ -113,6 +120,7 @@ def backtest(name, ticker):
         entry = float(df["open"].iloc[i+1])
         pnl_r = simulate(df, i+1, direction, entry)
         trades.append({"name": name, "direction": direction, "pnl_r": pnl_r})
+        last_signal_ts = bar_ts
     return trades
 
 
@@ -141,15 +149,20 @@ def main():
 
     # Inverted must be re-simulated, not just sign-flipped — when BUY becomes
     # SELL the 0.4% SL and 0.8% TP swap sides, so which one hits first changes.
+    # Same cooldown-gated flip cadence as the live bot; only direction flips.
     inv_trades = []
     for name, ticker in INSTRUMENTS.items():
         df = fetch(ticker)
         if df is None or len(df) < 30:
             continue
         df = calculate_supertrend(df, ST_PERIOD, ST_MULT)
+        last_signal_ts = None
         for i in range(2, len(df) - 1):
             st_now, st_prev = int(df["st_direction"].iloc[i]), int(df["st_direction"].iloc[i-1])
             if st_now == st_prev:
+                continue
+            bar_ts = df.index[i]
+            if last_signal_ts is not None and (bar_ts - last_signal_ts).total_seconds() < COOLDOWN_SECS:
                 continue
             direction = "BUY" if st_now == 1 else "SELL"
             inv_dir = "SELL" if direction == "BUY" else "BUY"
@@ -158,6 +171,7 @@ def main():
             entry = float(df["open"].iloc[i+1])
             pnl_r = simulate(df, i+1, inv_dir, entry)
             inv_trades.append({"name": name, "direction": inv_dir, "pnl_r": pnl_r})
+            last_signal_ts = bar_ts
 
     print("\n=== INVERTED (flip every BUY<->SELL) ===")
     report(inv_trades, "Inverted (both)")
