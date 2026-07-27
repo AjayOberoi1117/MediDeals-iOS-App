@@ -150,10 +150,11 @@ def fetch_candles(symbol, ikey):
         params = {"limit": 50}
         r = requests.get(url, headers=headers, params=params, timeout=10)
         if r.status_code != 200:
-            log.debug("Upstox fetch failed for %s: %s", symbol, r.text[:100])
+            log.warning("Upstox fetch failed for %s: HTTP %d — %s", symbol, r.status_code, r.text[:200])
             return None
         data = r.json()
         if not data.get("data", {}).get("candles"):
+            log.warning("No candles for %s: %s", symbol, data)
             return None
         candles = data["data"]["candles"]
         df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume", "oi"])
@@ -163,7 +164,7 @@ def fetch_candles(symbol, ikey):
         })
         return df.iloc[::-1].reset_index(drop=True)
     except Exception as exc:
-        log.debug("Fetch error %s: %s", symbol, exc)
+        log.warning("Fetch error %s: %s", symbol, exc)
         return None
 
 def calc_ema(s, span):
