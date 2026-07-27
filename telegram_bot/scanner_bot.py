@@ -143,9 +143,9 @@ def save_state(state):
         json.dump(state, f)
 
 def fetch_candles(symbol, ikey):
-    """Fetch 50 15-min candles from Upstox."""
+    """Fetch 50 30-min candles from Upstox."""
     try:
-        url = f"{UPSTOX_BASE_URL}/historical-candle/intraday/{ikey}/15minute"
+        url = f"{UPSTOX_BASE_URL}/historical-candle/intraday/{ikey}/30minute"
         headers = {"Authorization": f"Bearer {UPSTOX_TOKEN}"}
         params = {"limit": 50}
         r = requests.get(url, headers=headers, params=params, timeout=10)
