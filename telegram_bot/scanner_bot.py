@@ -166,7 +166,7 @@ def save_state(state):
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
-        r = requests.post(url, data={"chat_id": CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "")
+        r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
         if not r.ok:
             print(f"  Telegram error: {r.text[:100]}")
     except Exception as e:
