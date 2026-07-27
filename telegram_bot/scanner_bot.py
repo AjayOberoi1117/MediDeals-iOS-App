@@ -12,9 +12,9 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "")
-BOT_TOKEN     = os.getenv("TELEGRAM_BOT_TOKEN", "")
-CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "")
+UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTY2ZmYxNGExNzkxMjcxODk2MzhjMGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg1MTM0ODY4LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTY3MjU2MDB9.UwK3fm_BWVtisx7EIWS_dJsI8gg9Br5xrN4sT8ty_Xo")
+BOT_TOKEN     = os.getenv("TELEGRAM_BOT_TOKEN", "8953646046:AAF6flZRLHG7KU1JiagA48gJLcKZV7RuxKs")
+CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "7093601171")
 
 
 EMAIL_TO       = "ajayoberoi1117@gmail.com"
