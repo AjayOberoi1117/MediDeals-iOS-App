@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import requests
 import pandas as pd
 import time
@@ -10,9 +12,9 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-UPSTOX_TOKEN  = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTI1Y2VlYmIyODljMTU0NDM2MTkzMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzgwODYyNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTI0MDU2MDB9.IlPTIdhafzRLcBpdGt9zofG2BF46CCnA-pSuYyp_u68"
-BOT_TOKEN     = "8953646046:AAF6flZRLHG7KU1JiagA48gJLcKZV7RuxKs"
-CHAT_ID       = "7093601171"
+UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "")
+BOT_TOKEN     = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "")
 
 
 EMAIL_TO       = "ajayoberoi1117@gmail.com"
@@ -164,7 +166,7 @@ def save_state(state):
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
-        r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
+        r = requests.post(url, data={"chat_id": CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "")
         if not r.ok:
             print(f"  Telegram error: {r.text[:100]}")
     except Exception as e:
