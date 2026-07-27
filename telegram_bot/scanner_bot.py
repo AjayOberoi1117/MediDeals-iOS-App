@@ -1,255 +1,337 @@
 """
-Upstox Stock Scanner Bot
-Strategy : EMA(9/21) crossover + RSI(14) on 15-minute bars
-Universe : Top NSE large-cap stocks (Nifty 50)
-Data     : Yahoo Finance with 4-min caching + retry (avoids rate limits)
-Session  : 9:15 AM – 3:30 PM IST only
-Signals  : Telegram via Elite bot with Entry, SL, TP (ATR-based)
-Report   : Daily summary at 10:00 PM IST
+Upstox Stock Scanner Bot — Real-Time Signals
+Strategy   : EMA(9/21) crossover + RSI(14) + Confidence scoring
+Data       : Upstox API (real-time prices matching your Upstox account)
+Universe   : NIFTY 100
+Signals    : Telegram + Email
+Position   : Tier-based sizing (HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L)
 """
 
 import os
 import time
-import socket
-import logging
 import json
+import logging
 from datetime import datetime
 import pytz
-
-import pandas as pd
-import yfinance as yf
 import requests
+import pandas as pd
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
-from nse_holidays import is_nse_holiday
-
-IST = pytz.timezone("Asia/Kolkata")
 
 load_dotenv()
-socket.setdefaulttimeout(30)
-
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",  "7093601171")
-TIMEFRAME      = "15m"
-FAST_EMA       = 9
-SLOW_EMA       = 21
-RSI_PERIOD     = 14
-RSI_BUY_MAX    = 75
-RSI_SELL_MIN   = 25
-ATR_PERIOD     = 14
-ATR_SL_MULT    = 1.0
-ATR_TP_MULT    = 2.0
-MAX_SIGNALS_PER_SCAN = 5
-MAX_SIGNALS_PER_STOCK_PER_DAY = 2
-COOLDOWN_SECS  = 1800
-SCAN_INTERVAL  = 300
-MARKET_OPEN    = (9, 15)
-MARKET_CLOSE   = (15, 30)
-CACHE_TTL      = 240   # 4-min cache — reuse data across stocks in same scan
-
-STOCKS = [
-    "ADANIENT.NS",  "ADANIPORTS.NS","APOLLOHOSP.NS","ASIANPAINT.NS","AXISBANK.NS",
-    "BAJAJ-AUTO.NS","BAJFINANCE.NS","BAJAJFINSV.NS","BPCL.NS",      "BHARTIARTL.NS",
-    "BRITANNIA.NS", "CIPLA.NS",     "COALINDIA.NS", "DRREDDY.NS",   "EICHERMOT.NS",
-    "GRASIM.NS",    "HCLTECH.NS",   "HDFCBANK.NS",  "HDFCLIFE.NS",  "HEROMOTOCO.NS",
-    "HINDALCO.NS",  "HINDUNILVR.NS","ICICIBANK.NS", "ITC.NS",       "INDUSINDBK.NS",
-    "INFY.NS",      "JSWSTEEL.NS",  "KOTAKBANK.NS", "LT.NS",        "LTIM.NS",
-    "M&M.NS",       "MARUTI.NS",    "NTPC.NS",      "NESTLEIND.NS", "ONGC.NS",
-    "POWERGRID.NS", "RELIANCE.NS",  "SBILIFE.NS",   "SHRIRAMFIN.NS","SBIN.NS",
-    "SUNPHARMA.NS", "TCS.NS",       "TATACONSUM.NS","TATASTEEL.NS",
-    "TECHM.NS",     "TITAN.NS",     "TRENT.NS",     "ULTRACEMCO.NS","WIPRO.NS",
-]
-
 logging.basicConfig(format="%(asctime)s | SCANNER  | %(levelname)s | %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-_last_signal         = {}
-_signal_count_today  = {}
-_daily_signals       = []
-_report_sent_date    = None
-_cache               = {}
+IST = pytz.timezone("Asia/Kolkata")
+
+UPSTOX_TOKEN = os.getenv("UPSTOX_TOKEN", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "7093601171")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "")
+EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD", "")
+EMAIL_TO = os.getenv("EMAIL_TO", "")
+
+UPSTOX_BASE_URL = "https://api.upstox.com/v2"
+EMA_FAST, EMA_SLOW = 9, 21
+RSI_PERIOD, RSI_BUY_MAX = 14, 75
+SL_PCT, TP_PCT = 0.5, 1.0
+SCAN_INTERVAL_MIN = 5
+MAX_SIGNALS_PER_DAY = 20
+MARKET_OPEN, MARKET_CLOSE = (9, 15), (15, 30)
+
+NIFTY100 = {
+    # NIFTY 50
+    "RELIANCE":     "NSE_EQ|INE002A01018",
+    "TCS":          "NSE_EQ|INE467B01029",
+    "HDFCBANK":     "NSE_EQ|INE040A01034",
+    "ICICIBANK":    "NSE_EQ|INE090A01021",
+    "BHARTIARTL":   "NSE_EQ|INE397D01024",
+    "INFY":         "NSE_EQ|INE009A01021",
+    "SBIN":         "NSE_EQ|INE062A01020",
+    "HINDUNILVR":   "NSE_EQ|INE030A01027",
+    "ITC":          "NSE_EQ|INE154A01025",
+    "LT":           "NSE_EQ|INE018A01030",
+    "KOTAKBANK":    "NSE_EQ|INE237A01036",
+    "AXISBANK":     "NSE_EQ|INE238A01034",
+    "BAJFINANCE":   "NSE_EQ|INE296A01032",
+    "WIPRO":        "NSE_EQ|INE075A01022",
+    "HCLTECH":      "NSE_EQ|INE860A01027",
+    "ASIANPAINT":   "NSE_EQ|INE021A01026",
+    "MARUTI":       "NSE_EQ|INE585B01010",
+    "SUNPHARMA":    "NSE_EQ|INE044A01036",
+    "TITAN":        "NSE_EQ|INE280A01028",
+    "ULTRACEMCO":   "NSE_EQ|INE481G01011",
+    "ONGC":         "NSE_EQ|INE213A01029",
+    "NTPC":         "NSE_EQ|INE733E01010",
+    "POWERGRID":    "NSE_EQ|INE752E01010",
+    "NESTLEIND":    "NSE_EQ|INE239A01024",
+    "JSWSTEEL":     "NSE_EQ|INE019A01038",
+    "TATASTEEL":    "NSE_EQ|INE081A01020",
+    "ADANIENT":     "NSE_EQ|INE423A01024",
+    "ADANIPORTS":   "NSE_EQ|INE742F01042",
+    "COALINDIA":    "NSE_EQ|INE522F01014",
+    "BAJAJFINSV":   "NSE_EQ|INE918I01026",
+    "BAJAJ-AUTO":   "NSE_EQ|INE917I01010",
+    "BPCL":         "NSE_EQ|INE356A01018",
+    "CIPLA":        "NSE_EQ|INE059A01026",
+    "DRREDDY":      "NSE_EQ|INE089A01023",
+    "GRASIM":       "NSE_EQ|INE047A01021",
+    "HEROMOTOCO":   "NSE_EQ|INE158A01026",
+    "HINDALCO":     "NSE_EQ|INE038A01020",
+    "INDUSINDBK":   "NSE_EQ|INE095A01012",
+    "LTIM":         "NSE_EQ|INE214A01039",
+    "M&M":          "NSE_EQ|INE101A01026",
+    "SHRIRAMFIN":   "NSE_EQ|INE591G01023",
+    "TATACONSUM":   "NSE_EQ|INE192A01025",
+    "TECHM":        "NSE_EQ|INE669C01025",
+    "TRENT":        "NSE_EQ|INE849A01024",
+
+    # NIFTY MIDCAP
+    "APOLLOHOSP":   "NSE_EQ|INE437B01029",
+    "BANKBARODA":   "NSE_EQ|INE028A01039",
+    "BERGEPAINT":   "NSE_EQ|INE371C01023",
+    "BIOCON":       "NSE_EQ|INE376G01045",
+    "BOSCHLTD":     "NSE_EQ|INE323A01026",
+    "CANBK":        "NSE_EQ|INE105A01019",
+    "CHOLAFIN":     "NSE_EQ|INE144A01021",
+    "COLPAL":       "NSE_EQ|INE259A01022",
+    "DABUR":        "NSE_EQ|INE093A01010",
+    "DLF":          "NSE_EQ|INE488A01046",
+    "GAIL":         "NSE_EQ|INE129A01019",
+    "GODREJCP":     "NSE_EQ|INE102A01016",
+    "HAVELLS":      "NSE_EQ|INE465K01012",
+    "ICICIGI":      "NSE_EQ|INE092A01019",
+    "IDFCFIRSTB":   "NSE_EQ|INE633E01016",
+    "IGL":          "NSE_EQ|INE203A01026",
+    "INDUSTOWER":   "NSE_EQ|INE121J01017",
+    "IOC":          "NSE_EQ|INE242A01010",
+    "IRCTC":        "NSE_EQ|INE024L01017",
+    "JINDALSTEL":   "NSE_EQ|INE139A01024",
+    "JUBLFOOD":     "NSE_EQ|INE797H01027",
+    "LICI":         "NSE_EQ|INE018E01046",
+    "LUPIN":        "NSE_EQ|INE242E01010",
+    "MARICO":       "NSE_EQ|INE196A01026",
+    "MOTHERSON":    "NSE_EQ|INE775A01035",
+    "MUTHOOTFIN":   "NSE_EQ|INE347E01026",
+    "NAUKRI":       "NSE_EQ|INE663E01024",
+    "NMDC":         "NSE_EQ|INE139E01025",
+    "OFSS":         "NSE_EQ|INE992H01019",
+    "PAGEIND":      "NSE_EQ|INE571E01038",
+    "PIDILITIND":   "NSE_EQ|INE318A01026",
+    "PNB":          "NSE_EQ|INE160A01022",
+    "RECLTD":       "NSE_EQ|INE002E01046",
+    "SAIL":         "NSE_EQ|INE114A01011",
+    "SHREECEM":     "NSE_EQ|INE019A01038",
+    "SIEMENS":      "NSE_EQ|INE003A01024",
+    "SRF":          "NSE_EQ|INE647H01010",
+    "TATAPOWER":    "NSE_EQ|INE245A01021",
+    "TORNTPHARM":   "NSE_EQ|INE339A01026",
+    "VEDL":         "NSE_EQ|INE205A01025",
+    "VOLTAS":       "NSE_EQ|INE304C01020",
+    "ZOMATO":       "NSE_EQ|INE758T01015",
+}
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), ".state_scanner.json")
 
-def _load_state():
-    global _last_signal, _signal_count_today
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    return {"symbols_alerted": [], "signals_sent": 0}
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+def fetch_candles(symbol, ikey):
+    """Fetch 50 15-min candles from Upstox."""
     try:
-        with open(STATE_FILE) as f: data = json.load(f)
-        today_str = datetime.now(IST).strftime("%Y-%m-%d")
-        for ticker, info in data.items():
-            _last_signal[ticker] = info.get("last_ts", 0)
-            if info.get("date") == today_str:
-                _signal_count_today[ticker] = info.get("count", 0)
-    except (FileNotFoundError, json.JSONDecodeError): pass
+        url = f"{UPSTOX_BASE_URL}/historical-candle/intraday/{ikey}/15minute"
+        headers = {"Authorization": f"Bearer {UPSTOX_TOKEN}"}
+        params = {"limit": 50}
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        if r.status_code != 200:
+            log.debug("Upstox fetch failed for %s: %s", symbol, r.text[:100])
+            return None
+        data = r.json()
+        if not data.get("data", {}).get("candles"):
+            return None
+        candles = data["data"]["candles"]
+        df = pd.DataFrame(candles, columns=["timestamp", "open", "high", "low", "close", "volume", "oi"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df[["timestamp", "open", "high", "low", "close", "volume"]].astype({
+            "open": float, "high": float, "low": float, "close": float, "volume": int
+        })
+        return df.iloc[::-1].reset_index(drop=True)
+    except Exception as exc:
+        log.debug("Fetch error %s: %s", symbol, exc)
+        return None
 
-def _save_state():
-    today_str = datetime.now(IST).strftime("%Y-%m-%d")
-    data = {t: {"last_ts": _last_signal.get(t, 0), "count": _signal_count_today.get(t, 0), "date": today_str}
-            for t in set(_last_signal) | set(_signal_count_today)}
-    try:
-        with open(STATE_FILE, "w") as f: json.dump(data, f)
-    except Exception: pass
+def calc_ema(s, span):
+    return s.ewm(span=span, adjust=False).mean()
 
-def tg_send(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    try:
-        r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
-        if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
-    except Exception as exc: log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send("Trading Signal: Stock Scanner", text)
+def calc_rsi(s, period):
+    delta = s.diff()
+    gain = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    return 100 - 100 / (1 + gain / loss)
 
-def record_signal(symbol, direction, price, sl, tp):
-    _daily_signals.append({"symbol": symbol.replace(".NS", ""), "direction": direction,
-                            "price": price, "sl": sl, "tp": tp, "time": datetime.now(IST).strftime("%I:%M %p")})
+def check_signal(symbol, df):
+    """Detect EMA bullish cross with confidence scoring."""
+    if len(df) < EMA_SLOW + 5:
+        return None
 
-def send_daily_report():
-    today = datetime.now(IST).strftime("%d %b %Y"); n = len(_daily_signals)
-    lines = [f"📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
-             f"<b>Stock Scanner</b>  |  Signals Today: <b>{n}</b>", ""]
-    if n == 0: lines.append("No signals were generated today.")
+    close = df["close"]
+    ema_fast = calc_ema(close, EMA_FAST)
+    ema_slow = calc_ema(close, EMA_SLOW)
+    rsi = calc_rsi(close, RSI_PERIOD)
+
+    # Check for bullish cross: fast crosses above slow on bar[-2]
+    if not ((ema_fast.iloc[-2] > ema_slow.iloc[-2]) and (ema_fast.iloc[-3] <= ema_slow.iloc[-3])):
+        return None
+
+    # RSI overbought check
+    rsi_val = float(rsi.iloc[-1])
+    if rsi_val > RSI_BUY_MAX:
+        return None
+
+    price = float(close.iloc[-1])
+    sl = round(price * (1 - SL_PCT/100), 2)
+    tp = round(price * (1 + TP_PCT/100), 2)
+
+    # Confidence scoring
+    score = 50
+    if ema_fast.iloc[-1] > ema_fast.iloc[-2]:
+        score += 10
+    if rsi_val < 30:
+        score += 15
+    elif rsi_val < 50:
+        score += 10
+    if price > ema_slow.iloc[-1]:
+        score += 10
+
+    # Tier assignment
+    if score >= 80:
+        tier, qty_amt = "HIGH", 200000
+    elif score >= 60:
+        tier, qty_amt = "MEDIUM", 150000
     else:
-        for i, s in enumerate(_daily_signals, 1):
-            em = "🟢" if s["direction"] == "BUY" else "🔴"
-            rr = round(abs(s["tp"] - s["price"]) / max(abs(s["sl"] - s["price"]), 0.01), 1)
-            lines.append(f"{i}. {em} <b>{s['symbol']}</b> {s['direction']}  @  {s['time']}\n"
-                         f"   Entry ₹{s['price']:.2f}  •  SL ₹{s['sl']:.2f}  •  TP ₹{s['tp']:.2f}  •  RR 1:{rr}")
-    lines += ["", "━━━━━━━━━━━━━━━━━━━━━━", "📌 <i>Check Upstox for actual P&amp;L</i>"]
-    tg_send("\n".join(lines)); log.info("Daily report sent — %d signals", n)
+        tier, qty_amt = "LOW", 100000
 
-def maybe_send_daily_report():
-    global _report_sent_date, _daily_signals
-    now = datetime.now(IST); today = now.date()
-    if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
-        _report_sent_date = today; send_daily_report()
-    if now.hour == 0 and now.minute < 2 and _daily_signals:
-        _daily_signals.clear(); _signal_count_today.clear()
+    risk = abs(sl - price)
+    reward = abs(tp - price)
 
-def calc_rsi(close, period):
-    delta = close.diff()
-    ag = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    al = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    return 100 - 100 / (1 + ag / al)
+    return ("BUY", price, sl, tp, qty_amt, score, tier, rsi_val, ema_fast.iloc[-1], ema_slow.iloc[-1])
 
-def calc_atr(high, low, close, period):
-    pc = close.shift(1)
-    tr = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
-    return tr.ewm(span=period, adjust=False).mean()
-
-def _yf_download(ticker, period, interval):
-    for attempt in range(3):
+def notify(msg):
+    """Send via Telegram + Email."""
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         try:
-            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
-            if df is not None and not df.empty: return df
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
         except Exception as exc:
-            log.debug("yfinance attempt %d failed for %s: %s", attempt + 1, ticker, exc)
-        if attempt < 2: time.sleep(5 * (2 ** attempt))
-    return None
+            log.warning("Telegram error: %s", exc)
 
-def fetch_stock(ticker):
-    cache_key = f"{ticker}_15m"
-    now = time.time()
-    cached = _cache.get(cache_key)
-    if cached and now - cached[0] < CACHE_TTL: return cached[1]
-    df = _yf_download(ticker, "10d", "15m")
-    if df is None or len(df) < SLOW_EMA + 5: return None
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
-    df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
-    df.index = pd.to_datetime(df.index)
-    df = df.between_time("03:45", "10:00")
-    df.dropna(inplace=True)
-    if len(df) < SLOW_EMA + 5: return None
-    _cache[cache_key] = (now, df)
-    return df
+    if EMAIL_FROM and EMAIL_TO and EMAIL_APP_PASSWORD:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            msg_obj = MIMEText(msg, "html")
+            msg_obj["Subject"] = "[NSE Signal] New Trading Opportunity"
+            msg_obj["From"] = EMAIL_FROM
+            msg_obj["To"] = EMAIL_TO
+            with smtplib.SMTP("smtp.gmail.com", 587) as s:
+                s.starttls()
+                s.login(EMAIL_FROM, EMAIL_APP_PASSWORD)
+                s.sendmail(EMAIL_FROM, [EMAIL_TO], msg_obj.as_string())
+        except Exception as exc:
+            log.warning("Email error: %s", exc)
 
-def get_daily_trend(ticker):
-    cache_key = f"{ticker}_1d_trend"
-    now = time.time()
-    cached = _cache.get(cache_key)
-    if cached and now - cached[0] < 3600: return cached[1]
-    df = _yf_download(ticker, "3mo", "1d")
-    if df is None or len(df) < 22: return 0
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
-    close = df["Close"].squeeze()
-    if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
-    ema20 = close.ewm(span=20, adjust=False).mean()
-    trend = 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
-    _cache[cache_key] = (now, trend); return trend
-
-def check_stock(ticker):
-    df = fetch_stock(ticker)
-    if df is None: return None
-    close = df["Close"].squeeze(); high = df["High"].squeeze(); low = df["Low"].squeeze()
-    if isinstance(close, pd.DataFrame): close = close.iloc[:, 0]
-    if isinstance(high,  pd.DataFrame): high  = high.iloc[:,  0]
-    if isinstance(low,   pd.DataFrame): low   = low.iloc[:,   0]
-    fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
-    slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
-    rsi = calc_rsi(close, RSI_PERIOD); atr = calc_atr(high, low, close, ATR_PERIOD)
-    i = -2
-    bull_cross = (fast_ema.iloc[i] > slow_ema.iloc[i]) and (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
-    bear_cross = (fast_ema.iloc[i] < slow_ema.iloc[i]) and (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
-    rsi_val = float(rsi.iloc[i]); price = float(close.iloc[i]); atr_val = float(atr.iloc[i])
-    if bull_cross and rsi_val < RSI_BUY_MAX:
-        if get_daily_trend(ticker) == -1: log.info("SKIP BUY  %s — daily trend bearish", ticker); return None
-        return "BUY", price, round(price - ATR_SL_MULT*atr_val, 2), round(price + ATR_TP_MULT*atr_val, 2), rsi_val, atr_val
-    # SELL signals disabled — Indian equity cannot be shorted in MIS
-    return None
-
-def format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val):
-    name = ticker.replace(".NS", ""); em = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
+def format_signal(symbol, direction, price, sl, tp, qty_amt, score, tier, rsi_val, ema_fast, ema_slow):
     rr = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
-    return (f"━━━━━━━━━━━━━━━━━━━━━━\n🔍 <b>STOCK SCANNER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📈 <b>Signal    :</b> {em}\n📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
-            f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> ₹<code>{price:.2f}</code>\n"
-            f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
-            f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ₹{atr_val:.2f}\n"
-            f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) crossover confirmed\n"
+    return (f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔍 <b>STOCK SCANNER — {symbol}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📈 <b>Signal    :</b> 🟢 BUY\n"
+            f"📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
+            f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
+            f"📍 <b>Entry     :</b> ₹<code>{price:.2f}</code>\n"
+            f"🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
+            f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n"
+            f"📊 <b>Confidence:</b> {score}/100 ({tier})\n"
+            f"💰 <b>Position  :</b> ₹{qty_amt/100000:.1f}L\n"
+            f"📈 <b>RSI(14)   :</b> {rsi_val:.1f}\n"
+            f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
+            f"💡 EMA(9/21) bullish crossover confirmed\n"
             f"🏦 <i>Place as MIS (Intraday) in Upstox</i>\n"
-            f"⚠️ <i>Set SL first! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+            f"⚠️ <i>Set SL first! Square off before 3:15 PM IST</i>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━")
 
 def in_market_hours():
     now = datetime.now(IST)
-    if now.weekday() >= 5: return False   # Sat/Sun — NSE closed
-    if is_nse_holiday(now): return False  # NSE trading holiday
+    if now.weekday() >= 5:
+        return False
     return MARKET_OPEN <= (now.hour, now.minute) <= MARKET_CLOSE
 
 def run_scan():
-    log.info("Scanning %d stocks...", len(STOCKS)); fired = 0
-    for ticker in STOCKS:
-        if fired >= MAX_SIGNALS_PER_SCAN: break
-        if time.time() - _last_signal.get(ticker, 0) < COOLDOWN_SECS: continue
-        if _signal_count_today.get(ticker, 0) >= MAX_SIGNALS_PER_STOCK_PER_DAY: continue
-        try:
-            result = check_stock(ticker)
-            if result:
-                direction, price, sl, tp, rsi_val, atr_val = result
-                log.info("SIGNAL %s %s | ₹%.2f → SL ₹%.2f  TP ₹%.2f", ticker, direction, price, sl, tp)
-                tg_send(format_stock_signal(ticker, direction, price, sl, tp, rsi_val, atr_val))
-                record_signal(ticker, direction, price, sl, tp)
-                _last_signal[ticker] = time.time()
-                _signal_count_today[ticker] = _signal_count_today.get(ticker, 0) + 1
-                _save_state(); fired += 1; time.sleep(1)
-        except Exception as exc: log.debug("Error scanning %s: %s", ticker, exc)
-        time.sleep(2)   # space out yfinance calls across 50 stocks
-    if fired == 0: log.info("No signals this scan.")
+    state = load_state()
+    new_signals = 0
+
+    log.info("Scanning %d stocks...", len(NIFTY100))
+
+    for symbol, ikey in NIFTY100.items():
+        if state["signals_sent"] + new_signals >= MAX_SIGNALS_PER_DAY:
+            break
+
+        if symbol in state["symbols_alerted"]:
+            continue
+
+        print(f"  {symbol:<14}", end=" ")
+        df = fetch_candles(symbol, ikey)
+
+        if df is None:
+            print("skip")
+            continue
+
+        result = check_signal(symbol, df)
+
+        if result:
+            direction, price, sl, tp, qty_amt, score, tier, rsi_val, ema_fast, ema_slow = result
+            msg = format_signal(symbol, direction, price, sl, tp, qty_amt, score, tier, rsi_val, ema_fast, ema_slow)
+            print(f"→ BUY | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
+            notify(msg)
+            state["symbols_alerted"].append(symbol)
+            new_signals += 1
+        else:
+            print("no signal")
+
+        time.sleep(0.3)
+
+    state["signals_sent"] += new_signals
+    save_state(state)
+    log.info("Done. %d new signal(s). Total today: %d/%d", new_signals, state["signals_sent"], MAX_SIGNALS_PER_DAY)
 
 def main():
-    _load_state()
-    log.info("Stock Scanner started | stocks=%d  tf=%s  ema=%d/%d  scan_every=%ds",
-             len(STOCKS), TIMEFRAME, FAST_EMA, SLOW_EMA, SCAN_INTERVAL)
-    tg_send(f"🔍 <b>Stock Scanner Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
-            f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
-            f"📋 Watching {len(STOCKS)} NSE stocks\n🕙 Daily report at 10:00 PM IST\n"
-            "<i>Active during market hours only (9:15–3:30 IST)</i>")
+    log.info("NSE Swing Scanner — NIFTY 100")
+    log.info("EMA(9/21) | RSI | Confidence Scoring | Upstox Real-Time Prices")
+    log.info("Scanning every %d mins during market hours (9:15–15:30 IST)\n", SCAN_INTERVAL_MIN)
+
+    notify(f"🔍 <b>Stock Scanner Online</b>\n"
+           f"📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
+           f"📊 EMA(9/21) + RSI(14) | 15min\n"
+           f"📋 Watching {len(NIFTY100)} NSE stocks\n"
+           f"<i>Upstox real-time prices matching your account</i>")
+
     while True:
         try:
-            maybe_send_daily_report()
-            if in_market_hours(): run_scan()
-            else: log.info("Outside market hours. Waiting...")
-        except Exception as exc: log.error("Main loop error: %s", exc)
-        time.sleep(SCAN_INTERVAL)
+            if in_market_hours():
+                run_scan()
+            else:
+                now = datetime.now(IST)
+                log.info("[%s] Outside market hours. Waiting...", now.strftime("%H:%M"))
+        except Exception as exc:
+            log.error("Scan error: %s", exc)
+
+        time.sleep(SCAN_INTERVAL_MIN * 60)
 
 if __name__ == "__main__":
     main()
