@@ -29,11 +29,9 @@ EMA_SLOW            = 21
 LOOKBACK_DAYS       = 5       # 5 days of intraday data
 SCAN_INTERVAL_MIN   = 5       # scan every 5 mins
 
-# Intraday trading windows IST
-BUY_WINDOW_OPEN  = (9, 30)   # Start buying at 9:30 AM
-BUY_WINDOW_CLOSE = (10, 0)   # Stop buying at 10:00 AM
-SELL_TIME        = (15, 0)   # Auto-sell at 3:00 PM
-MARKET_CLOSE     = (15, 30)  # Market closes at 3:30 PM
+# Trading hours IST (Monday-Friday, excluding NSE holidays)
+MARKET_OPEN  = (9, 15)   # Market opens at 9:15 AM
+MARKET_CLOSE = (15, 30)  # Market closes at 3:30 PM
 
 # Capital by confidence
 CAPITAL = {"HIGH": 200000, "MEDIUM": 150000, "LOW": 100000}
@@ -429,10 +427,11 @@ def in_market_hours():
     return MARKET_OPEN <= t <= MARKET_CLOSE
 
 def main():
-    print("NSE Swing Scanner — Nifty 100")
+    print("NSE Intraday Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
     print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
-    print(f"Scanning every {SCAN_INTERVAL_MIN} mins during market hours (9:15–15:30 IST)\n")
+    print(f"Signals all day during market hours (9:15–15:30 IST)")
+    print(f"Scanning every {SCAN_INTERVAL_MIN} mins — pick & choose which to trade\n")
 
     while True:
         if in_market_hours():
