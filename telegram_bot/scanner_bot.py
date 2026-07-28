@@ -201,8 +201,8 @@ def fetch_candles(symbol, instrument_key):
             print(f"    API error: {r.status_code} {r.text[:100]}")
             return None
         candles = r.json()["data"]["candles"]
-        if len(candles) < 60:
-            print(f"    Only {len(candles)} candles (need 60+)")
+        if len(candles) < 30:
+            print(f"    Only {len(candles)} candles (need 30+)")
             return None
         df = pd.DataFrame(candles, columns=["dt","open","high","low","close","volume","oi"])
         df = df.sort_values("dt").reset_index(drop=True)
