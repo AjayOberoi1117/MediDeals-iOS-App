@@ -27,7 +27,7 @@ TP_PCT              = 4.0
 EMA_FAST            = 9
 EMA_SLOW            = 21
 LOOKBACK_DAYS       = 5       # 5 days of intraday data
-SCAN_INTERVAL_MIN   = 5       # scan every 5 mins
+SCAN_INTERVAL_MIN   = 30      # scan every 30 mins (matches 30-min candles)
 
 # Trading hours IST (Monday-Friday, excluding NSE holidays)
 MARKET_OPEN  = (9, 15)   # Market opens at 9:15 AM
