@@ -433,10 +433,21 @@ def main():
     print(f"Signals all day during market hours (9:15–15:30 IST)")
     print(f"Scanning every {SCAN_INTERVAL_MIN} mins — pick & choose which to trade\n")
 
+    startup_notified = False
+
     while True:
         if in_market_hours():
+            if not startup_notified:
+                now = datetime.now().strftime("%d-%b-%Y %H:%M IST")
+                notify(f"🤖 <b>NSE Intraday Scanner Started</b>\n\n"
+                       f"Bot launched and ready to scan.\n"
+                       f"EMA{EMA_FAST}/{EMA_SLOW} • SL {SL_PCT}% / TP {TP_PCT}%\n"
+                       f"Scanning every {SCAN_INTERVAL_MIN} mins • Pick & choose signals\n\n"
+                       f"⏰ {now}")
+                startup_notified = True
             run_scan()
         else:
+            startup_notified = False
             now = datetime.now()
             print(f"[{now.strftime('%H:%M')}] Outside market hours. Waiting...")
 
