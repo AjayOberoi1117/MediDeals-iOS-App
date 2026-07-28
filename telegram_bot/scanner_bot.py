@@ -28,6 +28,7 @@ EMA_FAST            = 9
 EMA_SLOW            = 21
 LOOKBACK_DAYS       = 5       # 5 days of intraday data
 SCAN_INTERVAL_MIN   = 30      # scan every 30 mins (matches 30-min candles)
+ATR_PERIOD          = 14      # ATR period for dynamic stop-loss/take-profit
 
 # Trading hours IST (Monday-Friday, excluding NSE holidays)
 MARKET_OPEN  = (9, 15)   # Market opens at 9:15 AM
@@ -220,6 +221,17 @@ def calculate_rsi(series, period=14):
     rs    = gain / loss
     return 100 - (100 / (1 + rs))
 
+def calculate_atr(df, period=14):
+    high  = df["high"].astype(float)
+    low   = df["low"].astype(float)
+    close = df["close"].astype(float)
+    tr1   = high - low
+    tr2   = abs(high - close.shift())
+    tr3   = abs(low - close.shift())
+    tr    = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr   = tr.rolling(period).mean()
+    return atr
+
 def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio):
     score = 0
     reasons = []
@@ -298,10 +310,12 @@ def check_signal(symbol, df):
     ema25 = close.ewm(span=EMA_FAST, adjust=False).mean()
     ema50 = close.ewm(span=EMA_SLOW, adjust=False).mean()
     rsi   = calculate_rsi(close)
+    atr   = calculate_atr(df)
 
     p_e25, p_e50 = float(ema25.iloc[-2]), float(ema50.iloc[-2])
     c_e25, c_e50 = float(ema25.iloc[-1]), float(ema50.iloc[-1])
     c_rsi        = float(rsi.iloc[-1])
+    c_atr        = float(atr.iloc[-1])
     price        = round(float(close.iloc[-1]), 2)
     vol_ratio    = float(vol.iloc[-1]) / float(vol.rolling(20).mean().iloc[-1])
 
@@ -327,11 +341,11 @@ def check_signal(symbol, df):
     amt     = round(qty * price)
 
     if direction == "BUY":
-        sl = round(price * (1 - SL_PCT / 100), 2)
-        tp = round(price * (1 + TP_PCT / 100), 2)
+        sl = round(price - c_atr, 2)
+        tp = round(price + 2 * c_atr, 2)
     else:
-        sl = round(price * (1 + SL_PCT / 100), 2)
-        tp = round(price * (1 - TP_PCT / 100), 2)
+        sl = round(price + c_atr, 2)
+        tp = round(price - 2 * c_atr, 2)
 
     risk   = round(abs(price - sl) * qty)
     reward = round(abs(tp - price) * qty)
@@ -431,8 +445,8 @@ def in_market_hours():
 
 def main():
     print("NSE Intraday Scanner — Nifty 100")
-    print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
-    print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
+    print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} + RSI({ATR_PERIOD}) | 30-min candles")
+    print(f"SL = 1x ATR  |  TP = 2x ATR  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
     print(f"Signals all day during market hours (9:15–15:30 IST)")
     print(f"Scanning every {SCAN_INTERVAL_MIN} mins — pick & choose which to trade\n")
 
