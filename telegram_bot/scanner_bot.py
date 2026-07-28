@@ -194,7 +194,7 @@ def fetch_candles(symbol, instrument_key):
     to_date   = datetime.now().strftime("%Y-%m-%d")
     from_date = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
     key_enc   = quote(instrument_key, safe="")
-    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/15minute/{to_date}/{from_date}"
+    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/30minute/{to_date}/{from_date}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         if r.status_code != 200:
