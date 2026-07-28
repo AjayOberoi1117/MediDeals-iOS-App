@@ -1,5 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()
 import requests
 import pandas as pd
 import time
@@ -12,10 +10,16 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTY2ZmYxNGExNzkxMjcxODk2MzhjMGMiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg1MTM0ODY4LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTY3MjU2MDB9.UwK3fm_BWVtisx7EIWS_dJsI8gg9Br5xrN4sT8ty_Xo")
-BOT_TOKEN     = os.getenv("TELEGRAM_BOT_TOKEN", "8953646046:AAF6flZRLHG7KU1JiagA48gJLcKZV7RuxKs")
-CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "7093601171")
+UPSTOX_TOKEN  = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTI1Y2VlYmIyODljMTU0NDM2MTkzMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzgwODYyNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTI0MDU2MDB9.IlPTIdhafzRLcBpdGt9zofG2BF46CCnA-pSuYyp_u68"
+BOT_TOKEN     = "8649245457:AAFpe95Us_eiVTuewD1f7TJG2gRwUMX0zuA"
+CHAT_ID       = "1994067941"
 
+# ── WhatsApp Cloud API ──
+WA_PHONE_NUMBER_ID = "1170057886189374"
+WA_ACCESS_TOKEN    = "EAAL5I32OddABR66iGBPa6iXhIYMPCkSCgRsJStyAzYlmPkzHOh8ZBNNHn8AzFg1IWCysq9xsZBr54HUdDy1EBXwzqOaztH0ieO0a5oVfMR807yDzD85qCD4rntoZBI7bZCqyl8s7ZAwGECvKpDoy7hV8ptPGRN43740GFjKZAzO82RNml9ZBFJuJYnJPlTIpYQIRZBpd27DMOyYpq6ZCwIgA0dvXj1B1jFMUKQPYXK2BNyiqsAw0k9KKiZAI1hVPKYqx71siYCZBY0g3ifqGvSAUeL7"
+WA_RECIPIENTS      = ["919855221117", "919780890024"]
+WA_API_URL         = f"https://graph.facebook.com/v20.0/{WA_PHONE_NUMBER_ID}/messages"
+WA_HEADERS         = {"Authorization": f"Bearer {WA_ACCESS_TOKEN}", "Content-Type": "application/json"}
 
 EMAIL_TO       = "ajayoberoi1117@gmail.com"
 EMAIL_FROM     = "ajayoberoi1117@gmail.com"
@@ -163,6 +167,18 @@ def save_state(state):
         json.dump(state, f)
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
+def send_whatsapp(msg):
+    plain = msg.replace("<b>","*").replace("</b>","*").replace("<i>","_").replace("</i>","_").replace("<code>","").replace("</code>","")
+    for number in WA_RECIPIENTS:
+        try:
+            payload = {"messaging_product": "whatsapp", "to": number,
+                       "type": "text", "text": {"body": plain, "preview_url": False}}
+            r = requests.post(WA_API_URL, headers=WA_HEADERS, json=payload, timeout=10)
+            if not r.ok:
+                print(f"  WhatsApp error → {number}: {r.text[:100]}")
+        except Exception as e:
+            print(f"  WhatsApp failed → {number}: {e}")
+
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
@@ -173,6 +189,7 @@ def send_telegram(msg):
         print(f"  Telegram failed: {e}")
 
 def notify(msg):
+    send_whatsapp(msg)
     send_telegram(msg)
 
 def send_email(subject, html_body):
