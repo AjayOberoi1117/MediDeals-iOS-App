@@ -309,7 +309,7 @@ def check_signal(symbol, df):
 
     # BUY only — Upstox delivery doesn't allow shorting stocks
     direction = None
-    if (bullish_cross or ema_bounce_buy) and 45 <= c_rsi <= 68:
+    if c_e25 > c_e50:
         direction = "BUY"
 
     if not direction:
