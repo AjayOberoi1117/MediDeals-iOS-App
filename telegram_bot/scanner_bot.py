@@ -419,6 +419,10 @@ def run_scan():
             (direction, price, sl, tp, qty, amt, risk, reward,
              score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio) = result
 
+            if tier != "HIGH":
+                print(f"→ {direction} | {tier} ({score}/100) [filtered]")
+                continue
+
             msg = format_signal(direction, symbol, price, sl, tp, qty, amt,
                                  risk, reward, score, tier, t_emoji, reasons,
                                  rsi, e25, e50, vol_ratio)
