@@ -415,6 +415,12 @@ def run_scan():
 
         result = check_signal(symbol, df)
 
+        if not result:
+            ema9 = df["close"].ewm(span=EMA_FAST, adjust=False).mean().iloc[-1]
+            ema21 = df["close"].ewm(span=EMA_SLOW, adjust=False).mean().iloc[-1]
+            rsi = df["close"].diff().rolling(14).apply(lambda x: 100 - 100/(1 + (x[x>0].mean() / -x[x<0].mean())), raw=False).iloc[-1]
+            print(f"    [EMA9: ₹{ema9:.2f} | EMA21: ₹{ema21:.2f} | RSI: {rsi:.1f}]")
+
         if result:
             (direction, price, sl, tp, qty, amt, risk, reward,
              score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio) = result
