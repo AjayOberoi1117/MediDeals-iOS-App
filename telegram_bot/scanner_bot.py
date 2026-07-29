@@ -244,6 +244,10 @@ def fetch_candles(symbol, instrument_key):
             pass
 
         return df
+    except (UnicodeEncodeError, UnicodeDecodeError) as e:
+        print(f"    Token encoding error: {str(e)[:80]}")
+        print(f"    UPSTOX_TOKEN may contain invalid characters. Check .env file.")
+        return None
     except Exception as e:
         print(f"    Exception: {str(e)[:100]}")
         return None
