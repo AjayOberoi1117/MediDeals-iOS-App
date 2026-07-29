@@ -231,14 +231,14 @@ def fetch_candles(symbol, instrument_key):
         df["close"]  = df["close"].astype(float)
         df["volume"] = df["volume"].astype(float)
 
-        # Check if latest candle is stale (more than 35 min old)
+        # Check if latest candle is stale (more than 15 min old for better intraday signals)
         latest_ts = df["dt"].iloc[-1]
         now = datetime.now()
         try:
             candle_time = datetime.fromisoformat(latest_ts.replace('Z', '+00:00'))
             age_minutes = (now - candle_time).total_seconds() / 60
-            if age_minutes > 35:
-                print(f"    ⚠️  Stale data: latest candle is {age_minutes:.0f}min old ({latest_ts})")
+            if age_minutes > 15:
+                print(f"    ⚠️  Stale 30m: {age_minutes:.0f}min old")
                 return None
         except:
             pass
@@ -446,12 +446,13 @@ def run_scan():
 
         print(f"  {symbol:<14}", end=" ")
         df = fetch_candles(symbol, ikey)
+        used_1min = False
 
         # If 30-min candles are stale, try 1-minute candles for real-time data
         if df is None:
             df = fetch_candles_1min(symbol, ikey)
             if df is not None:
-                print(f"[1-min data]", end=" ")
+                used_1min = True
 
         if df is None:
             print("skip")
@@ -463,7 +464,8 @@ def run_scan():
             ema9 = df["close"].ewm(span=EMA_FAST, adjust=False).mean().iloc[-1]
             ema21 = df["close"].ewm(span=EMA_SLOW, adjust=False).mean().iloc[-1]
             rsi = df["close"].diff().rolling(14).apply(lambda x: 100 - 100/(1 + (x[x>0].mean() / -x[x<0].mean())), raw=False).iloc[-1]
-            print(f"    [EMA9: ₹{ema9:.2f} | EMA21: ₹{ema21:.2f} | RSI: {rsi:.1f}]")
+            interval = "1m" if used_1min else "30m"
+            print(f"    [{interval}] [EMA9: ₹{ema9:.2f} | EMA21: ₹{ema21:.2f} | RSI: {rsi:.1f}]")
 
         if result:
             (direction, price, sl, tp, qty, amt, risk, reward,
