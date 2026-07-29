@@ -35,6 +35,11 @@ class SettingsViewController: UIViewController {
         vc.actionString = "aboutUS"
         self.navigationController?.pushViewController(vc, animated: true)
     }
+    @IBAction func deleteAccountBtn(_ sender: UIButton) {
+        let vc = storyboard?.instantiateViewController(withIdentifier: "DeleteAccountViewController") as! DeleteAccountViewController
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+    @IBOutlet var deleteAcctBtn: UIButton!
     override func didReceiveMemoryWarning(){
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
