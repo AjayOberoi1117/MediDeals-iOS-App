@@ -445,14 +445,16 @@ def run_scan():
             continue
 
         print(f"  {symbol:<14}", end=" ")
-        df = fetch_candles(symbol, ikey)
-        used_1min = False
 
-        # If 30-min candles are stale, try 1-minute candles for real-time data
+        # During market hours (9:15-15:30), use 1-minute candles for real-time signals
+        # 30-minute candles are too slow for intraday trading
+        df = fetch_candles_1min(symbol, ikey)
+        used_1min = True
+
+        # If 1-minute fails, fallback to 30-minute
         if df is None:
-            df = fetch_candles_1min(symbol, ikey)
-            if df is not None:
-                used_1min = True
+            df = fetch_candles(symbol, ikey)
+            used_1min = False
 
         if df is None:
             print("skip")
