@@ -164,6 +164,27 @@ def save_state(state):
         json.dump(state, f)
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
+def fetch_candles_1min(symbol, instrument_key):
+    """Try fetching 1-minute candles for more real-time data"""
+    to_date   = datetime.now().strftime("%Y-%m-%d")
+    from_date = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    key_enc   = quote(instrument_key, safe="")
+    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/1minute/{to_date}/{from_date}"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        if r.status_code != 200:
+            return None
+        candles = r.json()["data"]["candles"]
+        if len(candles) < 30:
+            return None
+        df = pd.DataFrame(candles, columns=["dt","open","high","low","close","volume","oi"])
+        df = df.sort_values("dt").reset_index(drop=True)
+        df["close"]  = df["close"].astype(float)
+        df["volume"] = df["volume"].astype(float)
+        return df
+    except:
+        return None
+
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
@@ -209,6 +230,19 @@ def fetch_candles(symbol, instrument_key):
         df = df.sort_values("dt").reset_index(drop=True)
         df["close"]  = df["close"].astype(float)
         df["volume"] = df["volume"].astype(float)
+
+        # Check if latest candle is stale (more than 35 min old)
+        latest_ts = df["dt"].iloc[-1]
+        now = datetime.now()
+        try:
+            candle_time = datetime.fromisoformat(latest_ts.replace('Z', '+00:00'))
+            age_minutes = (now - candle_time).total_seconds() / 60
+            if age_minutes > 35:
+                print(f"    ⚠️  Stale data: latest candle is {age_minutes:.0f}min old ({latest_ts})")
+                return None
+        except:
+            pass
+
         return df
     except Exception as e:
         print(f"    Exception: {str(e)[:100]}")
@@ -409,6 +443,12 @@ def run_scan():
         print(f"  {symbol:<14}", end=" ")
         df = fetch_candles(symbol, ikey)
 
+        # If 30-min candles are stale, try 1-minute candles for real-time data
+        if df is None:
+            df = fetch_candles_1min(symbol, ikey)
+            if df is not None:
+                print(f"[1-min data]", end=" ")
+
         if df is None:
             print("skip")
             continue
@@ -455,10 +495,11 @@ def in_market_hours():
 
 def main():
     print("NSE Intraday Scanner — Nifty 100")
-    print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} + RSI({ATR_PERIOD}) | 30-min candles")
+    print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} + RSI({ATR_PERIOD}) | 30-min candles (fallback to 1-min if stale)")
     print(f"SL = 1x ATR  |  TP = 2x ATR  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
     print(f"Signals all day during market hours (9:15–15:30 IST)")
-    print(f"Scanning every {SCAN_INTERVAL_MIN} mins — pick & choose which to trade\n")
+    print(f"Scanning every {SCAN_INTERVAL_MIN} mins — pick & choose which to trade")
+    print(f"Token: {UPSTOX_TOKEN[:20]}...{UPSTOX_TOKEN[-10:]}\n")
 
     startup_notified = False
 
