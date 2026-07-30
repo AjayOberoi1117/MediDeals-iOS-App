@@ -435,10 +435,11 @@ def run_scan():
     print(f"{'='*55}")
 
     new_signals = 0
-    MAX_SIGNALS_PER_SCAN = 5  # Limit to top 5 best signals per scan
-    scan_signals = []  # Collect all signals to sort by confidence
 
     for symbol, ikey in NIFTY100.items():
+        if state["signals_sent"] + new_signals >= MAX_SIGNALS_PER_DAY:
+            break
+
         # Skip if already alerted today
         if symbol in state["symbols_alerted"]:
             continue
@@ -476,49 +477,18 @@ def run_scan():
                 print(f"→ {direction} | {tier} ({score}/100) [filtered]")
                 continue
 
+            msg = format_signal(direction, symbol, price, sl, tp, qty, amt,
+                                 risk, reward, score, tier, t_emoji, reasons,
+                                 rsi, e25, e50, vol_ratio)
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
-
-            # Store signal for sorting and limiting
-            scan_signals.append({
-                "symbol": symbol,
-                "direction": direction,
-                "price": price,
-                "sl": sl,
-                "tp": tp,
-                "qty": qty,
-                "amt": amt,
-                "risk": risk,
-                "reward": reward,
-                "score": score,
-                "tier": tier,
-                "t_emoji": t_emoji,
-                "reasons": reasons,
-                "rsi": rsi,
-                "e25": e25,
-                "e50": e50,
-                "vol_ratio": vol_ratio
-            })
+            notify(msg)
+            send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
+            state["symbols_alerted"].append(symbol)
+            new_signals += 1
         else:
             print("no signal")
 
         time.sleep(0.3)
-
-    # Sort signals by confidence score (highest first) and send only top 5
-    scan_signals.sort(key=lambda x: x["score"], reverse=True)
-    for signal in scan_signals[:MAX_SIGNALS_PER_SCAN]:
-        if state["signals_sent"] + new_signals >= MAX_SIGNALS_PER_DAY:
-            break
-
-        msg = format_signal(
-            signal["direction"], signal["symbol"], signal["price"], signal["sl"],
-            signal["tp"], signal["qty"], signal["amt"], signal["risk"], signal["reward"],
-            signal["score"], signal["tier"], signal["t_emoji"], signal["reasons"],
-            signal["rsi"], signal["e25"], signal["e50"], signal["vol_ratio"]
-        )
-        notify(msg)
-        send_email(f"[NSE Signal] {signal['direction']} {signal['symbol']} — {signal['tier']} ({signal['score']}/100)", msg)
-        state["symbols_alerted"].append(signal["symbol"])
-        new_signals += 1
 
     state["signals_sent"] += new_signals
     save_state(state)
