@@ -473,7 +473,7 @@ def run_scan():
             (direction, price, sl, tp, qty, amt, risk, reward,
              score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio) = result
 
-            if tier != "HIGH":
+            if tier == "LOW":
                 print(f"→ {direction} | {tier} ({score}/100) [filtered]")
                 continue
 
