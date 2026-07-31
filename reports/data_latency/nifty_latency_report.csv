@@ -1,0 +1,3 @@
+timestamp_utc,timestamp_ist,symbol_name,symbol_ticker,interval,request_duration_seconds,latest_candle_time_utc,latest_candle_time_ist,candle_age_minutes,expected_candle_close_time_utc,is_candle_closed,candle_count,first_candle_time,last_candle_time,missing_candles,duplicate_candles,zero_or_invalid_prices,status,error_message
+2026-07-31T08:23:52.854173+00:00,2026-07-31T13:53:52.854186+05:30,NIFTY 50,^NSEI,15m,0.8255147933959961,,,,,,,,,,,,,NO_DATA,yfinance returned empty DataFrame
+2026-07-31T08:23:53.679956+00:00,2026-07-31T13:53:53.679979+05:30,BANKNIFTY,^NSEBANK,15m,2.222334623336792,,,,,,,,,,,,,NO_DATA,yfinance returned empty DataFrame
