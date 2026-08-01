@@ -6,8 +6,9 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
+import pytz
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 UPSTOX_TOKEN  = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTI1Y2VlYmIyODljMTU0NDM2MTkzMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzgwODYyNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTI0MDU2MDB9.IlPTIdhafzRLcBpdGt9zofG2BF46CCnA-pSuYyp_u68"
@@ -36,6 +37,26 @@ SCAN_INTERVAL_MIN   = 30   # re-scan every 30 mins during market hours
 # Market hours IST
 MARKET_OPEN  = (9, 15)
 MARKET_CLOSE = (15, 30)
+IST = pytz.timezone('Asia/Kolkata')
+
+# NSE holidays in 2026 (Mon-Fri closures)
+NSE_HOLIDAYS_2026 = [
+    datetime(2026, 1, 26).date(),   # Republic Day
+    datetime(2026, 3, 8).date(),    # Maha Shivaratri
+    datetime(2026, 3, 25).date(),   # Holi
+    datetime(2026, 3, 29).date(),   # Good Friday
+    datetime(2026, 4, 2).date(),    # Ram Navami
+    datetime(2026, 4, 14).date(),   # Dr. B.R. Ambedkar Jayanti
+    datetime(2026, 5, 1).date(),    # Maharashtra Day
+    datetime(2026, 8, 15).date(),   # Independence Day
+    datetime(2026, 8, 27).date(),   # Janmashtami
+    datetime(2026, 9, 2).date(),    # Ganesh Chaturthi
+    datetime(2026, 10, 2).date(),   # Gandhi Jayanti
+    datetime(2026, 10, 24).date(),  # Diwali
+    datetime(2026, 10, 25).date(),  # Diwali (Day 2)
+    datetime(2026, 11, 11).date(),  # Dussehra
+    datetime(2026, 12, 25).date(),  # Christmas
+]
 
 # Capital by confidence
 CAPITAL = {"HIGH": 200000, "MEDIUM": 150000, "LOW": 100000}
@@ -154,7 +175,7 @@ HEADERS = {
 
 # ── STATE: track signals sent today ─────────────────────────────────────────
 def load_state():
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(IST).strftime("%Y-%m-%d")
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
             state = json.load(f)
@@ -385,6 +406,13 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
 
 # ── MAIN SCAN ────────────────────────────────────────────────────────────────
 def run_scan():
+    # DATA FRESHNESS CHECK: Don't scan too early (before 10:00 AM)
+    # Reason: First candle closes at 9:30, data is often incomplete/stale before 10 AM
+    now_ist = datetime.now(IST)
+    if now_ist.hour < 10:
+        print(f"[{now_ist.strftime('%H:%M IST')}] Waiting for data to settle (scanning starts at 10:00 AM)")
+        return
+
     state = load_state()
 
     if state["signals_sent"] >= MAX_SIGNALS_PER_DAY:
@@ -393,7 +421,7 @@ def run_scan():
 
     remaining = MAX_SIGNALS_PER_DAY - state["signals_sent"]
     print(f"\n{'='*55}")
-    print(f"Scan: {datetime.now().strftime('%d-%b-%Y %H:%M:%S')}  |  Signals left today: {remaining}")
+    print(f"Scan: {now_ist.strftime('%d-%b-%Y %H:%M IST')}  |  Signals left today: {remaining}")
     print(f"{'='*55}")
 
     new_signals = 0
@@ -437,24 +465,69 @@ def run_scan():
 
     print(f"\nDone. {new_signals} new signal(s). Total today: {state['signals_sent']}/{MAX_SIGNALS_PER_DAY}")
 
-# ── ENTRY ────────────────────────────────────────────────────────────────────
+# ── MARKET HOURS CHECK ──────────────────────────────────────────────────────
 def in_market_hours():
-    now = datetime.now()
-    t   = (now.hour, now.minute)
-    return MARKET_OPEN <= t <= MARKET_CLOSE
+    """
+    Check if we're within NSE trading hours.
+
+    Returns False if:
+    - Weekend (Saturday/Sunday)
+    - NSE holiday
+    - Outside 9:15–15:30 IST
+    """
+    # Get current time in IST
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    # Check 1: Is it a weekend? (Saturday=5, Sunday=6)
+    if now_ist.weekday() >= 5:
+        return False
+
+    # Check 2: Is it an NSE holiday?
+    if today in NSE_HOLIDAYS_2026:
+        return False
+
+    # Check 3: Is it within market hours?
+    market_time = (now_ist.hour, now_ist.minute)
+    if not (MARKET_OPEN <= market_time <= MARKET_CLOSE):
+        return False
+
+    return True
+
+def get_market_status():
+    """Get human-readable market status."""
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        return f"CLOSED ({day_name})"
+
+    if today in NSE_HOLIDAYS_2026:
+        return "CLOSED (NSE Holiday)"
+
+    market_time = (now_ist.hour, now_ist.minute)
+    if market_time < MARKET_OPEN:
+        return f"Waiting for market open (9:15 IST)"
+    elif market_time > MARKET_CLOSE:
+        return f"Market closed (3:30 PM IST)"
+    else:
+        return "OPEN — Scanning active"
 
 def main():
     print("NSE Swing Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
     print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
-    print(f"Scanning every {SCAN_INTERVAL_MIN} mins during market hours (9:15–15:30 IST)\n")
+    print(f"Scanning every {SCAN_INTERVAL_MIN} mins during NSE market hours (9:15–15:30 IST, Mon-Fri)")
+    print(f"⚠️  NO SIGNALS ON WEEKENDS OR NSE HOLIDAYS\n")
 
     while True:
         if in_market_hours():
             run_scan()
         else:
-            now = datetime.now()
-            print(f"[{now.strftime('%H:%M')}] Outside market hours. Waiting...")
+            now_ist = datetime.now(IST)
+            status = get_market_status()
+            print(f"[{now_ist.strftime('%H:%M IST')}] {status} | Next check in {SCAN_INTERVAL_MIN}m")
 
         time.sleep(SCAN_INTERVAL_MIN * 60)
 
