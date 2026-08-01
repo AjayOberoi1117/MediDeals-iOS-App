@@ -31,7 +31,7 @@ SL_PCT              = 3.0
 TP_PCT              = 7.0
 EMA_FAST            = 25
 EMA_SLOW            = 50
-LOOKBACK_DAYS       = 120
+LOOKBACK_DAYS       = 5    # 5 days of 15-min candles (~480 candles)
 SCAN_INTERVAL_MIN   = 30   # re-scan every 30 mins during market hours
 
 # Market hours IST
@@ -232,12 +232,15 @@ def fetch_candles(symbol, instrument_key):
     to_date   = datetime.now().strftime("%Y-%m-%d")
     from_date = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
     key_enc   = quote(instrument_key, safe="")
-    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/day/{to_date}/{from_date}"
+    # Switched to 15-minute candles from Upstox (live intraday data)
+    # This replaces Yahoo Finance which had 15-30 minute latency issues
+    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/15minute/{to_date}/{from_date}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         if r.status_code != 200:
             return None
         candles = r.json()["data"]["candles"]
+        # With 15-min candles, 5 days = ~480 candles, require at least 60 (4 hours)
         if len(candles) < 60:
             return None
         df = pd.DataFrame(candles, columns=["dt","open","high","low","close","volume","oi"])
