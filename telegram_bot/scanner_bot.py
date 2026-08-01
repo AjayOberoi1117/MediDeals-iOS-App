@@ -181,7 +181,8 @@ def load_state():
             state = json.load(f)
         if state.get("date") == today:
             return state
-    return {"date": today, "signals_sent": 0, "symbols_alerted": []}
+    # symbols_alerted: {symbol: timestamp_of_last_alert} (allows re-signal after cooldown)
+    return {"date": today, "signals_sent": 0, "symbols_alerted": {}}
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
@@ -349,8 +350,9 @@ def check_signal(symbol, df):
     ema_bounce_sel = c_e25 < c_e50 and abs(price - c_e25) / price < 0.004
 
     # BUY only — Upstox delivery doesn't allow shorting stocks
+    # Stricter RSI (50-65 vs 45-68) filters weak bounces at market open
     direction = None
-    if (bullish_cross or ema_bounce_buy) and 45 <= c_rsi <= 68:
+    if (bullish_cross or ema_bounce_buy) and 50 <= c_rsi <= 65:
         direction = "BUY"
 
     if not direction:
@@ -409,11 +411,11 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
 
 # ── MAIN SCAN ────────────────────────────────────────────────────────────────
 def run_scan():
-    # DATA FRESHNESS CHECK: Don't scan too early (before 10:00 AM)
-    # Reason: First candle closes at 9:30, data is often incomplete/stale before 10 AM
+    # DATA FRESHNESS CHECK: Don't scan before 9:35 AM
+    # Reason: First candle closes at 9:30 AM, needs ~5 mins for Upstox data delivery
     now_ist = datetime.now(IST)
-    if now_ist.hour < 10:
-        print(f"[{now_ist.strftime('%H:%M IST')}] Waiting for data to settle (scanning starts at 10:00 AM)")
+    if now_ist.hour < 9 or (now_ist.hour == 9 and now_ist.minute < 35):
+        print(f"[{now_ist.strftime('%H:%M IST')}] Waiting for market candles (scanning starts at 9:35 AM)")
         return
 
     state = load_state()
@@ -428,14 +430,18 @@ def run_scan():
     print(f"{'='*55}")
 
     new_signals = 0
+    now_timestamp = datetime.now(IST).timestamp()
+    cooldown_seconds = 2 * 3600  # 2-hour cooldown between signals on same symbol
 
     for symbol, ikey in NIFTY100.items():
         if state["signals_sent"] + new_signals >= MAX_SIGNALS_PER_DAY:
             break
 
-        # Skip if already alerted today
+        # Skip if already alerted within last 2 hours
         if symbol in state["symbols_alerted"]:
-            continue
+            last_alert_time = state["symbols_alerted"][symbol]
+            if now_timestamp - last_alert_time < cooldown_seconds:
+                continue
 
         print(f"  {symbol:<14}", end=" ")
         df = fetch_candles(symbol, ikey)
@@ -456,7 +462,7 @@ def run_scan():
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
             notify(msg)
             send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
-            state["symbols_alerted"].append(symbol)
+            state["symbols_alerted"][symbol] = now_timestamp
             new_signals += 1
         else:
             print("no signal")
