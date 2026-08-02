@@ -211,6 +211,23 @@ def send_telegram(msg):
         print(f"  Telegram failed: {e}")
 
 def notify(msg):
+    """Send notification with FINAL safety check for weekends/holidays."""
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    # FINAL SAFETY BLOCK: Absolutely refuse to send any signal on weekends/holidays
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        print(f"🛑 FINAL SAFETY BLOCK: {day_name} — NOTIFICATION BLOCKED (market closed)")
+        print(f"   Message that was BLOCKED: {msg[:100]}...")
+        return
+
+    if today in NSE_HOLIDAYS_2026:
+        print(f"🛑 FINAL SAFETY BLOCK: NSE Holiday ({today}) — NOTIFICATION BLOCKED (market closed)")
+        print(f"   Message that was BLOCKED: {msg[:100]}...")
+        return
+
+    # Safe to send - market is open
     send_whatsapp(msg)
     send_telegram(msg)
 
@@ -411,9 +428,21 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
 
 # ── MAIN SCAN ────────────────────────────────────────────────────────────────
 def run_scan():
+    # SAFETY LAYER: Internal check — refuse to scan on weekends/holidays
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        print(f"🛑 INTERNAL SAFETY BLOCK: {day_name} — cannot scan on weekend")
+        return
+
+    if today in NSE_HOLIDAYS_2026:
+        print(f"🛑 INTERNAL SAFETY BLOCK: NSE Holiday ({today}) — cannot scan")
+        return
+
     # DATA FRESHNESS CHECK: Don't scan before 9:35 AM
     # Reason: First candle closes at 9:30 AM, needs ~5 mins for Upstox data delivery
-    now_ist = datetime.now(IST)
     if now_ist.hour < 9 or (now_ist.hour == 9 and now_ist.minute < 35):
         print(f"[{now_ist.strftime('%H:%M IST')}] Waiting for market candles (scanning starts at 9:35 AM)")
         return
@@ -523,14 +552,48 @@ def get_market_status():
     else:
         return "OPEN — Scanning active"
 
+def verify_weekend_safety():
+    """Emergency safety check: abort if today is weekend or holiday."""
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    # ABSOLUTE BLOCK: No scanning on weekends under any circumstance
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        error_msg = f"SAFETY ABORT: {day_name.upper()} detected. Market closed. No scanning allowed."
+        print(f"🛑 {error_msg}")
+        return False
+
+    # ABSOLUTE BLOCK: No scanning on NSE holidays
+    if today in NSE_HOLIDAYS_2026:
+        error_msg = f"SAFETY ABORT: NSE Holiday detected ({today}). Market closed. No scanning allowed."
+        print(f"🛑 {error_msg}")
+        return False
+
+    return True
+
 def main():
     print("NSE Swing Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
     print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
     print(f"Scanning every {SCAN_INTERVAL_MIN} mins during NSE market hours (9:15–15:30 IST, Mon-Fri)")
-    print(f"⚠️  NO SIGNALS ON WEEKENDS OR NSE HOLIDAYS\n")
+    print(f"⚠️  NO SIGNALS ON WEEKENDS OR NSE HOLIDAYS")
+    print(f"🔒 SAFETY LOCKS: 3-layer weekend/holiday protection\n")
+
+    # LAYER 1: Startup safety check
+    if not verify_weekend_safety():
+        print("⛔ Cannot start scanner on weekend/holiday. Exiting.")
+        return
 
     while True:
+        # LAYER 2: Main loop check
+        if not verify_weekend_safety():
+            now_ist = datetime.now(IST)
+            print(f"[{now_ist.strftime('%H:%M IST')}] ⛔ WEEKEND/HOLIDAY BLOCK ACTIVE")
+            time.sleep(60)  # Sleep for 1 min then check again
+            continue
+
+        # LAYER 3: Market hours detailed check
         if in_market_hours():
             run_scan()
         else:
