@@ -6,8 +6,9 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
+import pytz
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 UPSTOX_TOKEN  = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTI1Y2VlYmIyODljMTU0NDM2MTkzMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzgwODYyNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTI0MDU2MDB9.IlPTIdhafzRLcBpdGt9zofG2BF46CCnA-pSuYyp_u68"
@@ -30,12 +31,52 @@ SL_PCT              = 3.0
 TP_PCT              = 7.0
 EMA_FAST            = 25
 EMA_SLOW            = 50
-LOOKBACK_DAYS       = 120
+LOOKBACK_DAYS       = 5    # 5 days of 15-min candles (~480 candles)
 SCAN_INTERVAL_MIN   = 30   # re-scan every 30 mins during market hours
 
 # Market hours IST
 MARKET_OPEN  = (9, 15)
 MARKET_CLOSE = (15, 30)
+IST = pytz.timezone('Asia/Kolkata')
+
+# NSE holidays in 2026 (Mon-Fri closures)
+NSE_HOLIDAYS_2026 = [
+    datetime(2026, 1, 26).date(),   # Republic Day
+    datetime(2026, 3, 8).date(),    # Maha Shivaratri
+    datetime(2026, 3, 25).date(),   # Holi
+    datetime(2026, 3, 29).date(),   # Good Friday
+    datetime(2026, 4, 2).date(),    # Ram Navami
+    datetime(2026, 4, 14).date(),   # Dr. B.R. Ambedkar Jayanti
+    datetime(2026, 5, 1).date(),    # Maharashtra Day
+    datetime(2026, 8, 15).date(),   # Independence Day
+    datetime(2026, 8, 27).date(),   # Janmashtami
+    datetime(2026, 9, 2).date(),    # Ganesh Chaturthi
+    datetime(2026, 10, 2).date(),   # Gandhi Jayanti
+    datetime(2026, 10, 24).date(),  # Diwali
+    datetime(2026, 10, 25).date(),  # Diwali (Day 2)
+    datetime(2026, 11, 11).date(),  # Dussehra
+    datetime(2026, 12, 25).date(),  # Christmas
+]
+
+# Earnings calendar 2026 (update as companies announce)
+# Format: {symbol: [earnings_dates]}
+EARNINGS_CALENDAR = {
+    # TCS — typically mid-month results
+    "TCS": [datetime(2026, 4, 15).date(), datetime(2026, 7, 15).date(),
+            datetime(2026, 10, 15).date(), datetime(2027, 1, 15).date()],
+    # RELIANCE — typically mid/late month
+    "RELIANCE": [datetime(2026, 4, 20).date(), datetime(2026, 7, 20).date(),
+                 datetime(2026, 10, 20).date(), datetime(2027, 1, 20).date()],
+    # INFY — typically mid-month
+    "INFY": [datetime(2026, 4, 10).date(), datetime(2026, 7, 10).date(),
+             datetime(2026, 10, 10).date(), datetime(2027, 1, 10).date()],
+    # HDFC Bank — typically mid-month
+    "HDFCBANK": [datetime(2026, 4, 18).date(), datetime(2026, 7, 18).date(),
+                 datetime(2026, 10, 18).date(), datetime(2027, 1, 18).date()],
+    # ICICI Bank
+    "ICICIBANK": [datetime(2026, 4, 12).date(), datetime(2026, 7, 12).date(),
+                  datetime(2026, 10, 12).date(), datetime(2027, 1, 12).date()],
+}
 
 # Capital by confidence
 CAPITAL = {"HIGH": 200000, "MEDIUM": 150000, "LOW": 100000}
@@ -154,13 +195,14 @@ HEADERS = {
 
 # ── STATE: track signals sent today ─────────────────────────────────────────
 def load_state():
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(IST).strftime("%Y-%m-%d")
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE) as f:
             state = json.load(f)
         if state.get("date") == today:
             return state
-    return {"date": today, "signals_sent": 0, "symbols_alerted": []}
+    # symbols_alerted: {symbol: timestamp_of_last_alert} (allows re-signal after cooldown)
+    return {"date": today, "signals_sent": 0, "symbols_alerted": {}}
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
@@ -189,6 +231,23 @@ def send_telegram(msg):
         print(f"  Telegram failed: {e}")
 
 def notify(msg):
+    """Send notification with FINAL safety check for weekends/holidays."""
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    # FINAL SAFETY BLOCK: Absolutely refuse to send any signal on weekends/holidays
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        print(f"🛑 FINAL SAFETY BLOCK: {day_name} — NOTIFICATION BLOCKED (market closed)")
+        print(f"   Message that was BLOCKED: {msg[:100]}...")
+        return
+
+    if today in NSE_HOLIDAYS_2026:
+        print(f"🛑 FINAL SAFETY BLOCK: NSE Holiday ({today}) — NOTIFICATION BLOCKED (market closed)")
+        print(f"   Message that was BLOCKED: {msg[:100]}...")
+        return
+
+    # Safe to send - market is open
     send_whatsapp(msg)
     send_telegram(msg)
 
@@ -211,12 +270,15 @@ def fetch_candles(symbol, instrument_key):
     to_date   = datetime.now().strftime("%Y-%m-%d")
     from_date = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
     key_enc   = quote(instrument_key, safe="")
-    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/day/{to_date}/{from_date}"
+    # Switched to 15-minute candles from Upstox (live intraday data)
+    # This replaces Yahoo Finance which had 15-30 minute latency issues
+    url       = f"https://api.upstox.com/v2/historical-candle/{key_enc}/15minute/{to_date}/{from_date}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         if r.status_code != 200:
             return None
         candles = r.json()["data"]["candles"]
+        # With 15-min candles, 5 days = ~480 candles, require at least 60 (4 hours)
         if len(candles) < 60:
             return None
         df = pd.DataFrame(candles, columns=["dt","open","high","low","close","volume","oi"])
@@ -227,6 +289,21 @@ def fetch_candles(symbol, instrument_key):
     except Exception:
         return None
 
+def check_earnings_within_days(symbol, days=2):
+    """Check if stock has earnings announcement within N days. Returns days_until or None."""
+    today = datetime.now(IST).date()
+
+    if symbol not in EARNINGS_CALENDAR:
+        return None
+
+    earnings_dates = EARNINGS_CALENDAR[symbol]
+    for earnings_date in earnings_dates:
+        days_until = (earnings_date - today).days
+        if 0 <= days_until <= days:
+            return days_until
+
+    return None
+
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain  = delta.where(delta > 0, 0).rolling(period).mean()
@@ -234,7 +311,7 @@ def calculate_rsi(series, period=14):
     rs    = gain / loss
     return 100 - (100 / (1 + rs))
 
-def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio):
+def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio, earnings_days=None):
     score = 0
     reasons = []
 
@@ -295,6 +372,18 @@ def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio)
         score += 3
         reasons.append(f"Volume {round(vol_ratio,1)}x above average")
 
+    # 5. EARNINGS BOOST: Boost confidence for earnings-near signals
+    if earnings_days is not None:
+        if earnings_days == 0:
+            score += 15
+            reasons.append("⭐ EARNINGS TODAY — expect strong momentum")
+        elif earnings_days == 1:
+            score += 12
+            reasons.append("⭐ EARNINGS TOMORROW — pre-announcement volatility")
+        elif earnings_days == 2:
+            score += 8
+            reasons.append("⭐ Earnings in 2 days — potential momentum building")
+
     # Confidence tier
     if score >= 70:
         tier, emoji = "HIGH",   "🔥"
@@ -325,15 +414,19 @@ def check_signal(symbol, df):
     ema_bounce_sel = c_e25 < c_e50 and abs(price - c_e25) / price < 0.004
 
     # BUY only — Upstox delivery doesn't allow shorting stocks
+    # Stricter RSI (50-65 vs 45-68) filters weak bounces at market open
     direction = None
-    if (bullish_cross or ema_bounce_buy) and 45 <= c_rsi <= 68:
+    if (bullish_cross or ema_bounce_buy) and 50 <= c_rsi <= 65:
         direction = "BUY"
 
     if not direction:
         return None
 
+    # Check for upcoming earnings
+    earnings_days = check_earnings_within_days(symbol, days=2)
+
     score, tier, t_emoji, reasons = score_signal(
-        direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio
+        direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio, earnings_days
     )
 
     capital = CAPITAL[tier]
@@ -350,10 +443,10 @@ def check_signal(symbol, df):
     risk   = round(abs(price - sl) * qty)
     reward = round(abs(tp - price) * qty)
 
-    return direction, price, sl, tp, qty, amt, risk, reward, score, tier, t_emoji, reasons, c_rsi, c_e25, c_e50, vol_ratio
+    return direction, price, sl, tp, qty, amt, risk, reward, score, tier, t_emoji, reasons, c_rsi, c_e25, c_e50, vol_ratio, earnings_days
 
 def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
-                  score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio):
+                  score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio, earnings_days=None):
     now      = datetime.now().strftime("%d-%b-%Y %H:%M")
     d_emoji  = "🟢" if direction == "BUY" else "🔴"
     arrow    = "📈" if direction == "BUY" else "📉"
@@ -363,6 +456,16 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
         "LOW":    "Borderline signal — reduce position size or wait for better entry.",
     }[tier]
     reason_text = "\n".join(f"  • {r}" for r in reasons)
+
+    # Add earnings banner if applicable
+    earnings_banner = ""
+    if earnings_days is not None:
+        if earnings_days == 0:
+            earnings_banner = "\n🌟 ⚡ EARNINGS LIVE TODAY ⚡ 🌟\n"
+        elif earnings_days == 1:
+            earnings_banner = "\n🌟 EARNINGS ANNOUNCEMENT TOMORROW 🌟\n"
+        elif earnings_days == 2:
+            earnings_banner = "\n🌟 EARNINGS IN 2 DAYS 🌟\n"
 
     return (
         f"{d_emoji} <b>{direction} SIGNAL — {symbol}</b>\n"
@@ -380,11 +483,31 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
         f"📣 Volume: {round(vol_ratio,1)}x avg\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"💡 <i>{tip}</i>\n"
+        f"{earnings_banner}"
         f"⏰ {now}"
     )
 
 # ── MAIN SCAN ────────────────────────────────────────────────────────────────
 def run_scan():
+    # SAFETY LAYER: Internal check — refuse to scan on weekends/holidays
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        print(f"🛑 INTERNAL SAFETY BLOCK: {day_name} — cannot scan on weekend")
+        return
+
+    if today in NSE_HOLIDAYS_2026:
+        print(f"🛑 INTERNAL SAFETY BLOCK: NSE Holiday ({today}) — cannot scan")
+        return
+
+    # DATA FRESHNESS CHECK: Don't scan before 9:35 AM
+    # Reason: First candle closes at 9:30 AM, needs ~5 mins for Upstox data delivery
+    if now_ist.hour < 9 or (now_ist.hour == 9 and now_ist.minute < 35):
+        print(f"[{now_ist.strftime('%H:%M IST')}] Waiting for market candles (scanning starts at 9:35 AM)")
+        return
+
     state = load_state()
 
     if state["signals_sent"] >= MAX_SIGNALS_PER_DAY:
@@ -393,18 +516,22 @@ def run_scan():
 
     remaining = MAX_SIGNALS_PER_DAY - state["signals_sent"]
     print(f"\n{'='*55}")
-    print(f"Scan: {datetime.now().strftime('%d-%b-%Y %H:%M:%S')}  |  Signals left today: {remaining}")
+    print(f"Scan: {now_ist.strftime('%d-%b-%Y %H:%M IST')}  |  Signals left today: {remaining}")
     print(f"{'='*55}")
 
     new_signals = 0
+    now_timestamp = datetime.now(IST).timestamp()
+    cooldown_seconds = 2 * 3600  # 2-hour cooldown between signals on same symbol
 
     for symbol, ikey in NIFTY100.items():
         if state["signals_sent"] + new_signals >= MAX_SIGNALS_PER_DAY:
             break
 
-        # Skip if already alerted today
+        # Skip if already alerted within last 2 hours
         if symbol in state["symbols_alerted"]:
-            continue
+            last_alert_time = state["symbols_alerted"][symbol]
+            if now_timestamp - last_alert_time < cooldown_seconds:
+                continue
 
         print(f"  {symbol:<14}", end=" ")
         df = fetch_candles(symbol, ikey)
@@ -417,15 +544,15 @@ def run_scan():
 
         if result:
             (direction, price, sl, tp, qty, amt, risk, reward,
-             score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio) = result
+             score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio, earnings_days) = result
 
             msg = format_signal(direction, symbol, price, sl, tp, qty, amt,
                                  risk, reward, score, tier, t_emoji, reasons,
-                                 rsi, e25, e50, vol_ratio)
+                                 rsi, e25, e50, vol_ratio, earnings_days)
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
             notify(msg)
             send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
-            state["symbols_alerted"].append(symbol)
+            state["symbols_alerted"][symbol] = now_timestamp
             new_signals += 1
         else:
             print("no signal")
@@ -437,24 +564,103 @@ def run_scan():
 
     print(f"\nDone. {new_signals} new signal(s). Total today: {state['signals_sent']}/{MAX_SIGNALS_PER_DAY}")
 
-# ── ENTRY ────────────────────────────────────────────────────────────────────
+# ── MARKET HOURS CHECK ──────────────────────────────────────────────────────
 def in_market_hours():
-    now = datetime.now()
-    t   = (now.hour, now.minute)
-    return MARKET_OPEN <= t <= MARKET_CLOSE
+    """
+    Check if we're within NSE trading hours.
+
+    Returns False if:
+    - Weekend (Saturday/Sunday)
+    - NSE holiday
+    - Outside 9:15–15:30 IST
+    """
+    # Get current time in IST
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    # Check 1: Is it a weekend? (Saturday=5, Sunday=6)
+    if now_ist.weekday() >= 5:
+        return False
+
+    # Check 2: Is it an NSE holiday?
+    if today in NSE_HOLIDAYS_2026:
+        return False
+
+    # Check 3: Is it within market hours?
+    market_time = (now_ist.hour, now_ist.minute)
+    if not (MARKET_OPEN <= market_time <= MARKET_CLOSE):
+        return False
+
+    return True
+
+def get_market_status():
+    """Get human-readable market status."""
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        return f"CLOSED ({day_name})"
+
+    if today in NSE_HOLIDAYS_2026:
+        return "CLOSED (NSE Holiday)"
+
+    market_time = (now_ist.hour, now_ist.minute)
+    if market_time < MARKET_OPEN:
+        return f"Waiting for market open (9:15 IST)"
+    elif market_time > MARKET_CLOSE:
+        return f"Market closed (3:30 PM IST)"
+    else:
+        return "OPEN — Scanning active"
+
+def verify_weekend_safety():
+    """Emergency safety check: abort if today is weekend or holiday."""
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+
+    # ABSOLUTE BLOCK: No scanning on weekends under any circumstance
+    if now_ist.weekday() >= 5:
+        day_name = "Saturday" if now_ist.weekday() == 5 else "Sunday"
+        error_msg = f"SAFETY ABORT: {day_name.upper()} detected. Market closed. No scanning allowed."
+        print(f"🛑 {error_msg}")
+        return False
+
+    # ABSOLUTE BLOCK: No scanning on NSE holidays
+    if today in NSE_HOLIDAYS_2026:
+        error_msg = f"SAFETY ABORT: NSE Holiday detected ({today}). Market closed. No scanning allowed."
+        print(f"🛑 {error_msg}")
+        return False
+
+    return True
 
 def main():
     print("NSE Swing Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
     print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
-    print(f"Scanning every {SCAN_INTERVAL_MIN} mins during market hours (9:15–15:30 IST)\n")
+    print(f"Scanning every {SCAN_INTERVAL_MIN} mins during NSE market hours (9:15–15:30 IST, Mon-Fri)")
+    print(f"⚠️  NO SIGNALS ON WEEKENDS OR NSE HOLIDAYS")
+    print(f"🔒 SAFETY LOCKS: 3-layer weekend/holiday protection\n")
+
+    # LAYER 1: Startup safety check
+    if not verify_weekend_safety():
+        print("⛔ Cannot start scanner on weekend/holiday. Exiting.")
+        return
 
     while True:
+        # LAYER 2: Main loop check
+        if not verify_weekend_safety():
+            now_ist = datetime.now(IST)
+            print(f"[{now_ist.strftime('%H:%M IST')}] ⛔ WEEKEND/HOLIDAY BLOCK ACTIVE")
+            time.sleep(60)  # Sleep for 1 min then check again
+            continue
+
+        # LAYER 3: Market hours detailed check
         if in_market_hours():
             run_scan()
         else:
-            now = datetime.now()
-            print(f"[{now.strftime('%H:%M')}] Outside market hours. Waiting...")
+            now_ist = datetime.now(IST)
+            status = get_market_status()
+            print(f"[{now_ist.strftime('%H:%M IST')}] {status} | Next check in {SCAN_INTERVAL_MIN}m")
 
         time.sleep(SCAN_INTERVAL_MIN * 60)
 
