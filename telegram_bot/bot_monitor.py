@@ -15,11 +15,17 @@ Runs continuously, logs all metrics, alerts on issues.
 import os
 import json
 import time
-import psutil
+import subprocess
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 import pytz
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 IST = pytz.timezone('Asia/Kolkata')
 MONITOR_DIR = Path(__file__).parent / "bot_monitor_data"
@@ -61,6 +67,81 @@ SIGNAL_CHAT_ID = "1994067941"
 ELITE_BOT_TOKEN = "8649245457:AAFpe95Us_eiVTuewD1f7TJG2gRwUMX0zuA"
 
 # ════════════════════════════════════════════════════════════════════════════
+# BOT DISCOVERY
+# ════════════════════════════════════════════════════════════════════════════
+
+def discover_trading_bots():
+    """Auto-discover trading bots by looking for log files."""
+    log_dir = Path("logs")
+    if not log_dir.exists():
+        return {}
+
+    discovered = {}
+    for log_file in log_dir.glob("*.log"):
+        bot_name = log_file.stem
+        # Exclude utility scripts
+        if bot_name not in ["backtest_forex", "backtest_nifty", "backtest_options", "signal_sync_mac", "signal_server"]:
+            discovered[bot_name] = {
+                "name": bot_name.replace("_", " ").title(),
+                "script": f"{bot_name}.py",
+                "log": str(log_file),
+            }
+
+    return discovered
+
+# ════════════════════════════════════════════════════════════════════════════
+# ALERT DEDUPLICATION
+# ════════════════════════════════════════════════════════════════════════════
+
+class AlertManager:
+    """Manage alert deduplication and cooldown."""
+
+    def __init__(self):
+        self.alert_state_file = MONITOR_DIR / "alert_state.json"
+        self.load_state()
+        self.cooldown_minutes = 60  # Only alert once per hour for same issue
+
+    def load_state(self):
+        """Load alert state from file."""
+        if self.alert_state_file.exists():
+            with open(self.alert_state_file) as f:
+                self.state = json.load(f)
+        else:
+            self.state = {}
+
+    def save_state(self):
+        """Save alert state to file."""
+        with open(self.alert_state_file, 'w') as f:
+            json.dump(self.state, f, indent=2)
+
+    def should_alert(self, bot_key, alert_type):
+        """Check if alert should be sent based on cooldown."""
+        now = time.time()
+        alert_key = f"{bot_key}_{alert_type}"
+
+        if alert_key not in self.state:
+            self.state[alert_key] = {"last_alert": now, "count": 1}
+            self.save_state()
+            return True
+
+        last_alert_time = self.state[alert_key]["last_alert"]
+        time_since_alert = (now - last_alert_time) / 60  # Convert to minutes
+
+        if time_since_alert > self.cooldown_minutes:
+            self.state[alert_key] = {"last_alert": now, "count": self.state[alert_key].get("count", 0) + 1}
+            self.save_state()
+            return True
+
+        return False
+
+    def reset_alert(self, bot_key, alert_type):
+        """Reset alert state when issue is resolved."""
+        alert_key = f"{bot_key}_{alert_type}"
+        if alert_key in self.state:
+            del self.state[alert_key]
+            self.save_state()
+
+# ════════════════════════════════════════════════════════════════════════════
 # BOT HEALTH CHECKS
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -75,12 +156,29 @@ class BotHealthCheck:
 
     def check_process_running(self):
         """Check if bot process is running."""
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        if HAS_PSUTIL:
             try:
-                if self.config["script"] in ' '.join(proc.info['cmdline'] or []):
-                    return True, proc.info['pid']
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if self.config["script"] in ' '.join(proc.info['cmdline'] or []):
+                            return True, proc.info['pid']
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+            except Exception:
                 pass
+        else:
+            # Fallback: use pgrep
+            try:
+                result = subprocess.run(
+                    ['pgrep', '-f', self.config["script"]],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    pids = result.stdout.strip().split('\n')
+                    return True, int(pids[0])
+            except Exception:
+                pass
+
         return False, None
 
     def check_log_recent(self):
@@ -242,18 +340,29 @@ def send_alert(alert_type, bot_name, message):
 def run_monitor():
     """Main monitoring loop."""
     print("🔍 BOT MONITOR STARTED")
-    print(f"Watching {len(BOTS)} bots every 60 seconds\n")
+    print("Auto-discovering bots...\n")
 
     monitor_interval = 60  # Check every 60 seconds
+    alert_manager = AlertManager()
+    previous_statuses = {}
 
     while True:
         try:
             now_ist = datetime.now(IST)
             print(f"\n[{now_ist.strftime('%H:%M:%S IST')}] ─────────────────────")
 
+            # Auto-discover bots
+            discovered_bots = discover_trading_bots()
+            if not discovered_bots:
+                print("⚠️  No bots discovered. Checking in 60s...")
+                time.sleep(monitor_interval)
+                continue
+
+            print(f"Monitoring {len(discovered_bots)} bots")
+
             all_statuses = {}
 
-            for bot_key, bot_config in BOTS.items():
+            for bot_key, bot_config in discovered_bots.items():
                 checker = BotHealthCheck(bot_key, bot_config)
                 status = checker.get_full_status()
                 all_statuses[bot_key] = status
@@ -263,21 +372,39 @@ def run_monitor():
                 emoji = "🟢" if health >= 80 else "🟡" if health >= 50 else "🔴"
                 print(f"{emoji} {status['bot']:20} | Health: {health:3}/100 | Running: {status['running']} | PID: {status['pid']}")
 
-                # Alert on critical issues
-                if status["health_score"] < 50:
+                # Alert on critical issues (with deduplication)
+                prev_health = previous_statuses.get(bot_key, {}).get("health_score", 100)
+
+                if status["health_score"] < 50 and alert_manager.should_alert(bot_key, "CRITICAL"):
                     send_alert("CRITICAL", status["bot"],
                               f"Health score: {status['health_score']}/100\n"
                               f"Running: {status['running']}\n"
                               f"Log fresh: {status['log_fresh']}\n"
                               f"Error rate: {status['error_rate']}")
+                elif status["health_score"] >= 50 and prev_health < 50:
+                    # Recovery notification
+                    send_alert("RECOVERY", status["bot"],
+                              f"✅ Bot recovered. Health: {status['health_score']}/100")
+                    alert_manager.reset_alert(bot_key, "CRITICAL")
 
-                if not status["running"]:
+                if not status["running"] and alert_manager.should_alert(bot_key, "PROCESS_DOWN"):
                     send_alert("ERROR", status["bot"], f"Process not running! Last log: {status['log_age']}")
+                elif status["running"] and not previous_statuses.get(bot_key, {}).get("running", True):
+                    # Process restarted
+                    alert_manager.reset_alert(bot_key, "PROCESS_DOWN")
 
-            # Save collective status
-            collective_file = MONITOR_DIR / "all_bots_status.json"
-            with open(collective_file, 'w') as f:
-                json.dump(all_statuses, f, indent=2)
+            # Save historical snapshot (append, don't overwrite)
+            timestamp = datetime.now(IST).isoformat()
+            history_file = MONITOR_DIR / f"history_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            with open(history_file, 'a') as f:
+                f.write(json.dumps({"timestamp": timestamp, "statuses": all_statuses}) + "\n")
+
+            # Save latest snapshot
+            latest_file = MONITOR_DIR / "all_bots_status.json"
+            with open(latest_file, 'w') as f:
+                json.dump({"timestamp": timestamp, "statuses": all_statuses}, f, indent=2)
+
+            previous_statuses = all_statuses
 
             # Sleep and repeat
             time.sleep(monitor_interval)
