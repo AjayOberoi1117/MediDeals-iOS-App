@@ -58,6 +58,26 @@ NSE_HOLIDAYS_2026 = [
     datetime(2026, 12, 25).date(),  # Christmas
 ]
 
+# Earnings calendar 2026 (update as companies announce)
+# Format: {symbol: [earnings_dates]}
+EARNINGS_CALENDAR = {
+    # TCS — typically mid-month results
+    "TCS": [datetime(2026, 4, 15).date(), datetime(2026, 7, 15).date(),
+            datetime(2026, 10, 15).date(), datetime(2027, 1, 15).date()],
+    # RELIANCE — typically mid/late month
+    "RELIANCE": [datetime(2026, 4, 20).date(), datetime(2026, 7, 20).date(),
+                 datetime(2026, 10, 20).date(), datetime(2027, 1, 20).date()],
+    # INFY — typically mid-month
+    "INFY": [datetime(2026, 4, 10).date(), datetime(2026, 7, 10).date(),
+             datetime(2026, 10, 10).date(), datetime(2027, 1, 10).date()],
+    # HDFC Bank — typically mid-month
+    "HDFCBANK": [datetime(2026, 4, 18).date(), datetime(2026, 7, 18).date(),
+                 datetime(2026, 10, 18).date(), datetime(2027, 1, 18).date()],
+    # ICICI Bank
+    "ICICIBANK": [datetime(2026, 4, 12).date(), datetime(2026, 7, 12).date(),
+                  datetime(2026, 10, 12).date(), datetime(2027, 1, 12).date()],
+}
+
 # Capital by confidence
 CAPITAL = {"HIGH": 200000, "MEDIUM": 150000, "LOW": 100000}
 
@@ -269,6 +289,21 @@ def fetch_candles(symbol, instrument_key):
     except Exception:
         return None
 
+def check_earnings_within_days(symbol, days=2):
+    """Check if stock has earnings announcement within N days. Returns days_until or None."""
+    today = datetime.now(IST).date()
+
+    if symbol not in EARNINGS_CALENDAR:
+        return None
+
+    earnings_dates = EARNINGS_CALENDAR[symbol]
+    for earnings_date in earnings_dates:
+        days_until = (earnings_date - today).days
+        if 0 <= days_until <= days:
+            return days_until
+
+    return None
+
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain  = delta.where(delta > 0, 0).rolling(period).mean()
@@ -276,7 +311,7 @@ def calculate_rsi(series, period=14):
     rs    = gain / loss
     return 100 - (100 / (1 + rs))
 
-def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio):
+def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio, earnings_days=None):
     score = 0
     reasons = []
 
@@ -337,6 +372,18 @@ def score_signal(direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio)
         score += 3
         reasons.append(f"Volume {round(vol_ratio,1)}x above average")
 
+    # 5. EARNINGS BOOST: Boost confidence for earnings-near signals
+    if earnings_days is not None:
+        if earnings_days == 0:
+            score += 15
+            reasons.append("⭐ EARNINGS TODAY — expect strong momentum")
+        elif earnings_days == 1:
+            score += 12
+            reasons.append("⭐ EARNINGS TOMORROW — pre-announcement volatility")
+        elif earnings_days == 2:
+            score += 8
+            reasons.append("⭐ Earnings in 2 days — potential momentum building")
+
     # Confidence tier
     if score >= 70:
         tier, emoji = "HIGH",   "🔥"
@@ -375,8 +422,11 @@ def check_signal(symbol, df):
     if not direction:
         return None
 
+    # Check for upcoming earnings
+    earnings_days = check_earnings_within_days(symbol, days=2)
+
     score, tier, t_emoji, reasons = score_signal(
-        direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio
+        direction, price, c_e25, c_e50, p_e25, p_e50, c_rsi, vol_ratio, earnings_days
     )
 
     capital = CAPITAL[tier]
@@ -393,10 +443,10 @@ def check_signal(symbol, df):
     risk   = round(abs(price - sl) * qty)
     reward = round(abs(tp - price) * qty)
 
-    return direction, price, sl, tp, qty, amt, risk, reward, score, tier, t_emoji, reasons, c_rsi, c_e25, c_e50, vol_ratio
+    return direction, price, sl, tp, qty, amt, risk, reward, score, tier, t_emoji, reasons, c_rsi, c_e25, c_e50, vol_ratio, earnings_days
 
 def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
-                  score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio):
+                  score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio, earnings_days=None):
     now      = datetime.now().strftime("%d-%b-%Y %H:%M")
     d_emoji  = "🟢" if direction == "BUY" else "🔴"
     arrow    = "📈" if direction == "BUY" else "📉"
@@ -406,6 +456,16 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
         "LOW":    "Borderline signal — reduce position size or wait for better entry.",
     }[tier]
     reason_text = "\n".join(f"  • {r}" for r in reasons)
+
+    # Add earnings banner if applicable
+    earnings_banner = ""
+    if earnings_days is not None:
+        if earnings_days == 0:
+            earnings_banner = "\n🌟 ⚡ EARNINGS LIVE TODAY ⚡ 🌟\n"
+        elif earnings_days == 1:
+            earnings_banner = "\n🌟 EARNINGS ANNOUNCEMENT TOMORROW 🌟\n"
+        elif earnings_days == 2:
+            earnings_banner = "\n🌟 EARNINGS IN 2 DAYS 🌟\n"
 
     return (
         f"{d_emoji} <b>{direction} SIGNAL — {symbol}</b>\n"
@@ -423,6 +483,7 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
         f"📣 Volume: {round(vol_ratio,1)}x avg\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"💡 <i>{tip}</i>\n"
+        f"{earnings_banner}"
         f"⏰ {now}"
     )
 
@@ -483,11 +544,11 @@ def run_scan():
 
         if result:
             (direction, price, sl, tp, qty, amt, risk, reward,
-             score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio) = result
+             score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio, earnings_days) = result
 
             msg = format_signal(direction, symbol, price, sl, tp, qty, amt,
                                  risk, reward, score, tier, t_emoji, reasons,
-                                 rsi, e25, e50, vol_ratio)
+                                 rsi, e25, e50, vol_ratio, earnings_days)
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
             notify(msg)
             send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
