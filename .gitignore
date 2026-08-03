@@ -1,2 +1,13 @@
 __pycache__/
 *.pyc
+
+# Trading bot runtime state (never commit local health/delivery state)
+telegram_bot/.scanner_health.json
+telegram_bot/.scanner_reliability.json
+telegram_bot/.scanner_bot.lock
+telegram_bot/.scanner_state.json
+telegram_bot/.seen_*
+telegram_bot/.state_*.json
+telegram_bot/.trade_queue.jsonl
+telegram_bot/.env
+telegram_bot/logs/

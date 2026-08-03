@@ -6,10 +6,13 @@ import time
 import json
 import os
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from urllib.parse import quote
+from reliability import AlertPolicy, StateStore, IST, acquire_instance_lock, as_ist, candle_timestamp, is_market_session, ist_now, next_scan_at
+from nse_holidays import is_nse_holiday
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTY5OTM2NWQwODFlYzdmZGMzOTk3NDgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg1MzAzOTA5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTY4OTg0MDB9.7XoUhjIoWwI_g-OyAK8si_5PXEVhVb9i_vi80h_SMUI")
@@ -27,8 +30,11 @@ TP_PCT              = 4.0
 EMA_FAST            = 9
 EMA_SLOW            = 21
 LOOKBACK_DAYS       = 5       # 5 days of intraday data
-SCAN_INTERVAL_MIN   = 30      # scan every 30 mins (matches 30-min candles)
+SCAN_INTERVAL_SECONDS = int(os.getenv("SCANNER_INTERVAL_SECONDS", "60"))
 ATR_PERIOD          = 14      # ATR period for dynamic stop-loss/take-profit
+MAX_SIGNAL_AGE_SECONDS = int(os.getenv("MAX_SIGNAL_AGE_SECONDS", "180"))
+HEARTBEAT_SECONDS = int(os.getenv("HEARTBEAT_SECONDS", "300"))
+STRATEGY_NAME = "nifty100_ema9_21_rsi14"
 
 # Trading hours IST (Monday-Friday, excluding NSE holidays)
 MARKET_OPEN  = (9, 15)   # Market opens at 9:15 AM
@@ -39,6 +45,14 @@ CAPITAL = {"HIGH": 200000, "MEDIUM": 150000, "LOW": 100000}
 
 # State file to track signals sent today
 STATE_FILE = os.path.join(os.path.dirname(__file__), ".scanner_state.json")
+RELIABILITY_STATE_FILE = os.path.join(os.path.dirname(__file__), ".scanner_reliability.json")
+HEALTH_FILE = os.path.join(os.path.dirname(__file__), ".scanner_health.json")
+LOCK_FILE = os.path.join(os.path.dirname(__file__), ".scanner_bot.lock")
+
+logging.basicConfig(format="%(asctime)s | SCANNER | %(levelname)s | %(message)s", level=logging.INFO)
+log = logging.getLogger("nse_scanner")
+reliability_store = StateStore(RELIABILITY_STATE_FILE)
+alert_policy = AlertPolicy(reliability_store, max_age_seconds=MAX_SIGNAL_AGE_SECONDS)
 
 # ── NIFTY 100 INSTRUMENT KEYS ────────────────────────────────────────────────
 NIFTY100 = {
@@ -179,23 +193,37 @@ def fetch_candles_1min(symbol, instrument_key):
             return None
         df = pd.DataFrame(candles, columns=["dt","open","high","low","close","volume","oi"])
         df = df.sort_values("dt").reset_index(drop=True)
+        df["dt"] = pd.to_datetime(df["dt"], utc=True)
         df["close"]  = df["close"].astype(float)
         df["volume"] = df["volume"].astype(float)
         return df
-    except:
+    except Exception:
+        log.exception("market_data_fetch_failed symbol=%s interval=1minute", symbol)
         return None
 
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
-        if not r.ok:
-            print(f"  Telegram error: {r.text[:100]}")
-    except Exception as e:
-        print(f"  Telegram failed: {e}")
+    for attempt in range(3):
+        try:
+            r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=(3, 10))
+            if r.ok and r.json().get("ok"):
+                return True
+            log.error("telegram_rejected status=%s body=%s", r.status_code, r.text[:100])
+            if r.status_code < 500 and r.status_code != 429:
+                break
+        except requests.ConnectTimeout:
+            log.exception("telegram_attempt_failed attempt=%d", attempt + 1)
+        except requests.RequestException:
+            # A read timeout is ambiguous: Telegram may have accepted the
+            # message. Do not retry and risk a duplicate alert.
+            log.exception("telegram_delivery_ambiguous_no_retry attempt=%d", attempt + 1)
+            break
+        if attempt < 2:
+            time.sleep(2 ** attempt)
+    return False
 
 def notify(msg):
-    send_telegram(msg)
+    return send_telegram(msg)
 
 def send_email(subject, html_body):
     try:
@@ -228,20 +256,21 @@ def fetch_candles(symbol, instrument_key):
             return None
         df = pd.DataFrame(candles, columns=["dt","open","high","low","close","volume","oi"])
         df = df.sort_values("dt").reset_index(drop=True)
+        df["dt"] = pd.to_datetime(df["dt"], utc=True)
         df["close"]  = df["close"].astype(float)
         df["volume"] = df["volume"].astype(float)
 
         # Check if latest candle is stale (more than 15 min old for better intraday signals)
         latest_ts = df["dt"].iloc[-1]
-        now = datetime.now()
+        now = ist_now()
         try:
-            candle_time = datetime.fromisoformat(latest_ts.replace('Z', '+00:00'))
+            candle_time = candle_timestamp(latest_ts.to_pydatetime())
             age_minutes = (now - candle_time).total_seconds() / 60
             if age_minutes > 15:
                 print(f"    ⚠️  Stale 30m: {age_minutes:.0f}min old")
                 return None
-        except:
-            pass
+        except (TypeError, ValueError, AttributeError):
+            log.exception("invalid_candle_timestamp symbol=%s timestamp=%r", symbol, latest_ts)
 
         return df
     except (UnicodeEncodeError, UnicodeDecodeError) as e:
@@ -362,9 +391,10 @@ def check_signal(symbol, df):
     bearish_cross  = p_e25 >= p_e50 and c_e25 < c_e50
     ema_bounce_sel = c_e25 < c_e50 and abs(price - c_e25) / price < 0.004
 
-    # BUY only — Upstox delivery doesn't allow shorting stocks
+    # A live alert represents a new setup, not merely an existing trend.  This
+    # prevents every symbol above its EMA from becoming a startup alert.
     direction = None
-    if c_e25 > c_e50 and 45 <= c_rsi <= 68:
+    if bullish_cross and 45 <= c_rsi <= 68:
         direction = "BUY"
 
     if not direction:
@@ -388,11 +418,15 @@ def check_signal(symbol, df):
     risk   = round(abs(price - sl) * qty)
     reward = round(abs(tp - price) * qty)
 
-    return direction, price, sl, tp, qty, amt, risk, reward, score, tier, t_emoji, reasons, c_rsi, c_e25, c_e50, vol_ratio
+    candle_time = candle_timestamp(df["dt"].iloc[-1].to_pydatetime())
+    mandatory_confirmations = bullish_cross and 52 <= c_rsi <= 63 and vol_ratio >= 1.2
+    return (direction, price, sl, tp, qty, amt, risk, reward, score, tier,
+            t_emoji, reasons, c_rsi, c_e25, c_e50, vol_ratio, candle_time,
+            mandatory_confirmations)
 
 def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
                   score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio):
-    now      = datetime.now().strftime("%d-%b-%Y %H:%M")
+    now      = ist_now().strftime("%d-%b-%Y %H:%M IST")
     d_emoji  = "🟢" if direction == "BUY" else "🔴"
     arrow    = "📈" if direction == "BUY" else "📉"
     tip      = {
@@ -422,7 +456,28 @@ def format_signal(direction, symbol, price, sl, tp, qty, amt, risk, reward,
     )
 
 # ── MAIN SCAN ────────────────────────────────────────────────────────────────
-def run_scan():
+def write_health():
+    state = reliability_store.state
+    payload = {
+        "bot_name": "nse-intraday-scanner",
+        "process_start_time": state.process_start,
+        "last_heartbeat": state.last_heartbeat,
+        "last_successful_scan": state.last_successful_scan,
+        "last_market_data_timestamp": state.last_market_data_timestamp,
+        "symbols_scanned": state.symbols_scanned,
+        "last_signal_time": state.last_signal_time,
+        "number_of_signals_today": state.signals_today,
+        "current_error_state": state.current_error,
+        "next_scan_time": state.next_scan_time,
+    }
+    temporary = HEALTH_FILE + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, sort_keys=True)
+    os.replace(temporary, HEALTH_FILE)
+
+
+def run_scan(now=None, live_mode=True):
+    now = as_ist(now or ist_now())
     state = load_state()
 
     if state["signals_sent"] >= MAX_SIGNALS_PER_DAY:
@@ -431,10 +486,12 @@ def run_scan():
 
     remaining = MAX_SIGNALS_PER_DAY - state["signals_sent"]
     print(f"\n{'='*55}")
-    print(f"Scan: {datetime.now().strftime('%d-%b-%Y %H:%M:%S')}  |  Signals left today: {remaining}")
+    print(f"Scan: {now.strftime('%d-%b-%Y %H:%M:%S %Z')}  |  Signals left today: {remaining}")
     print(f"{'='*55}")
 
     new_signals = 0
+    scanned = 0
+    rejected = {}
 
     for symbol, ikey in NIFTY100.items():
         if state["signals_sent"] + new_signals >= MAX_SIGNALS_PER_DAY:
@@ -460,6 +517,18 @@ def run_scan():
             print("skip")
             continue
 
+        scanned += 1
+        latest_market_time = candle_timestamp(df["dt"].iloc[-1].to_pydatetime())
+        if reliability_store.state.first_data_fetch is None:
+            reliability_store.state.first_data_fetch = ist_now().isoformat()
+        reliability_store.state.last_market_data_timestamp = latest_market_time.isoformat()
+        if scanned == 1 or scanned % 10 == 0:
+            reliability_store.state.last_heartbeat = ist_now().isoformat()
+            reliability_store.state.symbols_scanned = scanned
+            reliability_store.save()
+            write_health()
+        if reliability_store.state.first_evaluation is None:
+            reliability_store.state.first_evaluation = ist_now().isoformat()
         result = check_signal(symbol, df)
 
         if not result:
@@ -471,20 +540,30 @@ def run_scan():
 
         if result:
             (direction, price, sl, tp, qty, amt, risk, reward,
-             score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio) = result
+             score, tier, t_emoji, reasons, rsi, e25, e50, vol_ratio,
+             candle_time, confirmations_pass) = result
 
-            if tier == "LOW":
-                print(f"→ {direction} | {tier} ({score}/100) [filtered]")
+            decision = alert_policy.evaluate(
+                strategy=STRATEGY_NAME, symbol=symbol, direction=direction,
+                confidence=tier, confirmations_pass=confirmations_pass,
+                candle=candle_time, now=now, live_mode=live_mode,
+            )
+            if not decision.allowed:
+                rejected[decision.reason] = rejected.get(decision.reason, 0) + 1
+                print(f"→ {direction} | {tier} ({score}/100) [filtered: {decision.reason}]")
                 continue
 
             msg = format_signal(direction, symbol, price, sl, tp, qty, amt,
                                  risk, reward, score, tier, t_emoji, reasons,
                                  rsi, e25, e50, vol_ratio)
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
-            notify(msg)
-            send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
-            state["symbols_alerted"].append(symbol)
-            new_signals += 1
+            if notify(msg):
+                alert_policy.mark_delivered(decision, STRATEGY_NAME, symbol, direction, candle_time, now)
+                send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
+                state["symbols_alerted"].append(symbol)
+                new_signals += 1
+            else:
+                rejected["telegram_delivery_failed"] = rejected.get("telegram_delivery_failed", 0) + 1
         else:
             print("no signal")
 
@@ -493,40 +572,78 @@ def run_scan():
     state["signals_sent"] += new_signals
     save_state(state)
 
+    reliability_store.state.symbols_scanned = scanned
+    reliability_store.state.last_successful_scan = now.isoformat()
+    reliability_store.state.current_error = None
+    reliability_store.save()
+    write_health()
+
     print(f"\nDone. {new_signals} new signal(s). Total today: {state['signals_sent']}/{MAX_SIGNALS_PER_DAY}")
+    log.info("scan_complete symbols_scanned=%d candidates_rejected=%s alerts_emitted=%d data_timestamp=%s",
+             scanned, rejected, new_signals, reliability_store.state.last_market_data_timestamp)
+    return {"symbols_scanned": scanned, "alerts_emitted": new_signals, "rejected": rejected}
 
 # ── ENTRY ────────────────────────────────────────────────────────────────────
-def in_market_hours():
-    now = datetime.now()
-    t   = (now.hour, now.minute)
-    return MARKET_OPEN <= t <= MARKET_CLOSE
+def in_market_hours(now=None):
+    return is_market_session(as_ist(now or ist_now()), is_nse_holiday)
 
 def main():
+    instance_lock = acquire_instance_lock(LOCK_FILE)
+    started = ist_now()
+    reliability_store.state.process_start = started.isoformat()
+    reliability_store.state.current_error = None
+    reliability_store.save()
+    log.info("process_start bot=nse-intraday-scanner build=%s environment=%s timezone=%s",
+             os.getenv("BOT_BUILD", "development"), os.getenv("BOT_ENV", "local"), str(IST))
     print("NSE Intraday Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} + RSI({ATR_PERIOD}) | 30-min candles (fallback to 1-min if stale)")
     print(f"SL = 1x ATR  |  TP = 2x ATR  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
     print(f"Signals all day during market hours (9:15–15:30 IST)")
-    print(f"Scanning every {SCAN_INTERVAL_MIN} mins — pick & choose which to trade")
+    print(f"Scanning every {SCAN_INTERVAL_SECONDS} seconds")
     print(f"Token: {UPSTOX_TOKEN[:20]}...{UPSTOX_TOKEN[-10:]}\n")
 
     startup_notified = False
+    last_heartbeat = None
 
     while True:
-        if in_market_hours():
-            if not startup_notified:
-                now = datetime.now().strftime("%d-%b-%Y %H:%M IST")
-                notify(f"🤖 <b>NSE Intraday Scanner Started</b>\n\n"
+        now = ist_now()
+        try:
+            if in_market_hours(now):
+                if not startup_notified:
+                    log.info("market_open_detected time=%s", now.isoformat())
+                    startup_text = now.strftime("%d-%b-%Y %H:%M IST")
+                    notify(f"🤖 <b>NSE Intraday Scanner Started</b>\n\n"
                        f"Bot launched and ready to scan.\n"
                        f"EMA{EMA_FAST}/{EMA_SLOW} • SL {SL_PCT}% / TP {TP_PCT}%\n"
-                       f"Scanning every {SCAN_INTERVAL_MIN} mins • Pick & choose signals\n\n"
-                       f"⏰ {now}")
-                startup_notified = True
-            run_scan()
-        else:
-            startup_notified = False
-            now = datetime.now()
-            print(f"[{now.strftime('%H:%M')}] Outside market hours. Waiting...")
+                       f"Scanning every {SCAN_INTERVAL_SECONDS} seconds\n\n"
+                       f"⏰ {startup_text}")
+                    startup_notified = True
+                run_scan(now)
+            else:
+                startup_notified = False
+                log.info("outside_market_hours time=%s", now.isoformat())
 
-        time.sleep(SCAN_INTERVAL_MIN * 60)
+            after_scan = ist_now()
+            next_scan = next_scan_at(after_scan, SCAN_INTERVAL_SECONDS)
+            reliability_store.state.next_scan_time = next_scan.isoformat()
+            if last_heartbeat is None or (now - last_heartbeat).total_seconds() >= HEARTBEAT_SECONDS:
+                reliability_store.state.last_heartbeat = now.isoformat()
+                last_heartbeat = now
+                log.info("heartbeat market_open=%s last_scan=%s next_scan=%s error=%s",
+                         in_market_hours(now), reliability_store.state.last_successful_scan,
+                         next_scan.isoformat(), reliability_store.state.current_error)
+            reliability_store.save()
+            write_health()
+            time.sleep(max(0.1, (next_scan - ist_now()).total_seconds()))
+        except KeyboardInterrupt:
+            log.info("graceful_shutdown reason=keyboard_interrupt")
+            break
+        except Exception as exc:
+            reliability_store.state.current_error = f"{type(exc).__name__}: {exc}"
+            reliability_store.save()
+            write_health()
+            log.exception("scan_loop_failure; retrying with bounded backoff")
+            time.sleep(min(30, SCAN_INTERVAL_SECONDS))
 
-main()
+if __name__ == "__main__":
+    main()
