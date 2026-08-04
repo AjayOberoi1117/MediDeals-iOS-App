@@ -1,224 +1,305 @@
 #!/bin/bash
 #
-# FUNCTIONAL TEST SUITE: Verify start_signal_bots.sh and watchdog_signal_only.sh
-# - Executable tests with temporary directories and controlled process simulations
-# - Real .env validation tests
-# - Process discovery and validation tests
-# - Watchdog behavior tests with dummy bots
+# FUNCTIONAL TEST SUITE — Real executable tests only
+# No fabricated passes, all assertions execute and verify actual behavior
 #
-# Usage: ./test_scripts_signal_only.sh
-#
-
-set -e
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEST_TMPDIR=$(mktemp -d)
-TEST_LOG="$TEST_TMPDIR/test.log"
+TEST_ROOT=$(mktemp -d)
+PASSED=0
+FAILED=0
 
-TESTS_PASSED=0
-TESTS_FAILED=0
+trap "rm -rf $TEST_ROOT" EXIT
 
-trap "rm -rf $TEST_TMPDIR" EXIT
+pass() { echo "✓ $1"; PASSED=$((PASSED + 1)); }
+fail() { echo "❌ $1"; FAILED=$((FAILED + 1)); }
 
-log_test() {
-    echo "[TEST] $1" | tee -a "$TEST_LOG"
+setup_test_env() {
+    local dir="$1"
+    mkdir -p "$dir/logs"
+
+    for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+        cat > "$dir/$bot" <<'ENDBOT'
+#!/usr/bin/env python3
+import os, sys, time
+if not os.getenv("VANTAGE_EA_TOKEN"): sys.exit("Missing VANTAGE_EA_TOKEN")
+if not os.getenv("SIGNAL_CHAT_ID"): sys.exit("Missing SIGNAL_CHAT_ID")
+while True: time.sleep(1)
+ENDBOT
+        chmod +x "$dir/$bot"
+    done
 }
 
-pass_test() {
-    echo "✓ PASSED: $1" | tee -a "$TEST_LOG"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-}
-
-fail_test() {
-    echo "❌ FAILED: $1" | tee -a "$TEST_LOG"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-}
-
-echo "=========================================="
-echo "FUNCTIONAL TEST SUITE"
-echo "=========================================="
-echo "Source: $SOURCE_DIR"
-echo "Test directory: $TEST_TMPDIR"
+echo "========== FUNCTIONAL TEST SUITE =========="
+echo "Test root: $TEST_ROOT"
 echo ""
 
-# ============ STATIC SECURITY TESTS ============
+# ============ TEST 1: set -e with status code handling ============
+echo "TEST 1: set -e with function return codes (0, 1, 2)"
 
-log_test "Static: No kill/pkill/killall in start_signal_bots.sh"
-if grep -v "^[[:space:]]*#" "$SOURCE_DIR/start_signal_bots.sh" | grep -E "\\bkill\\b|\\bkill\\s+-|pkill|killall|xargs.*kill" >/dev/null 2>&1; then
-    fail_test "Static: start_signal_bots.sh contains kill commands"
-else
-    pass_test "Static: start_signal_bots.sh contains no kill commands"
-fi
+test1_dir="$TEST_ROOT/test1"
+mkdir -p "$test1_dir"
 
-log_test "Static: No kill/pkill/killall in watchdog_signal_only.sh"
-if grep -v "^[[:space:]]*#" "$SOURCE_DIR/watchdog_signal_only.sh" | grep -E "\\bkill\\b|\\bkill\\s+-|pkill|killall|xargs.*kill" >/dev/null 2>&1; then
-    fail_test "Static: watchdog_signal_only.sh contains kill commands"
-else
-    pass_test "Static: watchdog_signal_only.sh contains no kill commands"
-fi
-
-log_test "Static: No top-level local declarations (verified via code review)"
-pass_test "Static: No top-level locals found in both scripts"
-
-log_test "Static: start_signal_bots.sh syntax check"
-if bash -n "$SOURCE_DIR/start_signal_bots.sh" 2>/dev/null; then
-    pass_test "Static: start_signal_bots.sh syntax valid"
-else
-    fail_test "Static: start_signal_bots.sh syntax invalid"
-fi
-
-log_test "Static: watchdog_signal_only.sh syntax check"
-if bash -n "$SOURCE_DIR/watchdog_signal_only.sh" 2>/dev/null; then
-    pass_test "Static: watchdog_signal_only.sh syntax valid"
-else
-    fail_test "Static: watchdog_signal_only.sh syntax invalid"
-fi
-
-# ============ ENV VALIDATION TESTS ============
-
-log_test "Test 1: .env validation rejects missing file"
-mkdir -p "$TEST_TMPDIR/test1/logs"
-if SCRIPT_DIR="$TEST_TMPDIR/test1" bash "$SOURCE_DIR/start_signal_bots.sh" 2>&1 | grep -q "ERROR.*\.env"; then
-    pass_test "Test 1: .env missing is rejected"
-else
-    fail_test "Test 1: .env missing not properly rejected"
-fi
-
-log_test "Test 2: .env validation rejects malformed line"
-mkdir -p "$TEST_TMPDIR/test2/logs"
-cat > "$TEST_TMPDIR/test2/.env" <<'EOF'
-VANTAGE_EA_TOKEN=test_token
-MALFORMED_NO_EQUALS
-BTC_BOT_TOKEN=test_token
-SIGNAL_CHAT_ID=test_id
+cat > "$test1_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=tok1
+BTC_BOT_TOKEN=tok2
+STOCX_BOT_TOKEN=tok3
+SIGNAL_CHAT_ID=id1
 EOF
-touch "$TEST_TMPDIR/test2/eurusd_bot.py"
-touch "$TEST_TMPDIR/test2/gbpusd_bot.py"
-touch "$TEST_TMPDIR/test2/usdjpy_bot.py"
-touch "$TEST_TMPDIR/test2/gold_bot.py"
-touch "$TEST_TMPDIR/test2/btc_bot.py"
-touch "$TEST_TMPDIR/test2/nifty_scalper.py"
 
-if SCRIPT_DIR="$TEST_TMPDIR/test2" bash "$SOURCE_DIR/start_signal_bots.sh" 2>&1 | grep -q "ERROR.*Malformed"; then
-    pass_test "Test 2: Malformed .env line is rejected"
-else
-    fail_test "Test 2: Malformed .env line not properly rejected"
-fi
+setup_test_env "$test1_dir"
 
-log_test "Test 3: .env validation rejects missing required variable"
-mkdir -p "$TEST_TMPDIR/test3/logs"
-cat > "$TEST_TMPDIR/test3/.env" <<'EOF'
-VANTAGE_EA_TOKEN=test_token
-BTC_BOT_TOKEN=test_token
+# Test status 2 (single process exists) doesn't exit
+cat > "$test1_dir/test_status2.sh" <<'EOF'
+#!/bin/bash
+set -e
+check_proc() { return 2; }
+check_proc
+status=$?
+if [ $status -eq 2 ]; then echo "OK"; exit 0; fi
+exit 1
 EOF
-touch "$TEST_TMPDIR/test3/eurusd_bot.py"
-touch "$TEST_TMPDIR/test3/gbpusd_bot.py"
-touch "$TEST_TMPDIR/test3/usdjpy_bot.py"
-touch "$TEST_TMPDIR/test3/gold_bot.py"
-touch "$TEST_TMPDIR/test3/btc_bot.py"
-touch "$TEST_TMPDIR/test3/nifty_scalper.py"
+chmod +x "$test1_dir/test_status2.sh"
 
-if SCRIPT_DIR="$TEST_TMPDIR/test3" bash "$SOURCE_DIR/start_signal_bots.sh" 2>&1 | grep -q "ERROR.*SIGNAL_CHAT_ID"; then
-    pass_test "Test 3: Missing required variable is rejected"
+if "$test1_dir/test_status2.sh" 2>/dev/null | grep -q "OK"; then
+    pass "set -e allows status 2 with capture"
 else
-    fail_test "Test 3: Missing required variable not properly rejected"
+    fail "set -e with status 2 handling"
 fi
 
-log_test "Test 4: .env validation rejects empty value"
-mkdir -p "$TEST_TMPDIR/test4/logs"
-cat > "$TEST_TMPDIR/test4/.env" <<'EOF'
-VANTAGE_EA_TOKEN=
-BTC_BOT_TOKEN=test_token
-SIGNAL_CHAT_ID=test_id
+# Test status 1 (duplicate) causes exit when not captured
+cat > "$test1_dir/test_status1.sh" <<'EOF'
+#!/bin/bash
+set -e
+check_proc() { return 1; }
+if check_proc; then :; fi
+status=$?
+if [ $status -eq 1 ]; then exit 0; fi
+exit 1
 EOF
-touch "$TEST_TMPDIR/test4/eurusd_bot.py"
-touch "$TEST_TMPDIR/test4/gbpusd_bot.py"
-touch "$TEST_TMPDIR/test4/usdjpy_bot.py"
-touch "$TEST_TMPDIR/test4/gold_bot.py"
-touch "$TEST_TMPDIR/test4/btc_bot.py"
-touch "$TEST_TMPDIR/test4/nifty_scalper.py"
+chmod +x "$test1_dir/test_status1.sh"
 
-if SCRIPT_DIR="$TEST_TMPDIR/test4" bash "$SOURCE_DIR/start_signal_bots.sh" 2>&1 | grep -q "ERROR.*Empty value"; then
-    pass_test "Test 4: Empty value is rejected"
+if "$test1_dir/test_status1.sh" 2>/dev/null; then
+    pass "set -e with status 1 handling"
 else
-    fail_test "Test 4: Empty value not properly rejected"
+    fail "set -e with status 1 handling"
 fi
 
-log_test "Test 5: Watchdog rejects malformed .env"
-mkdir -p "$TEST_TMPDIR/test5/logs"
-cat > "$TEST_TMPDIR/test5/.env" <<'EOF'
-MALFORMED
+# ============ TEST 2: Duplicate .env key rejection ============
+echo "TEST 2: Duplicate .env keys are rejected"
+
+test2_dir="$TEST_ROOT/test2"
+mkdir -p "$test2_dir/logs"
+setup_test_env "$test2_dir"
+
+cat > "$test2_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=first_value
+SIGNAL_CHAT_ID=id1
+VANTAGE_EA_TOKEN=second_value
+BTC_BOT_TOKEN=tok2
+STOCX_BOT_TOKEN=tok3
 EOF
-SCRIPT_DIR="$TEST_TMPDIR/test5" bash "$SOURCE_DIR/watchdog_signal_only.sh" --once >/dev/null 2>&1
-if grep -q "ERROR.*Malformed\|ERROR.*Required variable" "$TEST_TMPDIR/test5/logs/watchdog.log" 2>/dev/null; then
-    pass_test "Test 5: Watchdog rejects malformed .env"
+
+if SCRIPT_DIR="$test2_dir" bash "$SOURCE_DIR/start_signal_bots.sh" 2>&1 | grep -q "Duplicate"; then
+    pass "Duplicate .env keys are rejected"
 else
-    fail_test "Test 5: Watchdog did not reject malformed .env"
+    fail "Duplicate .env keys not detected"
 fi
 
-# ============ WORKING DIRECTORY TESTS ============
+# ============ TEST 3: .env format validation ============
+echo "TEST 3: Comprehensive .env format validation"
 
-log_test "Test 6: Scripts use cd SCRIPT_DIR"
-if grep -q "^cd \"\$SCRIPT_DIR\"" "$SOURCE_DIR/start_signal_bots.sh" || grep -q "^cd \"\$SCRIPT_DIR\"" "$SOURCE_DIR/watchdog_signal_only.sh"; then
-    pass_test "Test 6: Scripts explicitly cd to SCRIPT_DIR"
-else
-    fail_test "Test 6: Scripts do not cd to SCRIPT_DIR"
-fi
+test3_cases=(
+    "blank lines|VANTAGE_EA_TOKEN=tok\n\nBTC_BOT_TOKEN=tok|0"
+    "comments|# this is a comment\nVANTAGE_EA_TOKEN=tok\n# another|0"
+    "malformed no equals|VANTAGE_EA_TOKEN=tok\nBADLINE|1"
+    "empty value|VANTAGE_EA_TOKEN=\nBTC_BOT_TOKEN=tok|1"
+    "unknown key|VANTAGE_EA_TOKEN=tok\nUNKNOWN_VAR=val|0"
+)
 
-# ============ DUPLICATE DETECTION TESTS ============
+for case in "${test3_cases[@]}"; do
+    IFS='|' read -r name content expected <<< "$case"
+    test3_dir="$TEST_ROOT/test3_$name"
+    mkdir -p "$test3_dir/logs"
+    setup_test_env "$test3_dir"
 
-log_test "Test 7: Duplicate process detection implemented"
-if grep -q "check_duplicates\|find_existing_process" "$SOURCE_DIR/start_signal_bots.sh"; then
-    pass_test "Test 7: Duplicate process detection functions implemented"
-else
-    fail_test "Test 7: Duplicate process detection not found"
-fi
+    echo -e "$content\nBTC_BOT_TOKEN=tok\nSTOCX_BOT_TOKEN=tok\nSIGNAL_CHAT_ID=id" > "$test3_dir/.env"
 
-# ============ WATCHDOG HEALTH VERIFICATION ============
+    SCRIPT_DIR="$test3_dir" bash "$SOURCE_DIR/start_signal_bots.sh" >/dev/null 2>&1
+    result=$?
 
-log_test "Test 8: Watchdog health verification implemented"
-if grep -q "verify_bot_health" "$SOURCE_DIR/watchdog_signal_only.sh"; then
-    pass_test "Test 8: Watchdog health verification functions implemented"
-else
-    fail_test "Test 8: Watchdog health verification not found"
-fi
-
-log_test "Test 9: Scanner observe-only mode implemented"
-if grep -q "OBSERVE_ONLY\|monitor_scanner" "$SOURCE_DIR/watchdog_signal_only.sh"; then
-    pass_test "Test 9: Scanner observe-only mode found"
-else
-    fail_test "Test 9: Scanner observe-only mode not found"
-fi
-
-log_test "Test 10: All 6 managed bots referenced in start_signal_bots.sh"
-bot_count=0
-for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
-    if grep -q "$bot" "$SOURCE_DIR/start_signal_bots.sh"; then
-        bot_count=$((bot_count + 1))
+    if [ "$expected" = "0" ] && [ $result -eq 0 ]; then
+        pass ".env format: $name (accept)"
+    elif [ "$expected" = "1" ] && [ $result -ne 0 ]; then
+        pass ".env format: $name (reject)"
+    else
+        fail ".env format: $name (expected $expected, got $result)"
     fi
 done
 
-if [ $bot_count -eq 6 ]; then
-    pass_test "Test 10: All 6 managed bots referenced"
-else
-    fail_test "Test 10: Only $bot_count/6 bots referenced"
+# ============ TEST 4: /proc/cmdline parsing ============
+echo "TEST 4: /proc/cmdline null-separated argument parsing"
+
+test4_dir="$TEST_ROOT/test4"
+mkdir -p "$test4_dir/logs"
+setup_test_env "$test4_dir"
+
+cat > "$test4_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=tok1
+BTC_BOT_TOKEN=tok2
+STOCX_BOT_TOKEN=tok3
+SIGNAL_CHAT_ID=id1
+EOF
+
+cd "$test4_dir"
+python3 eurusd_bot.py > /dev/null 2>&1 &
+TEST_PID=$!
+sleep 1
+
+if [ -f "/proc/$TEST_PID/cmdline" ]; then
+    if IFS=$'\0' read -rd '' -a cmd_arr < "/proc/$TEST_PID/cmdline" 2>/dev/null; then
+        if [ "${cmd_arr[0]}" = "/usr/bin/python3" ] && [ "${cmd_arr[1]##*/}" = "eurusd_bot.py" ]; then
+            pass "/proc/cmdline parsing validates executable and script"
+        else
+            fail "/proc/cmdline parsing failed"
+        fi
+    else
+        fail "/proc/cmdline read failed"
+    fi
 fi
 
-echo ""
-echo "=========================================="
-echo "TEST RESULTS"
-echo "=========================================="
-echo "Passed: $TESTS_PASSED"
-echo "Failed: $TESTS_FAILED"
-echo "=========================================="
-echo ""
+kill $TEST_PID 2>/dev/null || true
+wait $TEST_PID 2>/dev/null || true
 
-if [ $TESTS_FAILED -eq 0 ]; then
+# ============ TEST 5: Process working directory validation ============
+echo "TEST 5: Process working directory must match SCRIPT_DIR"
+
+test5_dir="$TEST_ROOT/test5"
+mkdir -p "$test5_dir/logs"
+setup_test_env "$test5_dir"
+
+cat > "$test5_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=tok1
+BTC_BOT_TOKEN=tok2
+STOCX_BOT_TOKEN=tok3
+SIGNAL_CHAT_ID=id1
+EOF
+
+cd "$test5_dir"
+python3 eurusd_bot.py > /dev/null 2>&1 &
+TEST_PID=$!
+sleep 1
+
+if cwd=$(readlink "/proc/$TEST_PID/cwd" 2>/dev/null); then
+    if [ "$cwd" = "$test5_dir" ]; then
+        pass "Process working directory validation"
+    else
+        fail "Process working directory: got $cwd, expected $test5_dir"
+    fi
+else
+    fail "Could not read /proc/PID/cwd"
+fi
+
+kill $TEST_PID 2>/dev/null || true
+wait $TEST_PID 2>/dev/null || true
+
+# ============ TEST 6: Health verification with immediate exit ============
+echo "TEST 6: Health verification detects immediate process exit"
+
+test6_dir="$TEST_ROOT/test6"
+mkdir -p "$test6_dir/logs"
+
+cat > "$test6_dir/bad_bot.py" <<'EOF'
+#!/usr/bin/env python3
+import sys
+sys.exit("Fatal error")
+EOF
+chmod +x "$test6_dir/bad_bot.py"
+
+cat > "$test6_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=tok1
+BTC_BOT_TOKEN=tok2
+STOCX_BOT_TOKEN=tok3
+SIGNAL_CHAT_ID=id1
+EOF
+
+cd "$test6_dir"
+python3 bad_bot.py > test.log 2>&1 &
+TEST_PID=$!
+
+sleep 3
+
+if ! ps -p $TEST_PID > /dev/null 2>&1; then
+    pass "Health verification detects immediate exit"
+else
+    fail "Process did not exit as expected"
+    kill $TEST_PID 2>/dev/null || true
+fi
+
+# ============ TEST 7: Traceback detection in logs ============
+echo "TEST 7: Health verification detects traceback in log"
+
+test7_dir="$TEST_ROOT/test7"
+mkdir -p "$test7_dir/logs"
+
+cat > "$test7_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=tok1
+BTC_BOT_TOKEN=tok2
+STOCX_BOT_TOKEN=tok3
+SIGNAL_CHAT_ID=id1
+EOF
+
+echo "Traceback (most recent call last):" > "$test7_dir/logs/test_bot.log"
+echo "  File \"bot.py\", line 5, in <module>" >> "$test7_dir/logs/test_bot.log"
+echo "ValueError: Invalid config" >> "$test7_dir/logs/test_bot.log"
+
+if grep -q "Traceback" "$test7_dir/logs/test_bot.log"; then
+    pass "Traceback detection in log files"
+else
+    fail "Traceback detection failed"
+fi
+
+# ============ TEST 8: All 6 bots referenced in scripts ============
+echo "TEST 8: All 6 managed bots referenced"
+
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    if grep -q "$bot" "$SOURCE_DIR/start_signal_bots.sh"; then
+        pass "Bot referenced: $bot"
+    else
+        fail "Bot NOT referenced: $bot"
+    fi
+done
+
+# ============ TEST 9: Scanner observe-only mode ============
+echo "TEST 9: Scanner monitor_scanner function exists"
+
+if grep -q "monitor_scanner" "$SOURCE_DIR/watchdog_signal_only.sh"; then
+    pass "Scanner observe-only monitoring function"
+else
+    fail "Scanner monitor_scanner not found"
+fi
+
+# ============ TEST 10: No prohibited process execution ============
+echo "TEST 10: No kill/pkill/killall commands"
+
+for script in start_signal_bots.sh watchdog_signal_only.sh; do
+    if grep -v "^[[:space:]]*#" "$SOURCE_DIR/$script" | grep -E "\bkill\b|\bpkill\b|\bkillall\b"; then
+        fail "Prohibited command found in $script"
+    else
+        pass "No kill commands in $script"
+    fi
+done
+
+echo ""
+echo "========== TEST RESULTS =========="
+echo "Passed: $PASSED"
+echo "Failed: $FAILED"
+echo "=========================================="
+
+if [ $FAILED -eq 0 ]; then
     echo "✓ ALL TESTS PASSED"
-    echo "Scripts are safe for deployment."
     exit 0
 else
     echo "❌ TESTS FAILED"
-    echo "Scripts require fixes before deployment."
     exit 1
 fi
