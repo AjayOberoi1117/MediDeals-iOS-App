@@ -16,6 +16,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
+cd "$SCRIPT_DIR"
+
 APPROVED_BOTS=(
     "eurusd_bot.py"
     "gbpusd_bot.py"
@@ -26,6 +28,7 @@ APPROVED_BOTS=(
 )
 
 SIGNAL_ONLY_SYMBOLS=("EURUSD" "GBPUSD" "USDJPY" "XAUUSD" "BTCUSD" "NIFTY")
+REQUIRED_ENV_VARS=("VANTAGE_EA_TOKEN" "BTC_BOT_TOKEN" "SIGNAL_CHAT_ID")
 
 validate_env() {
     if [ ! -f "$SCRIPT_DIR/.env" ]; then
@@ -33,10 +36,10 @@ validate_env() {
         return 1
     fi
 
-    local required_vars=("VANTAGE_EA_TOKEN" "BTC_BOT_TOKEN" "SIGNAL_CHAT_ID")
+    local var
     local missing=0
 
-    for var in "${required_vars[@]}"; do
+    for var in "${REQUIRED_ENV_VARS[@]}"; do
         if ! grep -q "^${var}=" "$SCRIPT_DIR/.env"; then
             echo "ERROR: Required variable $var not found in .env" >&2
             missing=$((missing + 1))
@@ -50,32 +53,60 @@ validate_env() {
     return 0
 }
 
-find_existing_process() {
-    local bot_file="$1"
-    local symbol="$2"
+parse_and_export_env() {
+    local line
+    local key
+    local value
 
-    pgrep -f "python3.*${bot_file}" 2>/dev/null || true
+    while IFS= read -r line; do
+        line="${line#"${line%%[![:space:]]*}"}"
+        if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+            continue
+        fi
+
+        if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            echo "ERROR: Malformed .env line: $line" >&2
+            return 1
+        fi
+
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        if [ -z "$value" ]; then
+            echo "ERROR: Empty value for required variable: $key" >&2
+            return 1
+        fi
+
+        export "$key"="$value"
+    done < "$SCRIPT_DIR/.env"
+
+    return 0
 }
 
 validate_process() {
     local pid="$1"
     local bot_file="$2"
+    local expected_owner="${3:-root}"
 
     if ! ps -p "$pid" > /dev/null 2>&1; then
         return 1
     fi
 
-    local cmdline=$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || echo "")
+    local exe
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo "")
+    if [ "$exe" != "/usr/bin/python3" ] && [ "$exe" != "/usr/bin/python" ]; then
+        return 1
+    fi
+
+    local cmdline
+    cmdline=$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || echo "")
 
     if ! echo "$cmdline" | grep -q "$bot_file"; then
         return 1
     fi
 
-    if ! echo "$cmdline" | grep -q "python3"; then
-        return 1
-    fi
-
-    local cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null || echo "")
+    local cwd
+    cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null || echo "")
     if [ "$cwd" != "$SCRIPT_DIR" ]; then
         return 1
     fi
@@ -83,10 +114,32 @@ validate_process() {
     return 0
 }
 
+find_existing_process() {
+    local bot_file="$1"
+    local found_pid=""
+
+    while IFS= read -r pid; do
+        if [ -n "$pid" ]; then
+            if validate_process "$pid" "$bot_file"; then
+                found_pid="$pid"
+                break
+            fi
+        fi
+    done < <(pgrep -f "python3.*${bot_file}" 2>/dev/null || true)
+
+    if [ -n "$found_pid" ]; then
+        echo "$found_pid"
+        return 0
+    fi
+
+    return 1
+}
+
 check_existing_processes() {
     local bot_file="$1"
     local symbol="$2"
     local existing_pids=()
+    local pid
 
     while IFS= read -r pid; do
         if [ -n "$pid" ]; then
@@ -106,7 +159,6 @@ check_existing_processes() {
     fi
 
     echo "ERROR: Multiple $symbol processes detected: ${existing_pids[*]}"
-    echo "DUPLICATE_REVIEW_REQUIRED"
     return 1
 }
 
@@ -128,11 +180,17 @@ echo "=========================================="
 echo "SIGNAL-ONLY BOT STARTUP"
 echo "=========================================="
 echo "Host: $(hostname)"
+echo "Directory: $(pwd)"
 echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo ""
 
 if ! validate_env; then
     echo "ERROR: Environment validation failed"
+    exit 1
+fi
+
+if ! parse_and_export_env; then
+    echo "ERROR: Failed to parse .env"
     exit 1
 fi
 
@@ -152,11 +210,16 @@ for i in "${!APPROVED_BOTS[@]}"; do
     bot_file="${APPROVED_BOTS[$i]}"
     symbol="${SIGNAL_ONLY_SYMBOLS[$i]}"
 
-    if ! check_existing_processes "$bot_file" "$symbol"; then
-        if [ $? -eq 1 ]; then
-            DUPLICATE_DETECTED=1
-            break
-        fi
+    check_existing_processes "$bot_file" "$symbol"
+    status=$?
+
+    if [ $status -eq 1 ]; then
+        DUPLICATE_DETECTED=1
+        break
+    elif [ $status -eq 2 ]; then
+        echo "SKIPPING: $symbol is already running"
+        STARTED_SYMBOLS+=("$symbol")
+        continue
     fi
 done
 
@@ -172,7 +235,6 @@ for i in "${!APPROVED_BOTS[@]}"; do
     symbol="${SIGNAL_ONLY_SYMBOLS[$i]}"
 
     if started_in_this_invocation "$symbol"; then
-        echo "ALERT: $symbol already started in this invocation (skipping)"
         continue
     fi
 
@@ -183,16 +245,21 @@ for i in "${!APPROVED_BOTS[@]}"; do
         exit 1
     fi
 
-    local log_file="$LOG_DIR/${bot_file%.py}.log"
+    log_file="$LOG_DIR/${bot_file%.py}.log"
     nohup python3 "$SCRIPT_DIR/$bot_file" > "$log_file" 2>&1 &
-    local pid=$!
+    pid=$!
     STARTED_PIDS+=("$pid")
 
-    sleep 0.5
+    sleep 1
 
     if ps -p "$pid" > /dev/null 2>&1; then
-        echo "✓ $symbol ($bot_file) started at PID $pid"
-        echo "  Log: $log_file"
+        if [ -f "$log_file" ]; then
+            echo "✓ $symbol ($bot_file) started at PID $pid"
+            echo "  Log: $log_file"
+        else
+            echo "ERROR: $symbol started but log not found: $log_file"
+            exit 1
+        fi
     else
         echo "ERROR: $symbol ($bot_file) failed to start (PID $pid)"
         exit 1

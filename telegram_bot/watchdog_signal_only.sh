@@ -20,6 +20,8 @@ LOG_DIR="$SCRIPT_DIR/logs"
 WATCHDOG_LOG="$LOG_DIR/watchdog.log"
 mkdir -p "$LOG_DIR"
 
+cd "$SCRIPT_DIR"
+
 APPROVED_BOTS=(
     "eurusd_bot.py"
     "gbpusd_bot.py"
@@ -31,19 +33,20 @@ APPROVED_BOTS=(
 
 SCANNER_BOT="scanner_bot.py"
 SIGNAL_ONLY_SYMBOLS=("EURUSD" "GBPUSD" "USDJPY" "XAUUSD" "BTCUSD" "NIFTY")
+REQUIRED_ENV_VARS=("VANTAGE_EA_TOKEN" "BTC_BOT_TOKEN" "SIGNAL_CHAT_ID")
 
 validate_env() {
     if [ ! -f "$SCRIPT_DIR/.env" ]; then
-        echo "[$(date)] ERROR: .env not found" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: .env not found" >> "$WATCHDOG_LOG"
         return 1
     fi
 
-    local required_vars=("VANTAGE_EA_TOKEN" "BTC_BOT_TOKEN" "SIGNAL_CHAT_ID")
+    local var
     local missing=0
 
-    for var in "${required_vars[@]}"; do
+    for var in "${REQUIRED_ENV_VARS[@]}"; do
         if ! grep -q "^${var}=" "$SCRIPT_DIR/.env"; then
-            echo "[$(date)] ERROR: Required variable $var not found in .env" >> "$WATCHDOG_LOG"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Required variable $var not found in .env" >> "$WATCHDOG_LOG"
             missing=$((missing + 1))
         fi
     done
@@ -51,6 +54,36 @@ validate_env() {
     if [ $missing -gt 0 ]; then
         return 1
     fi
+
+    return 0
+}
+
+parse_and_export_env() {
+    local line
+    local key
+    local value
+
+    while IFS= read -r line; do
+        line="${line#"${line%%[![:space:]]*}"}"
+        if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+            continue
+        fi
+
+        if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Malformed .env line" >> "$WATCHDOG_LOG"
+            return 1
+        fi
+
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        if [ -z "$value" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Empty value for required variable: $key" >> "$WATCHDOG_LOG"
+            return 1
+        fi
+
+        export "$key"="$value"
+    done < "$SCRIPT_DIR/.env"
 
     return 0
 }
@@ -63,17 +96,21 @@ validate_process() {
         return 1
     fi
 
-    local cmdline=$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || echo "")
+    local exe
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo "")
+    if [ "$exe" != "/usr/bin/python3" ] && [ "$exe" != "/usr/bin/python" ]; then
+        return 1
+    fi
+
+    local cmdline
+    cmdline=$(cat "/proc/$pid/cmdline" 2>/dev/null | tr '\0' ' ' || echo "")
 
     if ! echo "$cmdline" | grep -q "$bot_file"; then
         return 1
     fi
 
-    if ! echo "$cmdline" | grep -q "python3"; then
-        return 1
-    fi
-
-    local cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null || echo "")
+    local cwd
+    cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null || echo "")
     if [ "$cwd" != "$SCRIPT_DIR" ]; then
         return 1
     fi
@@ -107,6 +144,7 @@ check_duplicates() {
     local symbol="$2"
     local duplicate_count=0
     local duplicate_pids=()
+    local pid
 
     while IFS= read -r pid; do
         if [ -n "$pid" ]; then
@@ -118,7 +156,7 @@ check_duplicates() {
     done < <(pgrep -f "python3.*${bot_file}" 2>/dev/null || true)
 
     if [ $duplicate_count -gt 1 ]; then
-        echo "[$(date)] ALERT: Multiple $symbol processes detected: ${duplicate_pids[*]}" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALERT: Multiple $symbol processes detected: ${duplicate_pids[*]}" >> "$WATCHDOG_LOG"
         return 1
     fi
 
@@ -141,38 +179,76 @@ check_signal_only_compliance() {
         "python3.*mac_trade_writer"
     )
 
+    local pattern
     for pattern in "${prohibited_patterns[@]}"; do
         if pgrep -f "$pattern" >/dev/null 2>&1; then
-            echo "[$(date)] ERROR: Prohibited process detected: $pattern" >> "$WATCHDOG_LOG"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Prohibited process detected: $pattern" >> "$WATCHDOG_LOG"
             return 1
         fi
     done
 
     if [ -f "$SCRIPT_DIR/.trade_queue.jsonl" ]; then
-        echo "[$(date)] WARNING: Trade queue file detected (signal-only mode should not have this)" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: Trade queue file detected (signal-only mode should not have this)" >> "$WATCHDOG_LOG"
     fi
 
     if [ -f "$SCRIPT_DIR/mt5_signals.csv" ]; then
-        echo "[$(date)] WARNING: MT5 signals file detected (signal-only mode should not have this)" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: MT5 signals file detected (signal-only mode should not have this)" >> "$WATCHDOG_LOG"
     fi
 
     return 0
 }
 
+verify_bot_health() {
+    local pid="$1"
+    local log_file="$2"
+    local timeout=5
+    local elapsed=0
+
+    while [ $elapsed -lt $timeout ]; do
+        if ! ps -p "$pid" > /dev/null 2>&1; then
+            return 1
+        fi
+
+        if [ -f "$log_file" ]; then
+            local current_mtime
+            current_mtime=$(stat -c '%Y' "$log_file" 2>/dev/null || echo 0)
+            if [ "$current_mtime" -gt 0 ]; then
+                local log_size
+                log_size=$(stat -c '%s' "$log_file" 2>/dev/null || echo 0)
+                if [ "$log_size" -gt 0 ]; then
+                    if grep -q "error\|Error\|ERROR\|Traceback" "$log_file" 2>/dev/null; then
+                        return 1
+                    fi
+                fi
+            fi
+        fi
+
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    if ps -p "$pid" > /dev/null 2>&1; then
+        return 0
+    fi
+
+    return 1
+}
+
 monitor_scanner() {
     local scanner_pid
+
     scanner_pid=$(find_valid_process "$SCANNER_BOT" 2>/dev/null || true)
 
     if [ -z "$scanner_pid" ]; then
-        echo "[$(date)] OBSERVE: Scanner bot not running" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] OBSERVE: Scanner bot not running (no action taken)" >> "$WATCHDOG_LOG"
         return 0
     fi
 
     if ps -p "$scanner_pid" > /dev/null 2>&1; then
-        echo "[$(date)] OBSERVE: Scanner bot running at PID $scanner_pid (no action)" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] OBSERVE: Scanner bot running at PID $scanner_pid (no action)" >> "$WATCHDOG_LOG"
         return 0
     else
-        echo "[$(date)] OBSERVE: Scanner bot crashed (no auto-restart)" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] OBSERVE: Scanner bot crashed (no auto-restart)" >> "$WATCHDOG_LOG"
         return 0
     fi
 }
@@ -182,23 +258,21 @@ restart_bot() {
     local symbol="$2"
 
     if [ ! -f "$SCRIPT_DIR/$bot_file" ]; then
-        echo "[$(date)] ERROR: Bot file not found: $bot_file" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Bot file not found: $bot_file" >> "$WATCHDOG_LOG"
         return 1
     fi
 
-    local log_file="$LOG_DIR/${bot_file%.py}.log"
-    echo "[$(date)] RESTART: $symbol ($bot_file)" >> "$WATCHDOG_LOG"
+    log_file="$LOG_DIR/${bot_file%.py}.log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] RESTART: $symbol ($bot_file)" >> "$WATCHDOG_LOG"
 
     nohup python3 "$SCRIPT_DIR/$bot_file" > "$log_file" 2>&1 &
-    local pid=$!
+    pid=$!
 
-    sleep 1
-
-    if ps -p "$pid" > /dev/null 2>&1; then
-        echo "[$(date)] SUCCESS: $symbol restarted at PID $pid" >> "$WATCHDOG_LOG"
+    if verify_bot_health "$pid" "$log_file"; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS: $symbol restarted at PID $pid" >> "$WATCHDOG_LOG"
         return 0
     else
-        echo "[$(date)] FAILURE: $symbol failed to restart" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] FAILURE: $symbol failed to restart or crashed immediately" >> "$WATCHDOG_LOG"
         return 1
     fi
 }
@@ -211,9 +285,13 @@ monitor_bot() {
     current_pid=$(find_valid_process "$bot_file" 2>/dev/null || true)
 
     if [ -z "$current_pid" ]; then
-        echo "[$(date)] ALERT: $symbol is not running" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALERT: $symbol is not running" >> "$WATCHDOG_LOG"
         if ! validate_env; then
-            echo "[$(date)] SKIP: .env invalid, not restarting $symbol" >> "$WATCHDOG_LOG"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] SKIP: .env invalid, not restarting $symbol" >> "$WATCHDOG_LOG"
+            return 1
+        fi
+        if ! parse_and_export_env; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] SKIP: .env parse failed, not restarting $symbol" >> "$WATCHDOG_LOG"
             return 1
         fi
         restart_bot "$bot_file" "$symbol"
@@ -223,9 +301,13 @@ monitor_bot() {
     if ps -p "$current_pid" > /dev/null 2>&1; then
         return 0
     else
-        echo "[$(date)] ALERT: $symbol crashed (PID $current_pid)" >> "$WATCHDOG_LOG"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALERT: $symbol crashed (PID $current_pid)" >> "$WATCHDOG_LOG"
         if ! validate_env; then
-            echo "[$(date)] SKIP: .env invalid, not restarting $symbol" >> "$WATCHDOG_LOG"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] SKIP: .env invalid, not restarting $symbol" >> "$WATCHDOG_LOG"
+            return 1
+        fi
+        if ! parse_and_export_env; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] SKIP: .env parse failed, not restarting $symbol" >> "$WATCHDOG_LOG"
             return 1
         fi
         restart_bot "$bot_file" "$symbol"
@@ -234,11 +316,10 @@ monitor_bot() {
 }
 
 run_one_cycle() {
-    echo "[$(date)] ========== WATCHDOG CYCLE ==========" >> "$WATCHDOG_LOG"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ========== WATCHDOG CYCLE ==========" >> "$WATCHDOG_LOG"
 
     if ! check_signal_only_compliance; then
-        echo "[$(date)] COMPLIANCE CHECK FAILED" >> "$WATCHDOG_LOG"
-        return 1
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] COMPLIANCE CHECK FAILED" >> "$WATCHDOG_LOG"
     fi
 
     for i in "${!APPROVED_BOTS[@]}"; do
@@ -246,7 +327,7 @@ run_one_cycle() {
         symbol="${SIGNAL_ONLY_SYMBOLS[$i]}"
 
         if ! check_duplicates "$bot_file" "$symbol"; then
-            echo "[$(date)] DUPLICATE CHECK FAILED for $symbol" >> "$WATCHDOG_LOG"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] DUPLICATE CHECK FAILED for $symbol" >> "$WATCHDOG_LOG"
             continue
         fi
 
@@ -255,7 +336,7 @@ run_one_cycle() {
 
     monitor_scanner
 
-    echo "[$(date)] ========== CYCLE COMPLETE ==========" >> "$WATCHDOG_LOG"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ========== CYCLE COMPLETE ==========" >> "$WATCHDOG_LOG"
     return 0
 }
 
@@ -264,5 +345,5 @@ if [ "${1:-}" = "--once" ]; then
     exit $?
 fi
 
-echo "[$(date)] Watchdog started (dry-run mode)" >> "$WATCHDOG_LOG"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Watchdog started (infinite loop mode)" >> "$WATCHDOG_LOG"
 run_one_cycle
