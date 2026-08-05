@@ -413,7 +413,12 @@ cp "$SOURCE_DIR/signal_bot_common.sh" "$test_dir/"
 cp "$SOURCE_DIR/start_signal_bots.sh" "$test_dir/"
 cd "$test_dir"
 for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
-    touch "$bot"
+    cat > "$bot" <<'PYEOF'
+#!/usr/bin/env python3
+import time
+time.sleep(30)
+PYEOF
+    chmod +x "$bot"
 done
 cat > "$test_dir/.env" <<'EOF'
 VANTAGE_EA_TOKEN=token1
