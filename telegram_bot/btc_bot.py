@@ -81,8 +81,8 @@ def record_signal(direction, price, sl, tp):
 
 def send_daily_report():
     today = datetime.now().strftime("%d %b %Y"); n = len(_daily_signals)
-    lines = [f"📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
-             f"<b>Crypto Bot (BTCUSD)</b>  |  Signals Today: <b>{n}</b>", ""]
+    lines = [f"[BTC BOT] 📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
+             f"<b>BTCUSD</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0: lines.append("No signals were generated today.")
     else:
         for i, s in enumerate(_daily_signals, 1):
@@ -173,7 +173,7 @@ def check_signal():
         if trend == -1: log.info("SKIP BUY BTCUSD — daily trend bearish"); return
         entry = round(price, 2); sl = round(entry - ATR_SL_MULT * atr_val, 2); tp = round(entry + ATR_TP_MULT * atr_val, 2)
         log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
-        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n₿ <b>CRYPTO BOT — BTCUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        tg_send(f"[BTC BOT] ━━━━━━━━━━━━━━━━━━━━━━\n₿ <b>BTCUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:,.2f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> $<code>{sl:,.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:,.2f}</code>\n\n"
@@ -185,7 +185,7 @@ def check_signal():
         if trend == 1: log.info("SKIP SELL BTCUSD — daily trend bullish"); return
         entry = round(price, 2); sl = round(entry + ATR_SL_MULT * atr_val, 2); tp = round(entry - ATR_TP_MULT * atr_val, 2)
         log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
-        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n₿ <b>CRYPTO BOT — BTCUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        tg_send(f"[BTC BOT] ━━━━━━━━━━━━━━━━━━━━━━\n₿ <b>BTCUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:,.2f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> $<code>{sl:,.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:,.2f}</code>\n\n"
@@ -200,7 +200,7 @@ def main():
     _load_seen_bars()
     log.info("Crypto Bot started | ema=%d/%d  rsi=%d  cache=%ds  poll=%ds",
              FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL, CHECK_SECS)
-    tg_send(f"₿ <b>Crypto Bot Online — BTCUSD</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+    tg_send(f"[BTC BOT] ₿ <b>Online — BTCUSD</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
             "<i>Trades 24/7 — no market-hours restriction</i>\n🕙 Daily report at 10:00 PM IST")
     while True:
