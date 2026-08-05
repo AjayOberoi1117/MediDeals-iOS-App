@@ -22,15 +22,13 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 from nse_holidays import is_nse_holiday
 
 load_dotenv()
 socket.setdefaulttimeout(30)
 
 TELEGRAM_TOKEN    = os.getenv("STOCX_BOT_TOKEN") or os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID           = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
 UPSTOX_TOKEN      = os.getenv("UPSTOX_TOKEN", "")
 UPSTOX_DATA_TOKEN = os.getenv("UPSTOX_DATA_TOKEN", "")
 
@@ -111,10 +109,7 @@ def tg_send(text):
             log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    try:
-        wapp_send(text)
-        email_send("Trading Signal: India Scalper", text)
-    except Exception:
+    try:    except Exception:
         pass
 
 

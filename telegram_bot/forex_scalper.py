@@ -22,8 +22,6 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 
 try:
     from mac_trade_writer import queue_trade          # Mac: direct MT5 file write
@@ -37,7 +35,7 @@ load_dotenv()
 socket.setdefaulttimeout(30)
 
 TELEGRAM_TOKEN = os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
 FAST_EMA       = 9
 SLOW_EMA       = 21
 RSI_PERIOD     = 14
@@ -91,9 +89,6 @@ def tg_send(text):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
         if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc: log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send("Trading Signal: Forex Scalper", text)
-
 def record_signal(name, direction, price, sl, tp):
     _daily_signals.append({"name": name, "direction": direction, "price": price,
                             "sl": sl, "tp": tp, "time": datetime.now().strftime("%I:%M %p")})

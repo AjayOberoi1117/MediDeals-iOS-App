@@ -16,8 +16,6 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 
 try:
     from trade_executor import queue_trade
@@ -41,7 +39,7 @@ _YF_MAP = {
 
 SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     "EURUSD")
 BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("ELITE_BOT_TOKEN", ""))
-CHAT_ID      = os.getenv("SIGNAL_CHAT_ID",  "7093601171")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
 FAST_EMA     = int(os.getenv("FAST_EMA",    "9"))
 SLOW_EMA     = int(os.getenv("SLOW_EMA",    "21"))
 RSI_PERIOD   = int(os.getenv("RSI_PERIOD",  "14"))
@@ -96,9 +94,6 @@ def tg_send(text: str) -> None:
             log.warning("Telegram send failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send(f"Trading Signal: {SYMBOL_NAME}", text)
-
 # ── Daily report ──────────────────────────────────────────────────────────────
 
 def record_signal(direction, price, sl, tp):

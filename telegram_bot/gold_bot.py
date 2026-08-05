@@ -16,8 +16,6 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 
 try:
     from trade_executor import queue_trade
@@ -28,7 +26,7 @@ load_dotenv()
 socket.setdefaulttimeout(30)
 
 TELEGRAM_TOKEN = os.getenv("VANTAGE_EA_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",   "7093601171")
+CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
 SYMBOL         = "GC=F"
 DISPLAY_NAME   = "XAUUSD"
 FAST_EMA       = 9
@@ -68,9 +66,6 @@ def tg_send(text):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
         if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc: log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send("Trading Signal: XAUUSD Gold", text)
-
 def record_signal(direction, price, sl, tp):
     _daily_signals.append({"direction": direction, "price": price, "sl": sl, "tp": tp,
                             "time": datetime.now().strftime("%I:%M %p")})
