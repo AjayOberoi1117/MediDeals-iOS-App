@@ -25,7 +25,7 @@ except ImportError:
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("VANTAGE_EA_TOKEN", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 SYMBOL         = "GC=F"
 DISPLAY_NAME   = "XAUUSD"

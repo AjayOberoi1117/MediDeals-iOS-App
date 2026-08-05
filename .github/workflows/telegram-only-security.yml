@@ -23,5 +23,5 @@ jobs:
           python-version: '3.11'
 
       - name: Verify changes
-        run: python3 telegram_bot/test_telegram_only.py
+        run: python3 verify_telegram_only.py
 
