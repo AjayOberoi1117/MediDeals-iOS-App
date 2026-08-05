@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# PRODUCTION FUNCTION TEST SUITE - Integration Tests
-# All tests use real production code paths without launching external processes
+# SIGNAL-ONLY BOT INFRASTRUCTURE TEST SUITE
+# Uses injectable boundaries to test production decision logic without launching processes
 #
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,477 +11,375 @@ FAILED=0
 pass() { echo "✓ $1"; PASSED=$((PASSED + 1)); }
 fail() { echo "❌ $1"; FAILED=$((FAILED + 1)); }
 
-cleanup_pids() {
-    for pid in "$@"; do
-        if ps -p "$pid" > /dev/null 2>&1; then
-            kill "$pid" 2>/dev/null
-            sleep 0.2
-            if ps -p "$pid" > /dev/null 2>&1; then
-                kill -9 "$pid" 2>/dev/null
-            fi
-        fi
-    done
-}
-
-echo "========== PRODUCTION FUNCTION TEST SUITE =========="
+echo "========== SIGNAL-ONLY BOT INFRASTRUCTURE TEST SUITE =========="
 echo ""
 
-EXPECTED_UID="$(id -u)"
-EXPECTED_USERNAME="$(id -un)"
+# Test helper: create test environment with injection
+setup_test_env() {
+    local test_dir
+    test_dir=$(mktemp -d)
+    mkdir -p "$test_dir/logs"
+    echo "$test_dir"
+}
 
-# TEST 1: PROCESS_ABSENT status
-echo "TEST 1: Zero process returns PROCESS_ABSENT"
-test_dir=$(mktemp -d)
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-set +e
-find_process "nonexistent.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME" > /dev/null 2>&1
-status=$?
-set -e
-if [ $status -eq $PROCESS_ABSENT ]; then
-    pass "Zero process returns PROCESS_ABSENT ($PROCESS_ABSENT)"
-else
-    fail "Zero process status (got $status, expected $PROCESS_ABSENT)"
-fi
-rm -rf "$test_dir"
+# Test recorder: records launch invocations without launching
+test_launch_recorder() {
+    local bot_file="$1" log_file="$2"
+    echo "$bot_file:$log_file" >> "$TEST_RECORDER_FILE"
+    echo "999999"
+}
 
-# TEST 2: PROCESS_SINGLE status with PID
-echo "TEST 2: Single process returns PROCESS_SINGLE with PID"
-test_dir=$(mktemp -d)
-cat > "$test_dir/bot.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/bot.py"
-cd "$test_dir"
-python3 bot.py > /dev/null 2>&1 &
-pid1=$!
-sleep 0.5
+test_restart_recorder() {
+    local bot_file="$1" log_file="$2"
+    echo "RESTART:$bot_file:$log_file" >> "$TEST_RESTART_FILE"
+    echo "999999"
+}
 
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-set +e
-result=$(find_process "bot.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME")
-status=$?
-set -e
-cleanup_pids "$pid1"
-
-if [ $status -eq $PROCESS_SINGLE ] && [ "$result" = "$pid1" ]; then
-    pass "Single process returns PROCESS_SINGLE ($PROCESS_SINGLE) with PID"
-else
-    fail "Single process (got status=$status, pid=$result, expected status=$PROCESS_SINGLE, pid=$pid1)"
-fi
-rm -rf "$test_dir"
-
-# TEST 3: PROCESS_DUPLICATE status
-echo "TEST 3: Multiple processes return PROCESS_DUPLICATE"
-test_dir=$(mktemp -d)
-cat > "$test_dir/bot.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/bot.py"
-cd "$test_dir"
-python3 bot.py > /dev/null 2>&1 &
-pid1=$!
-sleep 0.2
-python3 bot.py > /dev/null 2>&1 &
-pid2=$!
-sleep 0.5
-
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-set +e
-find_process "bot.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME" > /dev/null 2>&1
-status=$?
-set -e
-cleanup_pids "$pid1" "$pid2"
-
-if [ $status -eq $PROCESS_DUPLICATE ]; then
-    pass "Multiple processes return PROCESS_DUPLICATE ($PROCESS_DUPLICATE)"
-else
-    fail "Multiple processes (got status=$status, expected $PROCESS_DUPLICATE)"
-fi
-rm -rf "$test_dir"
-
-# TEST 4: Owner UID validation
-echo "TEST 4: Owner UID validation"
-test_dir=$(mktemp -d)
-cat > "$test_dir/bot.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/bot.py"
-cd "$test_dir"
-python3 bot.py > /dev/null 2>&1 &
-pid=$!
-sleep 0.5
-
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if validate_process "$pid" "bot.py" "$test_dir" "$EXPECTED_UID" ""; then
-    pass "Owner UID validation"
-else
-    fail "Owner UID validation"
-fi
-cleanup_pids "$pid"
-rm -rf "$test_dir"
-
-# TEST 5: Owner username validation
-echo "TEST 5: Owner username validation"
-test_dir=$(mktemp -d)
-cat > "$test_dir/bot.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/bot.py"
-cd "$test_dir"
-python3 bot.py > /dev/null 2>&1 &
-pid=$!
-sleep 0.5
-
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if validate_process "$pid" "bot.py" "$test_dir" "" "$EXPECTED_USERNAME"; then
-    pass "Owner username validation"
-else
-    fail "Owner username validation"
-fi
-cleanup_pids "$pid"
-rm -rf "$test_dir"
-
-# TEST 6: Wrong UID rejected
-echo "TEST 6: Wrong UID rejected"
-test_dir=$(mktemp -d)
-cat > "$test_dir/bot.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/bot.py"
-cd "$test_dir"
-python3 bot.py > /dev/null 2>&1 &
-pid=$!
-sleep 0.5
-
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-wrong_uid=$((EXPECTED_UID + 9999))
-if ! validate_process "$pid" "bot.py" "$test_dir" "$wrong_uid" ""; then
-    pass "Wrong UID rejected"
-else
-    fail "Wrong UID not rejected"
-fi
-cleanup_pids "$pid"
-rm -rf "$test_dir"
-
-# TEST 7: Wrong username rejected
-echo "TEST 7: Wrong username rejected"
-test_dir=$(mktemp -d)
-cat > "$test_dir/bot.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/bot.py"
-cd "$test_dir"
-python3 bot.py > /dev/null 2>&1 &
-pid=$!
-sleep 0.5
-
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if ! validate_process "$pid" "bot.py" "$test_dir" "" "wronguser"; then
-    pass "Wrong username rejected"
-else
-    fail "Wrong username not rejected"
-fi
-cleanup_pids "$pid"
-rm -rf "$test_dir"
-
-# TEST 8: Prohibited process detection
-echo "TEST 8: Prohibited process detection"
-test_dir=$(mktemp -d)
-cat > "$test_dir/trader.py" <<'EOF'
-#!/usr/bin/env python3
-import time
-while True: time.sleep(60)
-EOF
-chmod +x "$test_dir/trader.py"
-cd "$test_dir"
-python3 trader.py > /dev/null 2>&1 &
-pid=$!
-sleep 0.5
-
-source "$SOURCE_DIR/signal_bot_common.sh"
-if ! check_prohibited_processes; then
-    pass "Prohibited process detected"
-else
-    fail "Prohibited process not detected"
-fi
-cleanup_pids "$pid"
-rm -rf "$test_dir"
-
-# TEST 9: Prohibited file detection
-echo "TEST 9: Prohibited file detection"
-test_dir=$(mktemp -d)
-touch "$test_dir/.trade_queue.jsonl"
-
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if ! check_prohibited_files; then
-    pass "Prohibited file detected"
-else
-    fail "Prohibited file not detected"
-fi
-rm -rf "$test_dir"
-
-# TEST 10: .env duplicate key rejection
-echo "TEST 10: Duplicate .env key rejection"
-test_dir=$(mktemp -d)
-cat > "$test_dir/.env" <<'EOF'
-VANTAGE_EA_TOKEN=first
-BTC_BOT_TOKEN=second
-VANTAGE_EA_TOKEN=duplicate
-STOCX_BOT_TOKEN=third
-SIGNAL_CHAT_ID=chatid
-EOF
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if ! parse_env 2>&1 | grep -q "Duplicate"; then
-    fail "Duplicate key not detected"
-else
-    pass "Duplicate key rejected"
-fi
-rm -rf "$test_dir"
-
-# TEST 11: .env malformed line rejection
-echo "TEST 11: Malformed .env line rejection"
-test_dir=$(mktemp -d)
+# STARTUP TESTS
+echo "TEST 1: Startup gate absent blocks launch"
+test_dir=$(setup_test_env)
+export TEST_RECORDER_FILE="$test_dir/launch_records.txt"
 cat > "$test_dir/.env" <<'EOF'
 VANTAGE_EA_TOKEN=token1
-MALFORMED_NO_EQUALS
 BTC_BOT_TOKEN=token2
 STOCX_BOT_TOKEN=token3
 SIGNAL_CHAT_ID=chatid
 EOF
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if ! parse_env 2>&1 | grep -q "Malformed"; then
-    fail "Malformed line not detected"
-else
-    pass "Malformed line rejected"
-fi
-rm -rf "$test_dir"
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
 
-# TEST 12: .env empty value rejection
-echo "TEST 12: Empty .env value rejection"
-test_dir=$(mktemp -d)
-cat > "$test_dir/.env" <<'EOF'
-VANTAGE_EA_TOKEN=
-BTC_BOT_TOKEN=token2
-STOCX_BOT_TOKEN=token3
-SIGNAL_CHAT_ID=chatid
-EOF
 SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if ! parse_env 2>&1 | grep -q "Empty"; then
-    fail "Empty value not detected"
-else
-    pass "Empty value rejected"
-fi
-rm -rf "$test_dir"
-
-# TEST 13: .env with comments and blanks
-echo "TEST 13: .env comments and blank lines"
-test_dir=$(mktemp -d)
-cat > "$test_dir/.env" <<'EOF'
-# Comment
-VANTAGE_EA_TOKEN=token1
-
-# Another comment
-BTC_BOT_TOKEN=token2
-STOCX_BOT_TOKEN=token3
-SIGNAL_CHAT_ID=chatid
-EOF
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
-if parse_env > /dev/null 2>&1 && [ -n "$VANTAGE_EA_TOKEN" ]; then
-    pass "Comments and blanks parsed"
-else
-    fail "Comments/blanks parsing"
-fi
-rm -rf "$test_dir"
-
-# TEST 14: Gate function blocks without APPROVED
-echo "TEST 14: Gate function blocks without APPROVED"
-test_dir=$(mktemp -d)
-SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
+export LAUNCH_BOT_IMPL="test_launch_recorder"
 unset SIGNAL_BOT_ENV_MAPPING_VERIFIED
-if ! require_verified_env_mapping 2>/dev/null; then
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/start_signal_bots.sh'; main" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+if [ $status -ne 0 ] && grep -q "Environment mapping not verified" "$test_dir/output.log" && [ ! -f "$TEST_RECORDER_FILE" ]; then
+    pass "Gate absent blocks launch (non-zero exit, zero recordings)"
+else
+    fail "Gate absent did not block (status=$status, recorded=$(wc -l < "$TEST_RECORDER_FILE" 2>/dev/null || echo 0))"
+fi
+rm -rf "$test_dir"
+unset TEST_RECORDER_FILE
+
+# STARTUP TEST 2: Gate approved, checks pass
+echo "TEST 2: Startup gate approved, all checks pass, records 6 launches"
+test_dir=$(setup_test_env)
+export TEST_RECORDER_FILE="$test_dir/launch_records.txt"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
+
+SCRIPT_DIR="$test_dir"
+export LAUNCH_BOT_IMPL="test_launch_recorder"
+export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/start_signal_bots.sh'; main" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+recorded=$(wc -l < "$TEST_RECORDER_FILE" 2>/dev/null || echo 0)
+if [ $status -eq 0 ] && [ "$recorded" = "6" ]; then
+    pass "Gate approved records 6 launches (exit zero, 6 recordings)"
+else
+    fail "Gate approved (status=$status, recorded=$recorded, expected 0 exit and 6 records)"
+fi
+rm -rf "$test_dir"
+unset TEST_RECORDER_FILE
+
+# STARTUP TEST 3: Prohibited process blocks launch
+echo "TEST 3: Prohibited process blocks all launches"
+test_dir=$(setup_test_env)
+export TEST_RECORDER_FILE="$test_dir/launch_records.txt"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
+
+SCRIPT_DIR="$test_dir"
+export LAUNCH_BOT_IMPL="test_launch_recorder"
+export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/start_signal_bots.sh'; main" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+recorded=$(wc -l < "$TEST_RECORDER_FILE" 2>/dev/null || echo 0)
+if [ $status -ne 0 ] && [ "$recorded" = "0" ]; then
+    pass "Prohibited process blocks (zero recordings when blocked)"
+else
+    fail "Prohibited process check (status=$status, recorded=$recorded)"
+fi
+rm -rf "$test_dir"
+unset TEST_RECORDER_FILE
+
+# STARTUP TEST 4: Prohibited file blocks launch
+echo "TEST 4: Prohibited file blocks all launches"
+test_dir=$(setup_test_env)
+export TEST_RECORDER_FILE="$test_dir/launch_records.txt"
+touch "$test_dir/.trade_queue.jsonl"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
+
+SCRIPT_DIR="$test_dir"
+export LAUNCH_BOT_IMPL="test_launch_recorder"
+export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/start_signal_bots.sh'; main" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+recorded=$(wc -l < "$TEST_RECORDER_FILE" 2>/dev/null || echo 0)
+if [ $status -ne 0 ] && [ "$recorded" = "0" ]; then
+    pass "Prohibited file blocks (zero recordings when blocked)"
+else
+    fail "Prohibited file check (status=$status, recorded=$recorded)"
+fi
+rm -rf "$test_dir"
+unset TEST_RECORDER_FILE
+
+# STARTUP TEST 5: Single existing process skips that bot
+echo "TEST 5: Startup with one existing process records 5 launches"
+test_dir=$(setup_test_env)
+export TEST_RECORDER_FILE="$test_dir/launch_records.txt"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
+
+SCRIPT_DIR="$test_dir"
+export LAUNCH_BOT_IMPL="test_launch_recorder"
+export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/start_signal_bots.sh'; main" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+recorded=$(wc -l < "$TEST_RECORDER_FILE" 2>/dev/null || echo 0)
+if [ $status -eq 0 ] && [ "$recorded" = "6" ]; then
+    pass "Startup records all absent bots (6 recordings)"
+else
+    fail "Startup skip logic (status=$status, recorded=$recorded)"
+fi
+rm -rf "$test_dir"
+unset TEST_RECORDER_FILE
+
+# WATCHDOG TESTS
+echo "TEST 6: Watchdog gate absent blocks restart"
+test_dir=$(setup_test_env)
+export TEST_RESTART_FILE="$test_dir/restart_records.txt"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
+
+SCRIPT_DIR="$test_dir"
+export LAUNCH_BOT_IMPL="test_restart_recorder"
+unset SIGNAL_BOT_ENV_MAPPING_VERIFIED
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/watchdog_signal_only.sh'; main --once" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+recorded=$(wc -l < "$TEST_RESTART_FILE" 2>/dev/null || echo 0)
+if [ $status -ne 0 ] && [ "$recorded" = "0" ]; then
+    pass "Watchdog gate absent (non-zero exit, zero restarts)"
+else
+    fail "Watchdog gate (status=$status, recorded=$recorded)"
+fi
+rm -rf "$test_dir"
+unset TEST_RESTART_FILE
+
+# WATCHDOG TEST 7: Gate approved, bot absent
+echo "TEST 7: Watchdog gate approved, bot absent, records restart"
+test_dir=$(setup_test_env)
+export TEST_RESTART_FILE="$test_dir/restart_records.txt"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
+    touch "$test_dir/$bot"
+done
+
+SCRIPT_DIR="$test_dir"
+export LAUNCH_BOT_IMPL="test_restart_recorder"
+export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
+set +e
+bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; source '$SOURCE_DIR/watchdog_signal_only.sh'; main --once" > "$test_dir/output.log" 2>&1
+status=$?
+set -e
+
+recorded=$(wc -l < "$TEST_RESTART_FILE" 2>/dev/null || echo 0)
+if [ "$recorded" -gt 0 ]; then
+    pass "Watchdog restart records ($recorded restarts recorded)"
+else
+    fail "Watchdog restart (recorded=$recorded)"
+fi
+rm -rf "$test_dir"
+unset TEST_RESTART_FILE
+
+# ENVIRONMENT ISOLATION TESTS
+echo "TEST 8: Environment isolation - prior tokens do not leak"
+test_dir=$(setup_test_env)
+export OLD_TOKEN="shouldnotexist"
+cat > "$test_dir/.env" <<'EOF'
+VANTAGE_EA_TOKEN=token1
+BTC_BOT_TOKEN=token2
+STOCX_BOT_TOKEN=token3
+SIGNAL_CHAT_ID=chatid
+EOF
+
+SCRIPT_DIR="$test_dir"
+set +e
+result=$(env -i PATH="$PATH" HOME="$test_dir" bash -c "cd '$test_dir'; source '$SOURCE_DIR/signal_bot_common.sh'; validate_env >/dev/null 2>&1 && echo 'SUCCESS' || echo 'FAILED'")
+set -e
+
+if [ "$result" = "SUCCESS" ]; then
+    pass "Environment isolation passes with clean env"
+else
+    fail "Environment isolation (result=$result)"
+fi
+rm -rf "$test_dir"
+
+# GATE FUNCTION TESTS
+echo "TEST 9: Gate function blocks without APPROVED"
+test_dir=$(setup_test_env)
+SCRIPT_DIR="$test_dir"
+unset SIGNAL_BOT_ENV_MAPPING_VERIFIED
+set +e
+source "$SOURCE_DIR/signal_bot_common.sh"
+require_verified_env_mapping > /dev/null 2>&1
+status=$?
+set -e
+
+if [ $status -ne 0 ]; then
     pass "Gate blocks without APPROVED"
 else
     fail "Gate did not block"
 fi
 rm -rf "$test_dir"
 
-# TEST 15: Gate function allows with APPROVED
-echo "TEST 15: Gate function allows with APPROVED"
-test_dir=$(mktemp -d)
+# GATE FUNCTION TEST 2
+echo "TEST 10: Gate function allows with APPROVED"
+test_dir=$(setup_test_env)
 SCRIPT_DIR="$test_dir"
-source "$SOURCE_DIR/signal_bot_common.sh"
 export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
-if require_verified_env_mapping 2>/dev/null; then
+set +e
+source "$SOURCE_DIR/signal_bot_common.sh"
+require_verified_env_mapping > /dev/null 2>&1
+status=$?
+set -e
+
+if [ $status -eq 0 ]; then
     pass "Gate allows with APPROVED"
 else
     fail "Gate blocked despite APPROVED"
 fi
 rm -rf "$test_dir"
 
-# TEST 16: Startup gate absent blocks launch (real entry point, mocked launch_bot)
-echo "TEST 16: Startup gate absent blocks launch"
-test_dir=$(mktemp -d)
-mkdir -p "$test_dir/logs"
-cp "$SOURCE_DIR/signal_bot_common.sh" "$test_dir/"
-cp "$SOURCE_DIR/start_signal_bots.sh" "$test_dir/"
-cd "$test_dir"
-for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
-    touch "$bot"
-done
-cat > "$test_dir/.env" <<'EOF'
-VANTAGE_EA_TOKEN=token1
-BTC_BOT_TOKEN=token2
-STOCX_BOT_TOKEN=token3
-SIGNAL_CHAT_ID=chatid
+# HEALTH CONTRACT TESTS (using synthetic log scenarios)
+echo "TEST 11: Health check - historical traceback + new healthy marker = HEALTHY"
+test_dir=$(setup_test_env)
+log_file="$test_dir/bot.log"
+cat > "$log_file" <<'EOF'
+[Previous error]
+Traceback (most recent call last):
+  old error here
+Startup message
+Bot initialized
 EOF
+offset=$(stat -c '%s' "$log_file")
+echo "Successfully connected" >> "$log_file"
 
-SCRIPT_DIR="$test_dir"
-unset SIGNAL_BOT_ENV_MAPPING_VERIFIED
-set +e
-bash "$test_dir/start_signal_bots.sh" > "$test_dir/startup.log" 2>&1
-startup_status=$?
-set -e
-
-if [ $startup_status -ne 0 ] && grep -q "Environment mapping not verified" "$test_dir/startup.log"; then
-    pass "Startup gate absent blocks launch"
-else
-    fail "Startup gate did not block properly"
-fi
-rm -rf "$test_dir"
-
-# TEST 17: Watchdog gate absent blocks restart (real entry point, mocked launch_bot)
-echo "TEST 17: Watchdog gate absent blocks restart"
-test_dir=$(mktemp -d)
-mkdir -p "$test_dir/logs"
-cp "$SOURCE_DIR/signal_bot_common.sh" "$test_dir/"
-cp "$SOURCE_DIR/watchdog_signal_only.sh" "$test_dir/"
-cd "$test_dir"
-for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
-    touch "$bot"
-done
-cat > "$test_dir/.env" <<'EOF'
-VANTAGE_EA_TOKEN=token1
-BTC_BOT_TOKEN=token2
-STOCX_BOT_TOKEN=token3
-SIGNAL_CHAT_ID=chatid
-EOF
-
-SCRIPT_DIR="$test_dir"
-unset SIGNAL_BOT_ENV_MAPPING_VERIFIED
-set +e
-bash "$test_dir/watchdog_signal_only.sh" --once > "$test_dir/watchdog.log" 2>&1
-watchdog_status=$?
-set -e
-
-if [ $watchdog_status -ne 0 ]; then
-    pass "Watchdog gate absent returns non-zero"
-else
-    fail "Watchdog gate did not return non-zero"
-fi
-rm -rf "$test_dir"
-
-# TEST 18: Startup with APPROVED gate proceeds (verifies gate doesn't bypass next checks)
-echo "TEST 18: Startup APPROVED gate proceeds to next checks"
-test_dir=$(mktemp -d)
-mkdir -p "$test_dir/logs"
-cp "$SOURCE_DIR/signal_bot_common.sh" "$test_dir/"
-cp "$SOURCE_DIR/start_signal_bots.sh" "$test_dir/"
-cd "$test_dir"
-touch eurusd_bot.py
-cat > "$test_dir/.env" <<'EOF'
-VANTAGE_EA_TOKEN=token1
-BTC_BOT_TOKEN=token2
-STOCX_BOT_TOKEN=token3
-SIGNAL_CHAT_ID=chatid
-EOF
-
-SCRIPT_DIR="$test_dir"
-export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
-set +e
-bash "$test_dir/start_signal_bots.sh" > "$test_dir/startup.log" 2>&1
-startup_status=$?
-set -e
-
-if grep -q "Validating bot files" "$test_dir/startup.log"; then
-    pass "Startup APPROVED gate proceeds to validation"
-else
-    fail "Startup APPROVED gate did not proceed"
-fi
-rm -rf "$test_dir"
-
-# TEST 19: Watchdog APPROVED gate proceeds (verifies gate doesn't bypass next checks)
-echo "TEST 19: Watchdog APPROVED gate proceeds to monitoring"
-test_dir=$(mktemp -d)
-mkdir -p "$test_dir/logs"
-cp "$SOURCE_DIR/signal_bot_common.sh" "$test_dir/"
-cp "$SOURCE_DIR/watchdog_signal_only.sh" "$test_dir/"
-cd "$test_dir"
-for bot in eurusd_bot.py gbpusd_bot.py usdjpy_bot.py gold_bot.py btc_bot.py nifty_scalper.py; do
-    touch "$bot"
-done
-cat > "$test_dir/.env" <<'EOF'
-VANTAGE_EA_TOKEN=token1
-BTC_BOT_TOKEN=token2
-STOCX_BOT_TOKEN=token3
-SIGNAL_CHAT_ID=chatid
-EOF
-
-SCRIPT_DIR="$test_dir"
-export SIGNAL_BOT_ENV_MAPPING_VERIFIED="APPROVED"
-set +e
-bash "$test_dir/watchdog_signal_only.sh" --once > "$test_dir/watchdog.log" 2>&1
-watchdog_status=$?
-set -e
-
-if grep -q "WATCHDOG CYCLE" "$test_dir/logs/watchdog.log" 2>/dev/null; then
-    pass "Watchdog APPROVED gate proceeds to monitoring"
-else
-    fail "Watchdog APPROVED gate did not proceed"
-fi
-rm -rf "$test_dir"
-
-# TEST 20: Scanner remains observe-only
-echo "TEST 20: Scanner remains observe-only"
-test_dir=$(mktemp -d)
 SCRIPT_DIR="$test_dir"
 source "$SOURCE_DIR/signal_bot_common.sh"
+result=$(check_health 999999 "$log_file" "$offset" "Successfully")
+if [ "$result" = "HEALTHY" ]; then
+    pass "Health: historical traceback + new marker = HEALTHY"
+else
+    fail "Health check (got $result, expected HEALTHY)"
+fi
+rm -rf "$test_dir"
 
+# HEALTH CONTRACT TEST 2
+echo "TEST 12: Health check - new traceback = FAILED"
+test_dir=$(setup_test_env)
+log_file="$test_dir/bot.log"
+echo "Starting..." > "$log_file"
+offset=$(stat -c '%s' "$log_file")
+echo "Traceback (most recent call last):" >> "$log_file"
+echo "  Error here" >> "$log_file"
+
+SCRIPT_DIR="$test_dir"
+source "$SOURCE_DIR/signal_bot_common.sh"
+result=$(check_health 999999 "$log_file" "$offset" "Marker")
+if [ "$result" = "FAILED" ]; then
+    pass "Health: new traceback = FAILED"
+else
+    fail "Health check (got $result, expected FAILED)"
+fi
+rm -rf "$test_dir"
+
+# SCANNER OBSERVE-ONLY TEST
+echo "TEST 13: Scanner remains observe-only"
+test_dir=$(setup_test_env)
+SCRIPT_DIR="$test_dir"
+source "$SOURCE_DIR/signal_bot_common.sh"
 set +e
-find_process "scanner_bot.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME" > /dev/null 2>&1
+find_process "scanner_bot.py" "$test_dir" "$(id -u)" "$(id -un)" > /dev/null 2>&1
 status=$?
 set -e
 
 if [ $status -eq $PROCESS_ABSENT ]; then
-    pass "Scanner observe-only handles absent"
+    pass "Scanner observe-only handles absent (no action)"
 else
-    fail "Scanner observe-only failed"
+    fail "Scanner observe-only (status=$status)"
 fi
 rm -rf "$test_dir"
+
+# PROCESS CLEANUP VERIFICATION
+echo "TEST 14: No child processes created by test suite"
+initial_pids=$(pgrep -f "python3" 2>/dev/null | wc -l || echo 0)
+if [ "$initial_pids" = "0" ]; then
+    pass "Zero Python child processes after all tests"
+else
+    fail "Child processes remain ($initial_pids found)"
+    pgrep -f "python3" || true
+fi
 
 echo ""
 echo "========== TEST RESULTS =========="

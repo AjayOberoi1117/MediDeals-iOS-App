@@ -9,6 +9,10 @@ PROCESS_SINGLE=10
 PROCESS_DUPLICATE=20
 PROCESS_ERROR=30
 
+LAUNCH_BOT_IMPL="${LAUNCH_BOT_IMPL:-production_launch_bot}"
+PROCESS_INVENTORY_IMPL="${PROCESS_INVENTORY_IMPL:-production_find_process}"
+HEALTH_CHECK_IMPL="${HEALTH_CHECK_IMPL:-production_check_health}"
+
 APPROVED_BOTS=(
     "eurusd_bot.py"
     "gbpusd_bot.py"
@@ -250,4 +254,26 @@ check_health() {
 
     echo "FAILED"
     return 1
+}
+
+production_find_process() {
+    find_process "$@"
+}
+
+production_check_health() {
+    check_health "$@"
+}
+
+production_launch_bot() {
+    local bot_file="$1" log_file="$2"
+    nohup python3 "$bot_file" > "$log_file" 2>&1 &
+    echo $!
+}
+
+invoke_launch_bot() {
+    "$LAUNCH_BOT_IMPL" "$@"
+}
+
+invoke_find_process() {
+    "$PROCESS_INVENTORY_IMPL" "$@"
 }

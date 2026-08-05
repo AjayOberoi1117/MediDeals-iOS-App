@@ -15,12 +15,12 @@ source "$SCRIPT_DIR/signal_bot_common.sh"
 EXPECTED_UID="$(id -u)"
 EXPECTED_USERNAME="$(id -un)"
 
-launch_bot() {
+startup_launch_bot() {
     local bot_file="$1" symbol="$2"
     local log_file="$LOG_DIR/${bot_file%.py}.log"
 
-    nohup python3 "$bot_file" > "$log_file" 2>&1 &
-    local pid=$!
+    local pid
+    pid=$(invoke_launch_bot "$bot_file" "$log_file")
 
     sleep 2
 
@@ -119,7 +119,7 @@ main() {
             continue
         fi
 
-        if ! launch_bot "$bot_file" "$symbol"; then
+        if ! startup_launch_bot "$bot_file" "$symbol"; then
             return 1
         fi
     done
