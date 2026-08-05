@@ -16,8 +16,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+from telegram_config import validate_telegram_config
 
 try:
     from trade_executor import queue_trade
@@ -27,8 +26,8 @@ except ImportError:
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("VANTAGE_EA_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID",   "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 SYMBOL         = "GC=F"
 DISPLAY_NAME   = "XAUUSD"
 FAST_EMA       = 9
@@ -68,8 +67,6 @@ def tg_send(text):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
         if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc: log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send("Trading Signal: XAUUSD Gold", text)
 
 def record_signal(direction, price, sl, tp):
     _daily_signals.append({"direction": direction, "price": price, "sl": sl, "tp": tp,
@@ -78,8 +75,8 @@ def record_signal(direction, price, sl, tp):
 def send_daily_report():
     today = datetime.now().strftime("%d %b %Y")
     n = len(_daily_signals)
-    lines = [f"📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
-             f"<b>Gold Bot (XAUUSD)</b>  |  Signals Today: <b>{n}</b>", ""]
+    lines = [f"[GOLD BOT] 📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
+             f"<b>XAUUSD</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0:
         lines.append("No signals were generated today.")
     else:
@@ -173,7 +170,7 @@ def check_signal():
         if get_daily_trend() == -1: log.info("SKIP BUY XAUUSD — daily trend bearish"); return
         entry = round(price, 2); sl = round(entry - ATR_SL_MULT * atr_val, 2); tp = round(entry + ATR_TP_MULT * atr_val, 2)
         log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
-        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n🥇 <b>GOLD BOT — XAUUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        tg_send(f"[GOLD BOT] ━━━━━━━━━━━━━━━━━━━━━━\n🥇 <b>XAUUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:.2f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
@@ -185,7 +182,7 @@ def check_signal():
         if get_daily_trend() == 1: log.info("SKIP SELL XAUUSD — daily trend bullish"); return
         entry = round(price, 2); sl = round(entry + ATR_SL_MULT * atr_val, 2); tp = round(entry - ATR_TP_MULT * atr_val, 2)
         log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
-        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n🥇 <b>GOLD BOT — XAUUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        tg_send(f"[GOLD BOT] ━━━━━━━━━━━━━━━━━━━━━━\n🥇 <b>XAUUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:.2f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
@@ -195,11 +192,12 @@ def check_signal():
         record_signal("SELL", entry, sl, tp); queue_trade("XAUUSD", "SELL", sl, tp, source="XAUUSD_1H")
 
 def main():
-    if not TELEGRAM_TOKEN: raise SystemExit("VANTAGE_EA_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen_bars()
     log.info("Gold Bot started | ema=%d/%d  rsi=%d  cache=%ds  poll=%ds",
              FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL, CHECK_SECS)
-    tg_send(f"🥇 <b>Gold Bot Online — XAUUSD</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+    tg_send(f"[GOLD BOT] 🥇 <b>Online — XAUUSD</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
             f"🕙 Daily report at 10:00 PM IST")
     while True:
