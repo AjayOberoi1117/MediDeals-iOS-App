@@ -10,7 +10,7 @@ import py_compile
 
 def verify():
     print(f"Working directory: {os.getcwd()}")
-    print(f"Files in current directory: {os.listdir('.')[:10]}")
+    print(f"Files in current directory: {os.listdir('.')[:10]}\n")
 
     bot_files = [
         'telegram_bot/btc_bot.py',
@@ -22,6 +22,15 @@ def verify():
         'telegram_bot/scanner_bot.py',
         'telegram_bot/signal_bot.py',
     ]
+
+    # Verify all files exist
+    print("Checking file existence...")
+    for f in bot_files + ['telegram_bot/test_telegram_only.py']:
+        if not os.path.exists(f):
+            print(f"✗ File not found: {f}")
+            return False
+        print(f"✓ Found: {f}")
+    print()
 
     print("=" * 60)
     print("TELEGRAM-ONLY NOTIFICATION VERIFICATION")
