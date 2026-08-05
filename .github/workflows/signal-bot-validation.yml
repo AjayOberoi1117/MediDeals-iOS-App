@@ -1,0 +1,45 @@
+name: Signal-Only Bot Scripts Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/signal-bot-validation.yml'
+      - 'telegram_bot/signal_bot_common.sh'
+      - 'telegram_bot/start_signal_bots.sh'
+      - 'telegram_bot/watchdog_signal_only.sh'
+      - 'telegram_bot/test_scripts_signal_only.sh'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Shell Script Validation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate signal_bot_common.sh syntax
+        run: bash -n telegram_bot/signal_bot_common.sh
+
+      - name: Validate start_signal_bots.sh syntax
+        run: bash -n telegram_bot/start_signal_bots.sh
+
+      - name: Validate watchdog_signal_only.sh syntax
+        run: bash -n telegram_bot/watchdog_signal_only.sh
+
+      - name: Validate test_scripts_signal_only.sh syntax
+        run: bash -n telegram_bot/test_scripts_signal_only.sh
+
+      - name: Run functional test suite
+        run: |
+          cd telegram_bot
+          bash test_scripts_signal_only.sh
+
+      - name: Report test results
+        if: always()
+        run: |
+          echo "Validation completed"
+          echo "No DigitalOcean access required"
+          echo "No production bots started"
