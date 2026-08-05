@@ -23,77 +23,78 @@ jobs:
           python-version: '3.11'
 
       - name: Verify changes
-        run: python3 << 'VERIFICATION'
-import os
-import sys
-import py_compile
+        run: |
+          python3 << 'VERIFICATION'
+          import os
+          import sys
+          import py_compile
 
-# List of bot files to check (excluding test file)
-bot_files = [
-    'telegram_bot/btc_bot.py',
-    'telegram_bot/forex_scalper.py',
-    'telegram_bot/gold_bot.py',
-    'telegram_bot/india_scalper.py',
-    'telegram_bot/nifty_scalper.py',
-    'telegram_bot/options_scalper.py',
-    'telegram_bot/scanner_bot.py',
-    'telegram_bot/signal_bot.py',
-    'telegram_bot/test_telegram_only.py',
-]
+          # List of bot files to check (excluding test file)
+          bot_files = [
+              'telegram_bot/btc_bot.py',
+              'telegram_bot/forex_scalper.py',
+              'telegram_bot/gold_bot.py',
+              'telegram_bot/india_scalper.py',
+              'telegram_bot/nifty_scalper.py',
+              'telegram_bot/options_scalper.py',
+              'telegram_bot/scanner_bot.py',
+              'telegram_bot/signal_bot.py',
+              'telegram_bot/test_telegram_only.py',
+          ]
 
-all_test_files = bot_files
+          all_test_files = bot_files
 
-print("=" * 60)
-print("VERIFYING TELEGRAM-ONLY NOTIFICATION CHANGES")
-print("=" * 60)
+          print("=" * 60)
+          print("VERIFYING TELEGRAM-ONLY NOTIFICATION CHANGES")
+          print("=" * 60)
 
-# 1. Verify Python compilation
-print("\n[1] Python Compilation Check")
-for f in all_test_files:
-    try:
-        py_compile.compile(f, doraise=True)
-        print(f"  ✓ {f}")
-    except Exception as e:
-        print(f"  ✗ {f}: {e}")
-        sys.exit(1)
+          # 1. Verify Python compilation
+          print("\n[1] Python Compilation Check")
+          for f in all_test_files:
+              try:
+                  py_compile.compile(f, doraise=True)
+                  print(f"  ✓ {f}")
+              except Exception as e:
+                  print(f"  ✗ {f}: {e}")
+                  sys.exit(1)
 
-# 2. Check helper modules deleted
-print("\n[2] Helper Modules Check")
-if os.path.exists('telegram_bot/emailer.py'):
-    print("  ✗ emailer.py still exists")
-    sys.exit(1)
-if os.path.exists('telegram_bot/whatsapp.py'):
-    print("  ✗ whatsapp.py still exists")
-    sys.exit(1)
-print("  ✓ emailer.py deleted")
-print("  ✓ whatsapp.py deleted")
+          # 2. Check helper modules deleted
+          print("\n[2] Helper Modules Check")
+          if os.path.exists('telegram_bot/emailer.py'):
+              print("  ✗ emailer.py still exists")
+              sys.exit(1)
+          if os.path.exists('telegram_bot/whatsapp.py'):
+              print("  ✗ whatsapp.py still exists")
+              sys.exit(1)
+          print("  ✓ emailer.py deleted")
+          print("  ✓ whatsapp.py deleted")
 
-# 3. Check email/WhatsApp removed from bot files
-print("\n[3] Email/WhatsApp Import Check")
-bad_patterns = ['import smtplib', 'from email.mime', 'graph.facebook.com']
-for bot_file in bot_files[:-1]:  # Exclude test file
-    with open(bot_file) as f:
-        content = f.read()
-    for pattern in bad_patterns:
-        if pattern in content:
-            print(f"  ✗ {bot_file}: found '{pattern}'")
-            sys.exit(1)
-    print(f"  ✓ {bot_file}")
+          # 3. Check email/WhatsApp removed from bot files
+          print("\n[3] Email/WhatsApp Import Check")
+          bad_patterns = ['import smtplib', 'from email.mime', 'graph.facebook.com']
+          for bot_file in bot_files[:-1]:  # Exclude test file
+              with open(bot_file) as f:
+                  content = f.read()
+              for pattern in bad_patterns:
+                  if pattern in content:
+                      print(f"  ✗ {bot_file}: found '{pattern}'")
+                      sys.exit(1)
+              print(f"  ✓ {bot_file}")
 
-# 4. Check no hardcoded credentials in bot files
-print("\n[4] Hardcoded Credentials Check")
-secret_patterns = ['Bearer EAAL', 'vstbuutmlhbxbpww']
-for bot_file in bot_files[:-1]:  # Exclude test file
-    with open(bot_file) as f:
-        content = f.read()
-    for pattern in secret_patterns:
-        if pattern in content:
-            print(f"  ✗ {bot_file}: found '{pattern}'")
-            sys.exit(1)
-    print(f"  ✓ {bot_file}")
+          # 4. Check no hardcoded credentials in bot files
+          print("\n[4] Hardcoded Credentials Check")
+          secret_patterns = ['Bearer EAAL', 'vstbuutmlhbxbpww']
+          for bot_file in bot_files[:-1]:  # Exclude test file
+              with open(bot_file) as f:
+                  content = f.read()
+              for pattern in secret_patterns:
+                  if pattern in content:
+                      print(f"  ✗ {bot_file}: found '{pattern}'")
+                      sys.exit(1)
+              print(f"  ✓ {bot_file}")
 
-print("\n" + "=" * 60)
-print("✓ ALL CHECKS PASSED")
-print("=" * 60)
-VERIFICATION
+          print("\n" + "=" * 60)
+          print("✓ ALL CHECKS PASSED")
+          print("=" * 60)
+          VERIFICATION
 
