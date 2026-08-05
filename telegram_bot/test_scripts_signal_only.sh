@@ -26,24 +26,28 @@ cleanup_pids() {
 echo "========== PRODUCTION FUNCTION TEST SUITE =========="
 echo ""
 
-# TEST 1: SET -E status 0 - no process
-echo "TEST 1: Zero process status 0"
+# Derive owner for all tests
+EXPECTED_UID="$(id -u)"
+EXPECTED_USERNAME="$(id -un)"
+
+# TEST 1: PROCESS_ABSENT status
+echo "TEST 1: Zero process returns PROCESS_ABSENT"
 test_dir=$(mktemp -d)
 SCRIPT_DIR="$test_dir"
 source "$SOURCE_DIR/signal_bot_common.sh"
 set +e
-find_process "nonexistent.py" "$test_dir" > /dev/null 2>&1
+find_process "nonexistent.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME" > /dev/null 2>&1
 status=$?
 set -e
-if [ $status -eq 0 ]; then
-    pass "Zero process returns status 0"
+if [ $status -eq $PROCESS_ABSENT ]; then
+    pass "Zero process returns PROCESS_ABSENT ($PROCESS_ABSENT)"
 else
-    fail "Zero process status (got $status, expected 0)"
+    fail "Zero process status (got $status, expected $PROCESS_ABSENT)"
 fi
 rm -rf "$test_dir"
 
-# TEST 2: SET -E status 1 - single process
-echo "TEST 2: Single process status 1 with PID"
+# TEST 2: PROCESS_SINGLE status with PID
+echo "TEST 2: Single process returns PROCESS_SINGLE with PID"
 test_dir=$(mktemp -d)
 cat > "$test_dir/bot.py" <<'EOF'
 #!/usr/bin/env python3
@@ -59,20 +63,20 @@ sleep 0.5
 SCRIPT_DIR="$test_dir"
 source "$SOURCE_DIR/signal_bot_common.sh"
 set +e
-result=$(find_process "bot.py" "$test_dir")
+result=$(find_process "bot.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME")
 status=$?
 set -e
 cleanup_pids "$pid1"
 
-if [ $status -eq 1 ] && [ "$result" = "$pid1" ]; then
-    pass "Single process returns status 1 with PID"
+if [ $status -eq $PROCESS_SINGLE ] && [ "$result" = "$pid1" ]; then
+    pass "Single process returns PROCESS_SINGLE ($PROCESS_SINGLE) with PID"
 else
-    fail "Single process (got status=$status, pid=$result, expected status=1, pid=$pid1)"
+    fail "Single process (got status=$status, pid=$result, expected status=$PROCESS_SINGLE, pid=$pid1)"
 fi
 rm -rf "$test_dir"
 
-# TEST 3: SET -E status 2 - multiple processes
-echo "TEST 3: Multiple processes status 2"
+# TEST 3: PROCESS_DUPLICATE status
+echo "TEST 3: Multiple processes return PROCESS_DUPLICATE"
 test_dir=$(mktemp -d)
 cat > "$test_dir/bot.py" <<'EOF'
 #!/usr/bin/env python3
@@ -91,15 +95,15 @@ sleep 0.5
 SCRIPT_DIR="$test_dir"
 source "$SOURCE_DIR/signal_bot_common.sh"
 set +e
-find_process "bot.py" "$test_dir" > /dev/null 2>&1
+find_process "bot.py" "$test_dir" "$EXPECTED_UID" "$EXPECTED_USERNAME" > /dev/null 2>&1
 status=$?
 set -e
 cleanup_pids "$pid1" "$pid2"
 
-if [ $status -eq 2 ]; then
-    pass "Multiple processes returns status 2"
+if [ $status -eq $PROCESS_DUPLICATE ]; then
+    pass "Multiple processes return PROCESS_DUPLICATE ($PROCESS_DUPLICATE)"
 else
-    fail "Multiple processes (got status=$status, expected 2)"
+    fail "Multiple processes (got status=$status, expected $PROCESS_DUPLICATE)"
 fi
 rm -rf "$test_dir"
 
@@ -119,8 +123,7 @@ sleep 0.5
 
 SCRIPT_DIR="$test_dir"
 source "$SOURCE_DIR/signal_bot_common.sh"
-expected_uid=$(id -u)
-if validate_process "$pid" "bot.py" "$test_dir" "$expected_uid" ""; then
+if validate_process "$pid" "bot.py" "$test_dir" "$EXPECTED_UID" ""; then
     pass "Owner UID validation"
 else
     fail "Owner UID validation"
@@ -144,8 +147,7 @@ sleep 0.5
 
 SCRIPT_DIR="$test_dir"
 source "$SOURCE_DIR/signal_bot_common.sh"
-expected_user=$(whoami)
-if validate_process "$pid" "bot.py" "$test_dir" "" "$expected_user"; then
+if validate_process "$pid" "bot.py" "$test_dir" "" "$EXPECTED_USERNAME"; then
     pass "Owner username validation"
 else
     fail "Owner username validation"
@@ -153,8 +155,57 @@ fi
 cleanup_pids "$pid"
 rm -rf "$test_dir"
 
-# TEST 6: Prohibited process detection
-echo "TEST 6: Prohibited process detection"
+# TEST 6: Wrong UID rejected
+echo "TEST 6: Wrong UID rejected"
+test_dir=$(mktemp -d)
+cat > "$test_dir/bot.py" <<'EOF'
+#!/usr/bin/env python3
+import time
+while True: time.sleep(60)
+EOF
+chmod +x "$test_dir/bot.py"
+cd "$test_dir"
+python3 bot.py > /dev/null 2>&1 &
+pid=$!
+sleep 0.5
+
+SCRIPT_DIR="$test_dir"
+source "$SOURCE_DIR/signal_bot_common.sh"
+wrong_uid=$((EXPECTED_UID + 9999))
+if ! validate_process "$pid" "bot.py" "$test_dir" "$wrong_uid" ""; then
+    pass "Wrong UID rejected"
+else
+    fail "Wrong UID not rejected"
+fi
+cleanup_pids "$pid"
+rm -rf "$test_dir"
+
+# TEST 7: Wrong username rejected
+echo "TEST 7: Wrong username rejected"
+test_dir=$(mktemp -d)
+cat > "$test_dir/bot.py" <<'EOF'
+#!/usr/bin/env python3
+import time
+while True: time.sleep(60)
+EOF
+chmod +x "$test_dir/bot.py"
+cd "$test_dir"
+python3 bot.py > /dev/null 2>&1 &
+pid=$!
+sleep 0.5
+
+SCRIPT_DIR="$test_dir"
+source "$SOURCE_DIR/signal_bot_common.sh"
+if ! validate_process "$pid" "bot.py" "$test_dir" "" "wronguser"; then
+    pass "Wrong username rejected"
+else
+    fail "Wrong username not rejected"
+fi
+cleanup_pids "$pid"
+rm -rf "$test_dir"
+
+# TEST 8: Prohibited process detection
+echo "TEST 8: Prohibited process detection"
 test_dir=$(mktemp -d)
 cat > "$test_dir/trader.py" <<'EOF'
 #!/usr/bin/env python3
@@ -176,8 +227,8 @@ fi
 cleanup_pids "$pid"
 rm -rf "$test_dir"
 
-# TEST 7: Prohibited file detection
-echo "TEST 7: Prohibited file detection"
+# TEST 9: Prohibited file detection
+echo "TEST 9: Prohibited file detection"
 test_dir=$(mktemp -d)
 touch "$test_dir/.trade_queue.jsonl"
 
@@ -190,8 +241,8 @@ else
 fi
 rm -rf "$test_dir"
 
-# TEST 8: .env duplicate key rejection
-echo "TEST 8: Duplicate .env key rejection"
+# TEST 10: .env duplicate key rejection
+echo "TEST 10: Duplicate .env key rejection"
 test_dir=$(mktemp -d)
 cat > "$test_dir/.env" <<'EOF'
 VANTAGE_EA_TOKEN=first
@@ -209,8 +260,8 @@ else
 fi
 rm -rf "$test_dir"
 
-# TEST 9: .env malformed line rejection
-echo "TEST 9: Malformed .env line rejection"
+# TEST 11: .env malformed line rejection
+echo "TEST 11: Malformed .env line rejection"
 test_dir=$(mktemp -d)
 cat > "$test_dir/.env" <<'EOF'
 VANTAGE_EA_TOKEN=token1
@@ -228,8 +279,8 @@ else
 fi
 rm -rf "$test_dir"
 
-# TEST 10: .env empty value rejection
-echo "TEST 10: Empty .env value rejection"
+# TEST 12: .env empty value rejection
+echo "TEST 12: Empty .env value rejection"
 test_dir=$(mktemp -d)
 cat > "$test_dir/.env" <<'EOF'
 VANTAGE_EA_TOKEN=
@@ -246,8 +297,8 @@ else
 fi
 rm -rf "$test_dir"
 
-# TEST 11: .env with comments and blanks
-echo "TEST 11: .env comments and blank lines"
+# TEST 13: .env with comments and blanks
+echo "TEST 13: .env comments and blank lines"
 test_dir=$(mktemp -d)
 cat > "$test_dir/.env" <<'EOF'
 # Comment
