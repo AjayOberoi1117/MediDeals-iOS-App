@@ -15,16 +15,118 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
         with:
           python-version: '3.11'
 
-      - name: Run verification
+      - name: Compile all modified Python files
         run: |
-          echo "Current directory: $(pwd)"
-          ls -la telegram_bot/btc_bot.py
+          python3 -m py_compile \
+            telegram_bot/telegram_config.py \
+            telegram_bot/btc_bot.py \
+            telegram_bot/forex_scalper.py \
+            telegram_bot/gold_bot.py \
+            telegram_bot/india_scalper.py \
+            telegram_bot/nifty_scalper.py \
+            telegram_bot/options_scalper.py \
+            telegram_bot/scanner_bot.py \
+            telegram_bot/signal_bot.py \
+            telegram_bot/test_telegram_only.py
+          echo "✓ All Python files compiled successfully"
+
+      - name: Run unit test suite
+        run: |
+          python3 -m unittest telegram_bot.test_telegram_only -v
+          echo "✓ All unit tests passed"
+
+      - name: Run regression check
+        run: |
           python3 verify_telegram_only.py
+          echo "✓ Regression checks passed"
+
+      - name: Secret scan with Gitleaks
+        run: |
+          # Download and verify Gitleaks binary
+          GITLEAKS_VERSION="8.18.2"
+          GITLEAKS_SHA256="0e5d22e19e4d7bd0dbe45099cd21effa79d62c6e2cda9dd5e43fa92c7d70e635"
+
+          mkdir -p /tmp/gitleaks
+          cd /tmp/gitleaks
+
+          # Download Gitleaks for Linux
+          wget -q "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks-linux-x64" \
+            -O gitleaks || exit 1
+
+          # Verify checksum
+          echo "${GITLEAKS_SHA256}  gitleaks" | sha256sum -c - || exit 1
+
+          chmod +x gitleaks
+
+          # Scan current tree (all files)
+          cd "$GITHUB_WORKSPACE"
+          /tmp/gitleaks/gitleaks detect --verbose --no-git \
+            --source . \
+            --report-path /tmp/gitleaks-report.json || true
+
+          # Scan PR diff (base..head)
+          if [ ! -z "${{ github.base_ref }}" ]; then
+            git fetch origin "${{ github.base_ref }}"
+            /tmp/gitleaks/gitleaks detect --verbose \
+              --source . \
+              --baseline-commit "origin/${{ github.base_ref }}" \
+              --report-path /tmp/gitleaks-pr-report.json || true
+          fi
+
+          # Report findings (if any)
+          if [ -f /tmp/gitleaks-report.json ] && [ -s /tmp/gitleaks-report.json ]; then
+            echo "⚠️  Secret scan findings detected"
+            jq '.[] | "\(.File): \(.Match) (secret: [REDACTED])"' /tmp/gitleaks-report.json || true
+            exit 1
+          else
+            echo "✓ No secrets detected in current tree"
+          fi
+
+      - name: Verify changed files scope
+        run: |
+          # Verify only permitted files changed
+          PERMITTED_PATTERNS=(
+            '^telegram_bot/btc_bot\.py$'
+            '^telegram_bot/forex_scalper\.py$'
+            '^telegram_bot/gold_bot\.py$'
+            '^telegram_bot/india_scalper\.py$'
+            '^telegram_bot/nifty_scalper\.py$'
+            '^telegram_bot/options_scalper\.py$'
+            '^telegram_bot/scanner_bot\.py$'
+            '^telegram_bot/signal_bot\.py$'
+            '^telegram_bot/telegram_config\.py$'
+            '^telegram_bot/test_telegram_only\.py$'
+            '^verify_telegram_only\.py$'
+            '^\.github/workflows/telegram-only-security\.yml$'
+          )
+
+          CHANGED_FILES=$(git diff origin/main --name-only 2>/dev/null || echo "")
+
+          if [ ! -z "$CHANGED_FILES" ]; then
+            echo "Changed files scope check:"
+            echo "$CHANGED_FILES" | while read f; do
+              matched=0
+              for pattern in "${PERMITTED_PATTERNS[@]}"; do
+                if [[ "$f" =~ $pattern ]]; then
+                  echo "  ✓ $f"
+                  matched=1
+                  break
+                fi
+              done
+              if [ $matched -eq 0 ]; then
+                echo "  ✗ ERROR: Unexpected file changed: $f"
+                exit 1
+              fi
+            done
+          fi
+          echo "✓ All changes scoped to permitted files"
 

@@ -33,6 +33,11 @@ import pandas as pd
 import yfinance as yf
 import pytz
 from dotenv import load_dotenv
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 from nse_holidays import is_nse_holiday
 
 load_dotenv()
@@ -307,8 +312,8 @@ def check_symbol(name, cfg):
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    if not TELEGRAM_TOKEN:
-        raise SystemExit("TELEGRAM_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     log.info("Options Scalper started | %s | ST(%d,%.1f) + 1H trend + ADX>=%d",
              ", ".join(INSTRUMENTS), ST_PERIOD, ST_MULTIPLIER, ADX_MIN)

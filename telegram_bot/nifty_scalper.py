@@ -16,6 +16,11 @@ import socket
 import yfinance as yf
 from datetime import datetime
 from dotenv import load_dotenv
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 from nse_holidays import is_nse_holiday
 
 load_dotenv()
@@ -228,6 +233,8 @@ def run_scan():
         else: print("no signal")
 
 def main():
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_state(); _load_seen()
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")

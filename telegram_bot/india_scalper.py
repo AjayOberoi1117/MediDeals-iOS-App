@@ -22,6 +22,11 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 from nse_holidays import is_nse_holiday
 
 load_dotenv()
@@ -403,8 +408,8 @@ def check_symbol(name):
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    if not TELEGRAM_TOKEN:
-        raise SystemExit("TELEGRAM_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     load_instrument_keys()
     log.info("India Nifty 50 Scalper started | symbols=%d  ema=%d/%d  rsi=%d  cache=%ds",

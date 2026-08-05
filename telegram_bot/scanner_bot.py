@@ -6,9 +6,14 @@ import os
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
+
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "")
-BOT_TOKEN     = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "")
 
 MAX_SIGNALS_PER_DAY = 100
@@ -154,7 +159,7 @@ def save_state(state):
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
 def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
         if not r.ok:
@@ -382,7 +387,6 @@ def run_scan():
                                  rsi, e25, e50, vol_ratio)
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
             notify(msg)
-            send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
             state["symbols_alerted"].append(symbol)
             new_signals += 1
         else:
@@ -402,6 +406,8 @@ def in_market_hours():
     return MARKET_OPEN <= t <= MARKET_CLOSE
 
 def main():
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     print("NSE Swing Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
     print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
@@ -416,4 +422,5 @@ def main():
 
         time.sleep(SCAN_INTERVAL_MIN * 60)
 
-main()
+if __name__ == "__main__":
+    main()

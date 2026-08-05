@@ -18,6 +18,11 @@ import requests
 from dotenv import load_dotenv
 
 try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
+
+try:
     from trade_executor import queue_trade
 except ImportError:
     def queue_trade(*args, **kwargs): pass
@@ -187,7 +192,8 @@ def check_signal():
         record_signal("SELL", entry, sl, tp); queue_trade("BTCUSD", "SELL", sl, tp, source="BTCUSD_1H")
 
 def main():
-    if not TELEGRAM_TOKEN: raise SystemExit("TELEGRAM_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen_bars()
     log.info("Crypto Bot started | ema=%d/%d  rsi=%d  cache=%ds  poll=%ds",
              FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL, CHECK_SECS)
