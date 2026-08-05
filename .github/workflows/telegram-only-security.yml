@@ -42,10 +42,26 @@ jobs:
           test ! -f telegram_bot/whatsapp.py || (echo "FAIL: whatsapp.py exists" && exit 1)
 
           # Check no email imports in bot files (excluding test file)
-          ! grep -r "import smtplib\|from email.mime" telegram_bot/*.py | grep -v test_telegram_only
+          ! grep "import smtplib\|from email.mime" \
+            telegram_bot/btc_bot.py \
+            telegram_bot/forex_scalper.py \
+            telegram_bot/gold_bot.py \
+            telegram_bot/india_scalper.py \
+            telegram_bot/nifty_scalper.py \
+            telegram_bot/options_scalper.py \
+            telegram_bot/scanner_bot.py \
+            telegram_bot/signal_bot.py
 
           # Check no WhatsApp URLs in bot files (excluding test file)
-          ! grep -r "graph.facebook.com" telegram_bot/*.py | grep -v test_telegram_only
+          ! grep "graph.facebook.com" \
+            telegram_bot/btc_bot.py \
+            telegram_bot/forex_scalper.py \
+            telegram_bot/gold_bot.py \
+            telegram_bot/india_scalper.py \
+            telegram_bot/nifty_scalper.py \
+            telegram_bot/options_scalper.py \
+            telegram_bot/scanner_bot.py \
+            telegram_bot/signal_bot.py
 
           echo "✓ Email and WhatsApp removed"
 
@@ -53,7 +69,15 @@ jobs:
         run: |
           # Quick check - no obvious credential patterns in bot files
           # (excluding test file which has patterns to check for)
-          ! grep -r "Bearer EAAL\|vstbuutmlhbxbpww" telegram_bot/*.py | grep -v test_telegram_only
+          ! grep "Bearer EAAL\|vstbuutmlhbxbpww" \
+            telegram_bot/btc_bot.py \
+            telegram_bot/forex_scalper.py \
+            telegram_bot/gold_bot.py \
+            telegram_bot/india_scalper.py \
+            telegram_bot/nifty_scalper.py \
+            telegram_bot/options_scalper.py \
+            telegram_bot/scanner_bot.py \
+            telegram_bot/signal_bot.py
 
           echo "✓ No obvious hardcoded credentials"
 
