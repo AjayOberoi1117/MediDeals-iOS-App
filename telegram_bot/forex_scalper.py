@@ -230,7 +230,7 @@ def check_symbol(name):
         _last_signal[name] = now_ts
 
 def main():
-    if not TELEGRAM_TOKEN: raise SystemExit("ELITE_BOT_TOKEN not set in .env")
+    if not TELEGRAM_TOKEN: raise SystemExit("TELEGRAM_BOT_TOKEN not set in .env")
     _load_seen()
     log.info("Forex Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
              len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)

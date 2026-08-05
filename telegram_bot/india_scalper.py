@@ -404,7 +404,7 @@ def check_symbol(name):
 
 def main():
     if not TELEGRAM_TOKEN:
-        raise SystemExit("STOCX_BOT_TOKEN not set in .env")
+        raise SystemExit("TELEGRAM_BOT_TOKEN not set in .env")
     _load_seen()
     load_instrument_keys()
     log.info("India Nifty 50 Scalper started | symbols=%d  ema=%d/%d  rsi=%d  cache=%ds",

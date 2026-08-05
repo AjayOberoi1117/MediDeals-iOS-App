@@ -308,7 +308,7 @@ def check_symbol(name, cfg):
 
 def main():
     if not TELEGRAM_TOKEN:
-        raise SystemExit("STOCX_BOT_TOKEN / ELITE_BOT_TOKEN not set in .env")
+        raise SystemExit("TELEGRAM_BOT_TOKEN not set in .env")
     _load_seen()
     log.info("Options Scalper started | %s | ST(%d,%.1f) + 1H trend + ADX>=%d",
              ", ".join(INSTRUMENTS), ST_PERIOD, ST_MULTIPLIER, ADX_MIN)

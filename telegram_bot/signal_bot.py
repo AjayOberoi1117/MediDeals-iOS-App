@@ -38,7 +38,7 @@ _YF_MAP = {
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     "EURUSD")
-BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("ELITE_BOT_TOKEN", ""))
+BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("TELEGRAM_BOT_TOKEN", ""))
 CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 FAST_EMA     = int(os.getenv("FAST_EMA",    "9"))
 SLOW_EMA     = int(os.getenv("SLOW_EMA",    "21"))
@@ -305,7 +305,7 @@ def check_signal() -> None:
 
 def main() -> None:
     if not BOT_TOKEN:
-        raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or ELITE_BOT_TOKEN in .env")
+        raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or TELEGRAM_BOT_TOKEN in .env")
     _load_seen_bars()
     log.info("Starting | symbol=%s  yf=%s  ema=%d/%d  rsi=%d  poll=%ds  cache=%ds",
              SYMBOL_NAME, YF_TICKER, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS, CACHE_TTL)
