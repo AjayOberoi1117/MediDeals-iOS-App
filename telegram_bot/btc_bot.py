@@ -25,8 +25,8 @@ except ImportError:
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("BTC_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 SYMBOL         = "BTC-USD"
 DISPLAY_NAME   = "BTCUSD"
 FAST_EMA       = 9

@@ -26,7 +26,7 @@ load_dotenv()
 socket.setdefaulttimeout(30)
 
 TELEGRAM_TOKEN = os.getenv("VANTAGE_EA_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 SYMBOL         = "GC=F"
 DISPLAY_NAME   = "XAUUSD"
 FAST_EMA       = 9

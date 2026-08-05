@@ -1,0 +1,121 @@
+name: Telegram-Only Security Verification
+
+on:
+  push:
+    branches:
+      - security/telegram-only-bot-notifications
+  pull_request:
+    branches:
+      - security/telegram-only-bot-notifications
+
+jobs:
+  compile-check:
+    name: Python Compilation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a81bbbf8298c0fa03ea29cdc473d45aa312e87f3
+
+      - name: Set up Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e7e1664e5ff7b7bc6cac0
+        with:
+          python-version: '3.11'
+
+      - name: Compile all modified bots
+        run: |
+          python3 -m py_compile \
+            telegram_bot/btc_bot.py \
+            telegram_bot/forex_scalper.py \
+            telegram_bot/gold_bot.py \
+            telegram_bot/india_scalper.py \
+            telegram_bot/nifty_scalper.py \
+            telegram_bot/options_scalper.py \
+            telegram_bot/scanner_bot.py \
+            telegram_bot/signal_bot.py \
+            telegram_bot/test_telegram_only.py
+
+  test-telegram-only:
+    name: Telegram-Only Tests
+    runs-on: ubuntu-latest
+    needs: compile-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a81bbbf8298c0fa03ea29cdc473d45aa312e87f3
+
+      - name: Set up Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e7e1664e5ff7b7bc6cac0
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --no-cache-dir pandas yfinance requests pytz nse-holidays
+
+      - name: Run Telegram-only tests
+        run: |
+          python3 -m unittest telegram_bot.test_telegram_only -v
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a81bbbf8298c0fa03ea29cdc473d45aa312e87f3
+        with:
+          fetch-depth: 0
+
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Checking for hardcoded credentials..."
+          if grep -r "Bearer EAAL\|eyJ0eXA.*Upstox\|UPSTOX_TOKEN\s*=\s*\"" telegram_bot/*.py | grep -v "os.getenv\|test_"; then
+            echo "FAIL: Hardcoded secrets found"
+            exit 1
+          fi
+          echo "PASS: No hardcoded secrets found"
+
+      - name: Verify notification removal
+        run: |
+          echo "Checking email/WhatsApp removal..."
+
+          # Verify emailer.py and whatsapp.py are deleted
+          if [ -f telegram_bot/emailer.py ] || [ -f telegram_bot/whatsapp.py ]; then
+            echo "FAIL: Helper modules still exist"
+            exit 1
+          fi
+
+          # Verify no email imports
+          if grep -r "import smtplib\|from email.mime" telegram_bot/*.py | grep -v test_; then
+            echo "FAIL: Email imports found"
+            exit 1
+          fi
+
+          # Verify no WhatsApp API URLs
+          if grep -r "graph.facebook.com" telegram_bot/*.py | grep -v test_; then
+            echo "FAIL: WhatsApp API URLs found"
+            exit 1
+          fi
+
+          echo "PASS: Email and WhatsApp successfully removed"
+
+  scope-validation:
+    name: Diff Scope Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a81bbbf8298c0fa03ea29cdc473d45aa312e87f3
+
+      - name: Verify scope
+        run: |
+          echo "Validating that only notification channels were modified..."
+
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+
+          # Verify no watchdog/strategy files were changed
+          if echo "$CHANGED_FILES" | grep -E "watchdog|strategy|executor|trader|deploy"; then
+            echo "FAIL: Scope violation — non-notification files modified"
+            exit 1
+          fi
+
+          echo "PASS: Scope validation passed"
+

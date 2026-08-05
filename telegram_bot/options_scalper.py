@@ -38,8 +38,8 @@ from nse_holidays import is_nse_holiday
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN") or os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -98,8 +98,6 @@ def tg_send(text):
             log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    try:    except Exception:
-        pass
 
 
 # ── market hours ─────────────────────────────────────────────────────────────
