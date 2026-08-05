@@ -9,6 +9,9 @@ import sys
 import py_compile
 
 def verify():
+    print(f"Working directory: {os.getcwd()}")
+    print(f"Files in current directory: {os.listdir('.')[:10]}")
+
     bot_files = [
         'telegram_bot/btc_bot.py',
         'telegram_bot/forex_scalper.py',
