@@ -24,6 +24,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install test dependencies
+        run: pip install requests
+
       - name: Compile all modified Python files
         run: |
           python3 -m py_compile \
