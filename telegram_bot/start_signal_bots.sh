@@ -12,12 +12,24 @@ cd "$SCRIPT_DIR"
 
 source "$SCRIPT_DIR/signal_bot_common.sh"
 
+# Derive expected owner
+EXPECTED_UID="$(id -u)"
+EXPECTED_USERNAME="$(id -un)"
+
 main() {
     echo "========== SIGNAL-ONLY BOT STARTUP =========="
     echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Host: $(hostname)"
     echo "Directory: $(pwd)"
+    echo "User: $EXPECTED_USERNAME (UID $EXPECTED_UID)"
     echo ""
+
+    # ACTIVATION GATE: Require explicit env mapping approval
+    if [ "${SIGNAL_BOT_ENV_MAPPING_VERIFIED:-}" != "APPROVED" ]; then
+        echo "ERROR: Environment mapping not verified"
+        echo "Set SIGNAL_BOT_ENV_MAPPING_VERIFIED=APPROVED to activate"
+        return 1
+    fi
 
     if ! validate_env; then
         echo "ERROR: Environment validation failed"
@@ -50,20 +62,24 @@ main() {
         symbol="${SYMBOLS[$i]}"
 
         set +e
-        existing=$(find_process "$bot_file" 2>/dev/null)
+        existing=$(find_process "$bot_file" "$SCRIPT_DIR" "$EXPECTED_UID" "$EXPECTED_USERNAME" 2>/dev/null)
         status=$?
         set -e
 
         case "$status" in
-            0)
+            $PROCESS_ABSENT)
                 echo "  $symbol: no existing process"
                 ;;
-            1)
+            $PROCESS_SINGLE)
+                echo "  $symbol: existing process (PID $existing) - SKIPPING START"
+                ;;
+            $PROCESS_DUPLICATE)
                 echo "ERROR: Duplicate $symbol processes detected"
                 return 1
                 ;;
-            *)
-                echo "  $symbol: existing process (PID $existing) - SKIPPING START"
+            $PROCESS_ERROR)
+                echo "ERROR: Process validation error for $symbol"
+                return 1
                 ;;
         esac
     done
@@ -75,11 +91,11 @@ main() {
         symbol="${SYMBOLS[$i]}"
 
         set +e
-        existing=$(find_process "$bot_file" 2>/dev/null)
+        existing=$(find_process "$bot_file" "$SCRIPT_DIR" "$EXPECTED_UID" "$EXPECTED_USERNAME" 2>/dev/null)
         status=$?
         set -e
 
-        if [ "$status" != "0" ]; then
+        if [ "$status" != "$PROCESS_ABSENT" ]; then
             continue
         fi
 

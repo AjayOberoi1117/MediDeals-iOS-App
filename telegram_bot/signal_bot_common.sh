@@ -3,8 +3,12 @@
 # Signal-Only Bot Common Library
 # Sourceable functions for startup and watchdog validation
 #
-# Do not execute directly. Source this in other scripts.
-#
+
+# Status code constants
+PROCESS_ABSENT=0
+PROCESS_SINGLE=10
+PROCESS_DUPLICATE=20
+PROCESS_ERROR=30
 
 APPROVED_BOTS=(
     "eurusd_bot.py"
@@ -25,7 +29,7 @@ ENV_ALLOWLIST=(
     "SIGNAL_CHAT_ID"
 )
 
-PROHIBITED_PROCESSES=("trader.py" "MT5Trader" "forex_scalper" "token_updater" "mac_trade_writer" "wine")
+PROHIBITED_PROCESS_NAMES=("trader.py" "forex_scalper.py" "token_updater_bot.py" "mac_trade_writer.py" "wine" "wine64" "MT5Trader" "terminal64.exe")
 PROHIBITED_FILES=(".trade_queue.jsonl" "mt5_signals.csv")
 
 parse_env() {
@@ -143,44 +147,50 @@ validate_process() {
 }
 
 find_process() {
-    local bot_file="$1" expected_script_dir="$2"
+    local bot_file="$1" script_dir="$2" expected_uid="$3" expected_username="$4"
     local pid found_pids=()
 
+    if [ -z "$script_dir" ] || [ -z "$expected_uid" ] || [ -z "$expected_username" ]; then
+        echo "ERROR: find_process requires script_dir, expected_uid, expected_username" >&2
+        return $PROCESS_ERROR
+    fi
+
     while IFS= read -r pid; do
-        if [ -n "$pid" ] && validate_process "$pid" "$bot_file" "$expected_script_dir" "" ""; then
+        if [ -n "$pid" ] && validate_process "$pid" "$bot_file" "$script_dir" "$expected_uid" "$expected_username"; then
             found_pids+=("$pid")
         fi
     done < <(pgrep -f "python3" 2>/dev/null || true)
 
     local count=${#found_pids[@]}
     if [ $count -eq 0 ]; then
-        return 0
+        return $PROCESS_ABSENT
     elif [ $count -eq 1 ]; then
         echo "${found_pids[0]}"
-        return 1
+        return $PROCESS_SINGLE
     else
-        return 2
+        return $PROCESS_DUPLICATE
     fi
 }
 
 check_prohibited_processes() {
-    local item pid
+    local item pid exe cmdline
 
-    for item in "${PROHIBITED_PROCESSES[@]}"; do
-        while IFS= read -r pid; do
-            if [ -z "$pid" ]; then
-                continue
-            fi
-            if ps -p "$pid" > /dev/null 2>&1; then
-                if grep -q "$item" "/proc/$pid/cmdline" 2>/dev/null; then
-                    local exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo "")
-                    if [[ "$exe" =~ /usr/bin/python ]]; then
-                        return 1
-                    fi
+    while IFS= read -r pid; do
+        if [ -z "$pid" ] || ! ps -p "$pid" > /dev/null 2>&1; then
+            continue
+        fi
+
+        exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo "")
+        cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || echo "")
+
+        for item in "${PROHIBITED_PROCESS_NAMES[@]}"; do
+            if [[ "$cmdline" =~ $item ]]; then
+                if [[ "$exe" =~ python ]] || [[ "$exe" =~ wine ]] || [[ "$exe" =~ MT5Trader ]] || [[ "$exe" =~ terminal ]]; then
+                    return 1
                 fi
             fi
-        done < <(pgrep -f "python" 2>/dev/null || true)
-    done
+        done
+    done < <(pgrep -a . 2>/dev/null | awk '{print $1}' || true)
 
     return 0
 }
@@ -197,13 +207,8 @@ check_prohibited_files() {
 }
 
 check_health() {
-    local pid="$1" log_file="$2" timeout=5 elapsed=0 start_size=0
-
-    if [ -f "$log_file" ]; then
-        start_size=$(stat -c '%s' "$log_file" 2>/dev/null || echo 0)
-    else
-        start_size=0
-    fi
+    local pid="$1" log_file="$2" start_offset="$3" expected_marker="$4"
+    local timeout=5 elapsed=0
 
     while [ $elapsed -lt $timeout ]; do
         if ! ps -p "$pid" > /dev/null 2>&1; then
@@ -211,15 +216,18 @@ check_health() {
             return 1
         fi
 
-        if [ -f "$log_file" ]; then
-            local current_size=$(stat -c '%s' "$log_file" 2>/dev/null || echo 0)
-            if [ "$current_size" -gt "$start_size" ]; then
-                local new_content
-                new_content=$(tail -c +$((start_size + 1)) "$log_file" 2>/dev/null || echo "")
-                if echo "$new_content" | grep -q "Error\|ERROR\|Traceback\|Exception"; then
-                    echo "FAILED"
-                    return 1
-                fi
+        if [ -f "$log_file" ] && [ -n "$expected_marker" ]; then
+            local new_content
+            new_content=$(tail -c +$((start_offset + 1)) "$log_file" 2>/dev/null || echo "")
+
+            if echo "$new_content" | grep -q "Error\|ERROR\|Traceback\|Exception"; then
+                echo "FAILED"
+                return 1
+            fi
+
+            if echo "$new_content" | grep -q "$expected_marker"; then
+                echo "HEALTHY"
+                return 0
             fi
         fi
 
@@ -229,7 +237,7 @@ check_health() {
 
     if ps -p "$pid" > /dev/null 2>&1; then
         echo "ALIVE_UNVERIFIED"
-        return 0
+        return 1
     fi
 
     echo "FAILED"
