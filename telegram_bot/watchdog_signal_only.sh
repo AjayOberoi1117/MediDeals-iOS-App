@@ -26,6 +26,12 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $msg" >> "$WATCHDOG_LOG"
 }
 
+launch_bot() {
+    local bot_file="$1" log_file="$2"
+    nohup python3 "$bot_file" > "$log_file" 2>&1 &
+    echo $!
+}
+
 monitor_scanner() {
     set +e
     local pid
@@ -71,8 +77,8 @@ restart_bot() {
 
     start_offset=$(stat -c '%s' "$log_file" 2>/dev/null || echo 0)
 
-    nohup python3 "$bot_file" > "$log_file" 2>&1 &
-    local pid=$!
+    local pid
+    pid=$(launch_bot "$bot_file" "$log_file")
 
     health_result=$(check_health "$pid" "$log_file" "$start_offset" "")
     local health_status=$?

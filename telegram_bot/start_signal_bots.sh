@@ -15,6 +15,29 @@ source "$SCRIPT_DIR/signal_bot_common.sh"
 EXPECTED_UID="$(id -u)"
 EXPECTED_USERNAME="$(id -un)"
 
+launch_bot() {
+    local bot_file="$1" symbol="$2"
+    local log_file="$LOG_DIR/${bot_file%.py}.log"
+
+    nohup python3 "$bot_file" > "$log_file" 2>&1 &
+    local pid=$!
+
+    sleep 2
+
+    if ! ps -p "$pid" > /dev/null 2>&1; then
+        echo "ERROR: $symbol (PID $pid) failed to start"
+        return 1
+    fi
+
+    if [ ! -f "$log_file" ]; then
+        echo "ERROR: $symbol log file not created: $log_file"
+        return 1
+    fi
+
+    echo "✓ $symbol started (PID $pid)"
+    return 0
+}
+
 main() {
     echo "========== SIGNAL-ONLY BOT STARTUP =========="
     echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -96,23 +119,9 @@ main() {
             continue
         fi
 
-        log_file="$LOG_DIR/${bot_file%.py}.log"
-        nohup python3 "$bot_file" > "$log_file" 2>&1 &
-        pid=$!
-
-        sleep 2
-
-        if ! ps -p "$pid" > /dev/null 2>&1; then
-            echo "ERROR: $symbol (PID $pid) failed to start"
+        if ! launch_bot "$bot_file" "$symbol"; then
             return 1
         fi
-
-        if [ ! -f "$log_file" ]; then
-            echo "ERROR: $symbol log file not created: $log_file"
-            return 1
-        fi
-
-        echo "✓ $symbol started (PID $pid)"
     done
 
     echo ""
