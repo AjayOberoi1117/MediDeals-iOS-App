@@ -9,6 +9,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Verification
@@ -54,49 +57,76 @@ jobs:
 
       - name: Secret scan with Gitleaks
         run: |
-          # Download and verify Gitleaks binary
           GITLEAKS_VERSION="8.18.2"
-          GITLEAKS_SHA256="0e5d22e19e4d7bd0dbe45099cd21effa79d62c6e2cda9dd5e43fa92c7d70e635"
+          ARCHIVE_NAME="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          RELEASE_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
 
           mkdir -p /tmp/gitleaks
           cd /tmp/gitleaks
 
-          # Download Gitleaks for Linux
-          if ! wget -q "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks-linux-x64" \
-            -O gitleaks; then
-            echo "⚠️ Gitleaks download failed (network restrictions) — skipping secret scan"
-            echo "✓ No secrets detected (scan skipped due to network)"
-            exit 0
-          fi
+          echo "Downloading Gitleaks v${GITLEAKS_VERSION}..."
+          wget "${RELEASE_URL}/${ARCHIVE_NAME}" -O gitleaks.tar.gz
 
-          # Verify checksum
-          echo "${GITLEAKS_SHA256}  gitleaks" | sha256sum -c - || exit 1
+          echo "Downloading checksums..."
+          wget "${RELEASE_URL}/checksums.txt" -O checksums.txt
 
+          echo "Verifying archive checksum..."
+          sha256sum -c checksums.txt --ignore-missing
+
+          echo "Extracting archive..."
+          tar -xzf gitleaks.tar.gz
           chmod +x gitleaks
 
-          # Scan current tree (all files)
+          echo "Scanning current tree for secrets..."
           cd "$GITHUB_WORKSPACE"
-          /tmp/gitleaks/gitleaks detect --verbose --no-git \
+          /tmp/gitleaks/gitleaks detect \
+            --verbose \
+            --no-git \
             --source . \
-            --report-path /tmp/gitleaks-report.json || true
+            --report-path /tmp/gitleaks-current.json
+          CURRENT_SCAN_EXIT=$?
 
-          # Scan PR diff (base..head)
-          if [ ! -z "${{ github.base_ref }}" ]; then
-            git fetch origin "${{ github.base_ref }}"
-            /tmp/gitleaks/gitleaks detect --verbose \
-              --source . \
-              --baseline-commit "origin/${{ github.base_ref }}" \
-              --report-path /tmp/gitleaks-pr-report.json || true
-          fi
+          echo "Current tree scan exit code: $CURRENT_SCAN_EXIT"
 
-          # Report findings (if any)
-          if [ -f /tmp/gitleaks-report.json ] && [ -s /tmp/gitleaks-report.json ]; then
-            echo "⚠️  Secret scan findings detected"
-            jq '.[] | "\(.File): \(.Match) (secret: [REDACTED])"' /tmp/gitleaks-report.json || true
+          if [ $CURRENT_SCAN_EXIT -ne 0 ]; then
+            echo "❌ Secrets detected in current tree"
+            if [ -f /tmp/gitleaks-current.json ] && [ -s /tmp/gitleaks-current.json ]; then
+              jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Commit: .Commit}' \
+                /tmp/gitleaks-current.json
+            fi
             exit 1
-          else
-            echo "✓ No secrets detected in current tree"
           fi
+
+          echo "✓ Current tree scan passed"
+
+          if [ ! -z "${{ github.base_ref }}" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            echo "Scanning PR range (${BASE_REF}...HEAD) for secrets..."
+
+            git fetch origin "${{ github.base_ref }}"
+
+            /tmp/gitleaks/gitleaks detect \
+              --verbose \
+              --source . \
+              --log-opts "${BASE_REF}...HEAD" \
+              --report-path /tmp/gitleaks-pr.json
+            PR_SCAN_EXIT=$?
+
+            echo "PR range scan exit code: $PR_SCAN_EXIT"
+
+            if [ $PR_SCAN_EXIT -ne 0 ]; then
+              echo "❌ Secrets detected in PR changes"
+              if [ -f /tmp/gitleaks-pr.json ] && [ -s /tmp/gitleaks-pr.json ]; then
+                jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Commit: .Commit}' \
+                  /tmp/gitleaks-pr.json
+              fi
+              exit 1
+            fi
+
+            echo "✓ PR range scan passed"
+          fi
+
+          echo "✓ All secret scans completed successfully"
 
       - name: Verify changed files scope
         run: |
