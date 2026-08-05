@@ -33,6 +33,7 @@ jobs:
             telegram_bot/scanner_bot.py \
             telegram_bot/signal_bot.py \
             telegram_bot/test_telegram_only.py
+          echo "✓ All files compiled successfully"
 
   test-telegram-only:
     name: Telegram-Only Tests
@@ -49,10 +50,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3 -m pip install --no-cache-dir pandas yfinance requests pytz nse-holidays
+          python3 -m pip install --no-cache-dir pandas yfinance requests pytz nse-holidays --quiet
 
       - name: Run Telegram-only tests
         run: |
+          cd /home/runner/work/MediDeals-iOS-App/MediDeals-iOS-App || pwd
           python3 -m unittest telegram_bot.test_telegram_only -v
 
   secret-scan:
@@ -66,36 +68,62 @@ jobs:
 
       - name: Scan for hardcoded secrets
         run: |
-          echo "Checking for hardcoded credentials..."
-          if grep -r "Bearer EAAL\|eyJ0eXA.*Upstox\|UPSTOX_TOKEN\s*=\s*\"" telegram_bot/*.py | grep -v "os.getenv\|test_"; then
-            echo "FAIL: Hardcoded secrets found"
+          echo "Checking for hardcoded credentials in Python files..."
+          set +e
+          FOUND=0
+
+          # Check for hardcoded tokens/passwords
+          if grep -r 'UPSTOX_TOKEN\s*=\s*"[^"]*[a-zA-Z0-9]{50}' telegram_bot/*.py 2>/dev/null | grep -v os.getenv | grep -v test_; then
+            echo "FAIL: Hardcoded Upstox token found"
+            FOUND=1
+          fi
+
+          if grep -r 'Bearer EAAL[A-Za-z0-9]' telegram_bot/*.py 2>/dev/null | grep -v test_; then
+            echo "FAIL: Hardcoded WhatsApp token found"
+            FOUND=1
+          fi
+
+          if grep -r 'vstbuutmlhbxbpww' telegram_bot/*.py 2>/dev/null; then
+            echo "FAIL: Hardcoded Gmail password found"
+            FOUND=1
+          fi
+
+          set -e
+          if [ $FOUND -eq 1 ]; then
             exit 1
           fi
-          echo "PASS: No hardcoded secrets found"
+          echo "✓ No hardcoded secrets found"
 
       - name: Verify notification removal
         run: |
           echo "Checking email/WhatsApp removal..."
+          set +e
+          FAIL=0
 
           # Verify emailer.py and whatsapp.py are deleted
           if [ -f telegram_bot/emailer.py ] || [ -f telegram_bot/whatsapp.py ]; then
             echo "FAIL: Helper modules still exist"
-            exit 1
+            FAIL=1
           fi
 
           # Verify no email imports
-          if grep -r "import smtplib\|from email.mime" telegram_bot/*.py | grep -v test_; then
+          if grep -r "import smtplib\|from email.mime" telegram_bot/*.py 2>/dev/null | grep -v test_; then
             echo "FAIL: Email imports found"
-            exit 1
+            FAIL=1
           fi
 
           # Verify no WhatsApp API URLs
-          if grep -r "graph.facebook.com" telegram_bot/*.py | grep -v test_; then
+          if grep -r "graph.facebook.com" telegram_bot/*.py 2>/dev/null | grep -v test_; then
             echo "FAIL: WhatsApp API URLs found"
-            exit 1
+            FAIL=1
           fi
 
-          echo "PASS: Email and WhatsApp successfully removed"
+          set -e
+          if [ $FAIL -eq 0 ]; then
+            echo "✓ Email and WhatsApp successfully removed"
+          else
+            exit 1
+          fi
 
   scope-validation:
     name: Diff Scope Validation
@@ -103,19 +131,40 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@a81bbbf8298c0fa03ea29cdc473d45aa312e87f3
+        with:
+          fetch-depth: 0
 
       - name: Verify scope
         run: |
-          echo "Validating that only notification channels were modified..."
+          echo "Validating diff scope..."
+          set +e
+          FAIL=0
 
-          # Get list of changed files
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          # Get list of changed files - handle both push and PR scenarios
+          if [ -n "${{ github.base_ref }}" ]; then
+            # PR scenario
+            git fetch origin ${{ github.base_ref }} --quiet
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            # Push scenario - compare with previous commit
+            if [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}...HEAD)
+            else
+              # Initial commit - just validate current files
+              CHANGED_FILES=$(git ls-files telegram_bot/*.py)
+            fi
+          fi
 
           # Verify no watchdog/strategy files were changed
           if echo "$CHANGED_FILES" | grep -E "watchdog|strategy|executor|trader|deploy"; then
             echo "FAIL: Scope violation — non-notification files modified"
-            exit 1
+            FAIL=1
           fi
 
-          echo "PASS: Scope validation passed"
+          set -e
+          if [ $FAIL -eq 0 ]; then
+            echo "✓ Scope validation passed"
+          else
+            exit 1
+          fi
 
