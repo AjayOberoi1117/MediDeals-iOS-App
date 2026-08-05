@@ -29,7 +29,7 @@ startup_launch_bot() {
         return 0
     fi
 
-    if ! ps -p "$pid" > /dev/null 2>&1; then
+    if ! invoke_process_alive "$pid" > /dev/null 2>&1; then
         echo "ERROR: $symbol (PID $pid) failed to start"
         return 1
     fi
@@ -38,7 +38,7 @@ startup_launch_bot() {
     return 0
 }
 
-main() {
+start_signal_bots_main() {
     echo "========== SIGNAL-ONLY BOT STARTUP =========="
     echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Host: $(hostname)"
@@ -130,5 +130,5 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    main "$@"
+    start_signal_bots_main "$@"
 fi

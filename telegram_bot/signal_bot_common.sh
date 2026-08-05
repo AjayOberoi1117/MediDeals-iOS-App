@@ -12,6 +12,8 @@ PROCESS_ERROR=30
 LAUNCH_BOT_IMPL="${LAUNCH_BOT_IMPL:-production_launch_bot}"
 PROCESS_INVENTORY_IMPL="${PROCESS_INVENTORY_IMPL:-production_find_process}"
 HEALTH_CHECK_IMPL="${HEALTH_CHECK_IMPL:-production_check_health}"
+PROCESS_ALIVE_IMPL="${PROCESS_ALIVE_IMPL:-production_process_alive}"
+HEALTH_LOG_READER_IMPL="${HEALTH_LOG_READER_IMPL:-production_read_health_log}"
 
 APPROVED_BOTS=(
     "eurusd_bot.py"
@@ -270,10 +272,30 @@ production_launch_bot() {
     echo $!
 }
 
+production_process_alive() {
+    local pid="$1"
+    ps -p "$pid" > /dev/null 2>&1
+}
+
+production_read_health_log() {
+    local log_file="$1" start_offset="$2"
+    if [ -f "$log_file" ] && [ -n "$start_offset" ]; then
+        tail -c +$((start_offset + 1)) "$log_file" 2>/dev/null || echo ""
+    fi
+}
+
 invoke_launch_bot() {
     "$LAUNCH_BOT_IMPL" "$@"
 }
 
 invoke_find_process() {
     "$PROCESS_INVENTORY_IMPL" "$@"
+}
+
+invoke_process_alive() {
+    "$PROCESS_ALIVE_IMPL" "$@"
+}
+
+invoke_read_health_log() {
+    "$HEALTH_LOG_READER_IMPL" "$@"
 }

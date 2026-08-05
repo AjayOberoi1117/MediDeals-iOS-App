@@ -117,7 +117,7 @@ monitor_bot() {
             return $?
             ;;
         $PROCESS_SINGLE)
-            if ps -p "$pid" > /dev/null 2>&1; then
+            if invoke_process_alive "$pid" > /dev/null 2>&1; then
                 return $CYCLE_HEALTHY
             else
                 log_msg "ALERT: $symbol crashed (PID $pid)"
@@ -181,7 +181,7 @@ run_cycle() {
     return $cycle_status
 }
 
-main() {
+watchdog_run_cycle() {
     if [ "${1:-}" = "--once" ]; then
         run_cycle
         return $?
@@ -193,5 +193,5 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    main "$@"
+    watchdog_run_cycle "$@"
 fi
