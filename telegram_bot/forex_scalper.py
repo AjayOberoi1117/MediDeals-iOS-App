@@ -22,8 +22,11 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 
 try:
     from mac_trade_writer import queue_trade          # Mac: direct MT5 file write
@@ -36,8 +39,8 @@ except ImportError:
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 FAST_EMA       = 9
 SLOW_EMA       = 21
 RSI_PERIOD     = 14
@@ -91,9 +94,6 @@ def tg_send(text):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
         if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc: log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send("Trading Signal: Forex Scalper", text)
-
 def record_signal(name, direction, price, sl, tp):
     _daily_signals.append({"name": name, "direction": direction, "price": price,
                             "sl": sl, "tp": tp, "time": datetime.now().strftime("%I:%M %p")})
@@ -235,7 +235,8 @@ def check_symbol(name):
         _last_signal[name] = now_ts
 
 def main():
-    if not TELEGRAM_TOKEN: raise SystemExit("ELITE_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     log.info("Forex Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
              len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)

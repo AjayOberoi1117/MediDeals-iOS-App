@@ -1,0 +1,165 @@
+name: Telegram-Only Security Verification
+
+on:
+  push:
+    branches:
+      - security/telegram-only-bot-notifications
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install requests pandas yfinance python-dotenv
+
+      - name: Compile all modified Python files
+        run: |
+          python3 -m py_compile \
+            telegram_bot/telegram_config.py \
+            telegram_bot/btc_bot.py \
+            telegram_bot/forex_scalper.py \
+            telegram_bot/gold_bot.py \
+            telegram_bot/india_scalper.py \
+            telegram_bot/nifty_scalper.py \
+            telegram_bot/options_scalper.py \
+            telegram_bot/scanner_bot.py \
+            telegram_bot/signal_bot.py \
+            telegram_bot/test_telegram_only.py
+          echo "✓ All Python files compiled successfully"
+
+      - name: Run unit test suite
+        run: |
+          python3 -m unittest telegram_bot.test_telegram_only -v
+          echo "✓ All unit tests passed"
+
+      - name: Run regression check
+        run: |
+          python3 verify_telegram_only.py
+          echo "✓ Regression checks passed"
+
+      - name: Secret scan with Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.18.2"
+          ARCHIVE_NAME="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          RELEASE_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+
+          mkdir -p /tmp/gitleaks
+          cd /tmp/gitleaks
+
+          echo "Downloading Gitleaks v${GITLEAKS_VERSION}..."
+          wget "${RELEASE_URL}/${ARCHIVE_NAME}" -O gitleaks.tar.gz
+
+          echo "Extracting archive..."
+          tar -xzf gitleaks.tar.gz || { echo "❌ Archive extraction failed"; exit 1; }
+
+          echo "Validating binary..."
+          ./gitleaks version || { echo "❌ Binary validation failed"; exit 1; }
+          echo "✓ Binary extracted and validated"
+
+          chmod +x gitleaks
+
+          echo "Scanning current tree for secrets (with redaction)..."
+          cd "$GITHUB_WORKSPACE"
+          /tmp/gitleaks/gitleaks detect \
+            --redact \
+            --no-git \
+            --source . \
+            --report-path /tmp/gitleaks-current.json
+          CURRENT_SCAN_EXIT=$?
+
+          echo "Current tree scan exit code: $CURRENT_SCAN_EXIT"
+
+          if [ $CURRENT_SCAN_EXIT -ne 0 ]; then
+            echo "❌ Secrets detected in current tree"
+            if [ -f /tmp/gitleaks-current.json ] && [ -s /tmp/gitleaks-current.json ]; then
+              echo "Finding count: $(jq length /tmp/gitleaks-current.json)"
+              jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Fingerprint: .Fingerprint}' \
+                /tmp/gitleaks-current.json
+            fi
+            exit 1
+          fi
+
+          echo "✓ Current tree scan passed"
+
+          if [ ! -z "${{ github.base_ref }}" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            echo "Scanning PR range (${BASE_REF}...HEAD) for secrets (with redaction)..."
+
+            git fetch origin "${{ github.base_ref }}"
+
+            /tmp/gitleaks/gitleaks detect \
+              --redact \
+              --source . \
+              --log-opts "${BASE_REF}...HEAD" \
+              --report-path /tmp/gitleaks-pr.json
+            PR_SCAN_EXIT=$?
+
+            echo "PR range scan exit code: $PR_SCAN_EXIT"
+
+            if [ $PR_SCAN_EXIT -ne 0 ]; then
+              echo "❌ Secrets detected in PR changes"
+              if [ -f /tmp/gitleaks-pr.json ] && [ -s /tmp/gitleaks-pr.json ]; then
+                echo "Finding count: $(jq length /tmp/gitleaks-pr.json)"
+                jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Fingerprint: .Fingerprint}' \
+                  /tmp/gitleaks-pr.json
+              fi
+              exit 1
+            fi
+
+            echo "✓ PR range scan passed"
+          fi
+
+          echo "✓ All secret scans completed successfully"
+
+      - name: Verify changed files scope
+        run: |
+          # Verify only permitted files changed
+          CHANGED_FILES=$(git diff origin/main --name-only 2>/dev/null || echo "")
+
+          if [ ! -z "$CHANGED_FILES" ]; then
+            echo "Changed files scope check:"
+            while read f; do
+              case "$f" in
+                telegram_bot/btc_bot.py|\
+                telegram_bot/emailer.py|\
+                telegram_bot/forex_scalper.py|\
+                telegram_bot/gold_bot.py|\
+                telegram_bot/india_scalper.py|\
+                telegram_bot/nifty_scalper.py|\
+                telegram_bot/options_scalper.py|\
+                telegram_bot/scanner_bot.py|\
+                telegram_bot/signal_bot.py|\
+                telegram_bot/telegram_config.py|\
+                telegram_bot/test_telegram_only.py|\
+                telegram_bot/whatsapp.py|\
+                verify_telegram_only.py|\
+                .github/workflows/telegram-only-security.yml)
+                  echo "  ✓ $f"
+                  ;;
+                *)
+                  echo "  ✗ ERROR: Unexpected file changed: $f"
+                  exit 1
+                  ;;
+              esac
+            done <<< "$CHANGED_FILES"
+          fi
+          echo "✓ All changes scoped to permitted files"
+

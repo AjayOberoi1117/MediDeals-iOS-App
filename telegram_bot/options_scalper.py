@@ -33,15 +33,18 @@ import pandas as pd
 import yfinance as yf
 import pytz
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 from nse_holidays import is_nse_holiday
 
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN") or os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -100,11 +103,6 @@ def tg_send(text):
             log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    try:
-        wapp_send(text)
-        email_send("Trading Signal: Options Scalper", text)
-    except Exception:
-        pass
 
 
 # ── market hours ─────────────────────────────────────────────────────────────
@@ -314,8 +312,8 @@ def check_symbol(name, cfg):
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    if not TELEGRAM_TOKEN:
-        raise SystemExit("STOCX_BOT_TOKEN / ELITE_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     log.info("Options Scalper started | %s | ST(%d,%.1f) + 1H trend + ADX>=%d",
              ", ".join(INSTRUMENTS), ST_PERIOD, ST_MULTIPLIER, ADX_MIN)

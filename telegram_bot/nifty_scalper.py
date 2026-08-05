@@ -16,15 +16,18 @@ import socket
 import yfinance as yf
 from datetime import datetime
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 from nse_holidays import is_nse_holiday
 
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 
 INSTRUMENTS = {
     "NIFTY":     "^NSEI",
@@ -80,9 +83,6 @@ def send_telegram(msg):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
         if r.status_code != 200: print(f"Telegram error: {r.status_code}")
     except Exception as e: print(f"Telegram exception: {e}")
-    wapp_send(msg)
-    email_send("Trading Signal: Nifty Scalper", msg)
-
 def record_signal(symbol, direction, price, sl, tp):
     _daily_signals.append({"symbol": symbol, "direction": direction, "price": price,
                             "sl": sl, "tp": tp, "time": datetime.now().strftime("%I:%M %p")})
@@ -233,6 +233,8 @@ def run_scan():
         else: print("no signal")
 
 def main():
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_state(); _load_seen()
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")

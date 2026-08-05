@@ -16,8 +16,11 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
 
 try:
     from trade_executor import queue_trade
@@ -39,9 +42,9 @@ _YF_MAP = {
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     "EURUSD")
-BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("ELITE_BOT_TOKEN", ""))
-CHAT_ID      = os.getenv("SIGNAL_CHAT_ID",  "7093601171")
+SYMBOL_NAME     = os.getenv("SIGNAL_NAME",     "EURUSD")
+TELEGRAM_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID         = os.getenv("TELEGRAM_CHAT_ID", "")
 FAST_EMA     = int(os.getenv("FAST_EMA",    "9"))
 SLOW_EMA     = int(os.getenv("SLOW_EMA",    "21"))
 RSI_PERIOD   = int(os.getenv("RSI_PERIOD",  "14"))
@@ -87,7 +90,7 @@ def _save_seen_bar(bar_ts):
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 def tg_send(text: str) -> None:
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         r = requests.post(url,
                           data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"},
@@ -96,9 +99,6 @@ def tg_send(text: str) -> None:
             log.warning("Telegram send failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send(f"Trading Signal: {SYMBOL_NAME}", text)
-
 # ── Daily report ──────────────────────────────────────────────────────────────
 
 def record_signal(direction, price, sl, tp):
@@ -309,8 +309,8 @@ def check_signal() -> None:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    if not BOT_TOKEN:
-        raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or ELITE_BOT_TOKEN in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen_bars()
     log.info("Starting | symbol=%s  yf=%s  ema=%d/%d  rsi=%d  poll=%ds  cache=%ds",
              SYMBOL_NAME, YF_TICKER, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS, CACHE_TTL)

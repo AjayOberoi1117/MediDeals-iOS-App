@@ -3,27 +3,18 @@ import pandas as pd
 import time
 import json
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
+try:
+    from .telegram_config import validate_telegram_config
+except ImportError:
+    from telegram_config import validate_telegram_config
+
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-UPSTOX_TOKEN  = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI1SkNaWjgiLCJqdGkiOiI2YTI1Y2VlYmIyODljMTU0NDM2MTkzMzgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzgwODYyNjk5LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MTI0MDU2MDB9.IlPTIdhafzRLcBpdGt9zofG2BF46CCnA-pSuYyp_u68"
-BOT_TOKEN     = "8649245457:AAFpe95Us_eiVTuewD1f7TJG2gRwUMX0zuA"
-CHAT_ID       = "1994067941"
-
-# ── WhatsApp Cloud API ──
-WA_PHONE_NUMBER_ID = "1170057886189374"
-WA_ACCESS_TOKEN    = "EAAL5I32OddABR66iGBPa6iXhIYMPCkSCgRsJStyAzYlmPkzHOh8ZBNNHn8AzFg1IWCysq9xsZBr54HUdDy1EBXwzqOaztH0ieO0a5oVfMR807yDzD85qCD4rntoZBI7bZCqyl8s7ZAwGECvKpDoy7hV8ptPGRN43740GFjKZAzO82RNml9ZBFJuJYnJPlTIpYQIRZBpd27DMOyYpq6ZCwIgA0dvXj1B1jFMUKQPYXK2BNyiqsAw0k9KKiZAI1hVPKYqx71siYCZBY0g3ifqGvSAUeL7"
-WA_RECIPIENTS      = ["919855221117", "919780890024"]
-WA_API_URL         = f"https://graph.facebook.com/v20.0/{WA_PHONE_NUMBER_ID}/messages"
-WA_HEADERS         = {"Authorization": f"Bearer {WA_ACCESS_TOKEN}", "Content-Type": "application/json"}
-
-EMAIL_TO       = "ajayoberoi1117@gmail.com"
-EMAIL_FROM     = "ajayoberoi1117@gmail.com"
-EMAIL_PASSWORD = "vstbuutmlhbxbpww"
+UPSTOX_TOKEN  = os.getenv("UPSTOX_TOKEN", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID       = os.getenv("TELEGRAM_CHAT_ID", "")
 
 MAX_SIGNALS_PER_DAY = 100
 SL_PCT              = 3.0
@@ -167,20 +158,8 @@ def save_state(state):
         json.dump(state, f)
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
-def send_whatsapp(msg):
-    plain = msg.replace("<b>","*").replace("</b>","*").replace("<i>","_").replace("</i>","_").replace("<code>","").replace("</code>","")
-    for number in WA_RECIPIENTS:
-        try:
-            payload = {"messaging_product": "whatsapp", "to": number,
-                       "type": "text", "text": {"body": plain, "preview_url": False}}
-            r = requests.post(WA_API_URL, headers=WA_HEADERS, json=payload, timeout=10)
-            if not r.ok:
-                print(f"  WhatsApp error → {number}: {r.text[:100]}")
-        except Exception as e:
-            print(f"  WhatsApp failed → {number}: {e}")
-
 def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
         if not r.ok:
@@ -189,23 +168,7 @@ def send_telegram(msg):
         print(f"  Telegram failed: {e}")
 
 def notify(msg):
-    send_whatsapp(msg)
     send_telegram(msg)
-
-def send_email(subject, html_body):
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"]    = EMAIL_FROM
-        msg["To"]      = EMAIL_TO
-        html = f"<html><body style='font-family:monospace;white-space:pre'>{html_body}</body></html>"
-        msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(EMAIL_FROM, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
-    except Exception as e:
-        print(f"  Email failed: {e}")
 
 def fetch_candles(symbol, instrument_key):
     to_date   = datetime.now().strftime("%Y-%m-%d")
@@ -424,7 +387,6 @@ def run_scan():
                                  rsi, e25, e50, vol_ratio)
             print(f"→ {direction} | {tier} ({score}/100) | ₹{price} | SL ₹{sl} | TP ₹{tp}")
             notify(msg)
-            send_email(f"[NSE Signal] {direction} {symbol} — {tier} ({score}/100)", msg)
             state["symbols_alerted"].append(symbol)
             new_signals += 1
         else:
@@ -444,6 +406,8 @@ def in_market_hours():
     return MARKET_OPEN <= t <= MARKET_CLOSE
 
 def main():
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     print("NSE Swing Scanner — Nifty 100")
     print(f"EMA{EMA_FAST}/EMA{EMA_SLOW} | RSI | Confidence Scoring | Daily Candles")
     print(f"SL {SL_PCT}%  TP {TP_PCT}%  |  HIGH ₹2L / MEDIUM ₹1.5L / LOW ₹1L")
@@ -458,4 +422,5 @@ def main():
 
         time.sleep(SCAN_INTERVAL_MIN * 60)
 
-main()
+if __name__ == "__main__":
+    main()
