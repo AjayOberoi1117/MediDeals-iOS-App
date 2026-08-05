@@ -6,7 +6,8 @@ on:
       - security/telegram-only-bot-notifications
   pull_request:
     branches:
-      - security/telegram-only-bot-notifications
+      - main
+  workflow_dispatch:
 
 jobs:
   verify:
