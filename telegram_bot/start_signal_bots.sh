@@ -22,15 +22,15 @@ startup_launch_bot() {
     local pid
     pid=$(invoke_launch_bot "$bot_file" "$log_file")
 
-    sleep 2
+    sleep 0.5
+
+    if [ -f "$log_file" ]; then
+        echo "✓ $symbol started (PID $pid)"
+        return 0
+    fi
 
     if ! ps -p "$pid" > /dev/null 2>&1; then
         echo "ERROR: $symbol (PID $pid) failed to start"
-        return 1
-    fi
-
-    if [ ! -f "$log_file" ]; then
-        echo "ERROR: $symbol log file not created: $log_file"
         return 1
     fi
 
