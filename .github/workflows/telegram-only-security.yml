@@ -76,10 +76,10 @@ jobs:
 
           chmod +x gitleaks
 
-          echo "Scanning current tree for secrets..."
+          echo "Scanning current tree for secrets (with redaction)..."
           cd "$GITHUB_WORKSPACE"
           /tmp/gitleaks/gitleaks detect \
-            --verbose \
+            --redact \
             --no-git \
             --source . \
             --report-path /tmp/gitleaks-current.json
@@ -90,7 +90,8 @@ jobs:
           if [ $CURRENT_SCAN_EXIT -ne 0 ]; then
             echo "❌ Secrets detected in current tree"
             if [ -f /tmp/gitleaks-current.json ] && [ -s /tmp/gitleaks-current.json ]; then
-              jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Commit: .Commit}' \
+              echo "Finding count: $(jq length /tmp/gitleaks-current.json)"
+              jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Fingerprint: .Fingerprint}' \
                 /tmp/gitleaks-current.json
             fi
             exit 1
@@ -100,12 +101,12 @@ jobs:
 
           if [ ! -z "${{ github.base_ref }}" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
-            echo "Scanning PR range (${BASE_REF}...HEAD) for secrets..."
+            echo "Scanning PR range (${BASE_REF}...HEAD) for secrets (with redaction)..."
 
             git fetch origin "${{ github.base_ref }}"
 
             /tmp/gitleaks/gitleaks detect \
-              --verbose \
+              --redact \
               --source . \
               --log-opts "${BASE_REF}...HEAD" \
               --report-path /tmp/gitleaks-pr.json
@@ -116,7 +117,8 @@ jobs:
             if [ $PR_SCAN_EXIT -ne 0 ]; then
               echo "❌ Secrets detected in PR changes"
               if [ -f /tmp/gitleaks-pr.json ] && [ -s /tmp/gitleaks-pr.json ]; then
-                jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Commit: .Commit}' \
+                echo "Finding count: $(jq length /tmp/gitleaks-pr.json)"
+                jq '.[] | {File: .File, RuleID: .RuleID, StartLine: .StartLine, Fingerprint: .Fingerprint}' \
                   /tmp/gitleaks-pr.json
               fi
               exit 1
