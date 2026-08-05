@@ -1,2 +1,9 @@
 __pycache__/
 *.pyc
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+telegram_bot/.env
+telegram_bot/.env.local
