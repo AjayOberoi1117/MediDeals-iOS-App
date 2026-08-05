@@ -67,11 +67,24 @@ jobs:
           echo "Downloading Gitleaks v${GITLEAKS_VERSION}..."
           wget "${RELEASE_URL}/${ARCHIVE_NAME}" -O gitleaks.tar.gz
 
-          echo "Downloading checksums..."
-          wget "${RELEASE_URL}/checksums.txt" -O checksums.txt
+          echo "Resolving official checksum..."
+          CHECKSUM_FOUND=false
+          for CHECKSUM_FILE in checksums.txt SHA256SUMS checksums checksums.txt.sha256; do
+            if wget -q "${RELEASE_URL}/${CHECKSUM_FILE}" -O checksums 2>/dev/null; then
+              echo "✓ Found checksums at ${CHECKSUM_FILE}"
+              CHECKSUM_FOUND=true
+              break
+            fi
+          done
+
+          if [ "$CHECKSUM_FOUND" = false ]; then
+            echo "❌ Failed to download checksum file from release"
+            echo "   Tried: checksums.txt, SHA256SUMS, checksums, checksums.txt.sha256"
+            exit 1
+          fi
 
           echo "Verifying archive checksum..."
-          sha256sum -c checksums.txt --ignore-missing
+          sha256sum -c checksums --ignore-missing
 
           echo "Extracting archive..."
           tar -xzf gitleaks.tar.gz
