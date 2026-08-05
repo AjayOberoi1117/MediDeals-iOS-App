@@ -108,6 +108,7 @@ jobs:
             while read f; do
               case "$f" in
                 telegram_bot/btc_bot.py|\
+                telegram_bot/emailer.py|\
                 telegram_bot/forex_scalper.py|\
                 telegram_bot/gold_bot.py|\
                 telegram_bot/india_scalper.py|\
@@ -117,6 +118,7 @@ jobs:
                 telegram_bot/signal_bot.py|\
                 telegram_bot/telegram_config.py|\
                 telegram_bot/test_telegram_only.py|\
+                telegram_bot/whatsapp.py|\
                 verify_telegram_only.py|\
                 .github/workflows/telegram-only-security.yml)
                   echo "  ✓ $f"
