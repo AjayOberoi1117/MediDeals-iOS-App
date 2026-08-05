@@ -18,9 +18,9 @@ import requests
 from dotenv import load_dotenv
 
 try:
-    from .telegram_config import validate_telegram_config
+    from .telegram_config import validate_telegram_config, is_dry_run_mode
 except ImportError:
-    from telegram_config import validate_telegram_config
+    from telegram_config import validate_telegram_config, is_dry_run_mode
 
 try:
     from trade_executor import queue_trade
@@ -66,6 +66,9 @@ def _save_seen_bar(bar_ts):
     with open(SEEN_FILE, "a") as f: f.write(bar_ts + "\n")
 
 def tg_send(text):
+    if is_dry_run_mode():
+        log.info("[DRY_RUN] Would send to Telegram: %s chars", len(text))
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
