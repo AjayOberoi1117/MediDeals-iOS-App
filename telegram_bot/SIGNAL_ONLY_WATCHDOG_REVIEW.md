@@ -7,7 +7,7 @@ This document describes the signal-only trading bot infrastructure, which sends 
 ### Core Principle
 
 - **Signal-Only Mode**: Bots detect technical patterns and send alerts to Telegram
-- **No Broker Execution**: The `queue_trade()` function has been removed from all signal bots
+- **No Broker Execution**: UNVERIFIED — requires read-only reconciliation with authoritative DigitalOcean bot files
 - **Manual Order Placement**: Traders receive signals and manually place orders on their broker
 - **Scanner Protection**: The Nifty 100 equity scanner (`scanner_bot.py`) operates independently in observe-only mode
 
@@ -270,9 +270,14 @@ ssh user@host "crontab -e"
 ```
 
 ### Rollback Procedure
+
+Rollback requires manual process termination via system administration tools. Never use broad pkill/killall commands on the scripts themselves.
+
 ```bash
-# 1. Stop current bots
-ssh user@host "pkill -f 'python3.*_bot.py'"  # User must do this manually
+# 1. Manual review and termination required
+# Identify running bot processes and terminate with exact PIDs only
+# Use: ps aux | grep python3 | grep _bot.py
+# Then: kill <exact_PID>
 
 # 2. Restore previous scripts
 ssh user@host "cp /path/to/backups/old/start_signal_bots.sh /path/to/telegram_bot/"
@@ -339,6 +344,7 @@ Before deployment, verify:
 ---
 
 **Document Version**: 1.0  
-**Last Updated**: 2026-08-04  
-**Status**: Signal-Only Infrastructure Approved  
-**Scanner Status**: Observe-Only Protected
+**Last Updated**: 2026-08-05  
+**Status**: Draft — Not approved for deployment  
+**Scanner Status**: Observe-Only Protected  
+**Environment Mapping**: UNVERIFIED — REQUIRES READ-ONLY DIGITALOCEAN RECONCILIATION
