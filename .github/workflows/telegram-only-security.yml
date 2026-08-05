@@ -38,14 +38,14 @@ jobs:
       - name: Verify email/WhatsApp removal
         run: |
           # Check helper modules deleted
-          [ ! -f telegram_bot/emailer.py ] || (echo "FAIL: emailer.py exists" && exit 1)
-          [ ! -f telegram_bot/whatsapp.py ] || (echo "FAIL: whatsapp.py exists" && exit 1)
+          test ! -f telegram_bot/emailer.py || (echo "FAIL: emailer.py exists" && exit 1)
+          test ! -f telegram_bot/whatsapp.py || (echo "FAIL: whatsapp.py exists" && exit 1)
 
           # Check no email imports in bot files (excluding test file)
-          grep -r "import smtplib\|from email.mime" telegram_bot/*.py | grep -v test_telegram_only && exit 1 || true
+          ! grep -r "import smtplib\|from email.mime" telegram_bot/*.py | grep -v test_telegram_only
 
           # Check no WhatsApp URLs in bot files (excluding test file)
-          grep -r "graph.facebook.com" telegram_bot/*.py | grep -v test_telegram_only && exit 1 || true
+          ! grep -r "graph.facebook.com" telegram_bot/*.py | grep -v test_telegram_only
 
           echo "✓ Email and WhatsApp removed"
 
@@ -53,7 +53,7 @@ jobs:
         run: |
           # Quick check - no obvious credential patterns in bot files
           # (excluding test file which has patterns to check for)
-          grep -r "Bearer EAAL\|vstbuutmlhbxbpww" telegram_bot/*.py | grep -v test_telegram_only && exit 1 || true
+          ! grep -r "Bearer EAAL\|vstbuutmlhbxbpww" telegram_bot/*.py | grep -v test_telegram_only
 
           echo "✓ No obvious hardcoded credentials"
 
