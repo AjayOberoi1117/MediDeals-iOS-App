@@ -12,27 +12,6 @@ cd "$SCRIPT_DIR"
 
 source "$SCRIPT_DIR/signal_bot_common.sh"
 
-check_existing_process() {
-    local bot_file="$1"
-    local pid found_pids=()
-
-    while IFS= read -r pid; do
-        if [ -n "$pid" ] && validate_process "$pid" "$bot_file" "$SCRIPT_DIR"; then
-            found_pids+=("$pid")
-        fi
-    done < <(pgrep -f "python3" 2>/dev/null || true)
-
-    local count=${#found_pids[@]}
-    if [ $count -eq 0 ]; then
-        return 0
-    elif [ $count -eq 1 ]; then
-        echo "${found_pids[0]}"
-        return 2
-    else
-        return 1
-    fi
-}
-
 main() {
     echo "========== SIGNAL-ONLY BOT STARTUP =========="
     echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -42,6 +21,16 @@ main() {
 
     if ! validate_env; then
         echo "ERROR: Environment validation failed"
+        return 1
+    fi
+
+    if ! check_prohibited_processes; then
+        echo "ERROR: Prohibited process detected - startup blocked"
+        return 1
+    fi
+
+    if ! check_prohibited_files; then
+        echo "ERROR: Prohibited file detected - startup blocked"
         return 1
     fi
 
@@ -60,21 +49,23 @@ main() {
         bot_file="${APPROVED_BOTS[$i]}"
         symbol="${SYMBOLS[$i]}"
 
-        existing=$(check_existing_process "$bot_file" 2>/dev/null) || {
-            status=$?
-            if [ $status -eq 1 ]; then
+        set +e
+        existing=$(find_process "$bot_file" 2>/dev/null)
+        status=$?
+        set -e
+
+        case "$status" in
+            0)
+                echo "  $symbol: no existing process"
+                ;;
+            1)
                 echo "ERROR: Duplicate $symbol processes detected"
                 return 1
-            fi
-            existing=""
-        }
-        status=$?
-
-        if [ $status -eq 0 ]; then
-            echo "  $symbol: no existing process"
-        elif [ $status -eq 2 ]; then
-            echo "  $symbol: existing process (PID $existing) - SKIPPING START"
-        fi
+                ;;
+            *)
+                echo "  $symbol: existing process (PID $existing) - SKIPPING START"
+                ;;
+        esac
     done
     echo ""
 
@@ -83,16 +74,12 @@ main() {
         bot_file="${APPROVED_BOTS[$i]}"
         symbol="${SYMBOLS[$i]}"
 
-        existing=$(check_existing_process "$bot_file" 2>/dev/null) || {
-            status=$?
-            if [ $status -eq 1 ]; then
-                return 1
-            fi
-            existing=""
-        }
+        set +e
+        existing=$(find_process "$bot_file" 2>/dev/null)
         status=$?
+        set -e
 
-        if [ $status -eq 2 ]; then
+        if [ "$status" != "0" ]; then
             continue
         fi
 

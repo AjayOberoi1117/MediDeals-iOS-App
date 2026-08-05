@@ -20,25 +20,23 @@ log_msg() {
 }
 
 monitor_scanner() {
-    local pids=()
+    set +e
     local pid
+    pid=$(find_process "$SCANNER_BOT" "$SCRIPT_DIR")
+    local status=$?
+    set -e
 
-    while IFS= read -r pid; do
-        pids+=("$pid")
-    done < <(find_all_processes "$SCANNER_BOT" "$SCRIPT_DIR")
-
-    if [ ${#pids[@]} -eq 0 ]; then
-        log_msg "OBSERVE: Scanner not running (no action)"
-        return 0
-    fi
-
-    for pid in "${pids[@]}"; do
-        if ps -p "$pid" > /dev/null 2>&1; then
-            log_msg "OBSERVE: Scanner running (PID $pid, no action)"
-        else
-            log_msg "OBSERVE: Scanner crashed (no auto-restart)"
-        fi
-    done
+    case "$status" in
+        0)
+            log_msg "OBSERVE: Scanner not running (no action)"
+            ;;
+        1)
+            log_msg "OBSERVE: Scanner running (no action)"
+            ;;
+        2)
+            log_msg "CRITICAL: Multiple scanner instances (no action)"
+            ;;
+    esac
 
     return 0
 }
@@ -57,42 +55,40 @@ restart_bot() {
     nohup python3 "$bot_file" > "$log_file" 2>&1 &
     local pid=$!
 
-    if check_health "$pid" "$log_file"; then
-        log_msg "RESTART SUCCESS: $symbol (PID $pid)"
-        return 0
-    else
-        log_msg "RESTART FAILED: $symbol did not stay healthy"
-        return 1
-    fi
+    local health_result
+    health_result=$(check_health "$pid" "$log_file")
+    local health_status=$?
+
+    case "$health_result" in
+        HEALTHY)
+            log_msg "RESTART SUCCESS: $symbol (PID $pid)"
+            return 0
+            ;;
+        ALIVE_UNVERIFIED)
+            log_msg "RESTART UNVERIFIED: $symbol (PID $pid) alive but no output"
+            return 0
+            ;;
+        FAILED)
+            log_msg "RESTART FAILED: $symbol (PID $pid)"
+            return 1
+            ;;
+    esac
+
+    return 1
 }
 
 monitor_bot() {
     local bot_file="$1" symbol="$2"
-    local pids=()
+
+    set +e
     local pid
+    pid=$(find_process "$bot_file" "$SCRIPT_DIR")
+    local status=$?
+    set -e
 
-    while IFS= read -r pid; do
-        pids+=("$pid")
-    done < <(find_all_processes "$bot_file" "$SCRIPT_DIR")
-
-    local count=${#pids[@]}
-
-    if [ $count -eq 0 ]; then
-        log_msg "ALERT: $symbol is not running"
-
-        if ! validate_env; then
-            log_msg "SKIP RESTART: .env validation failed for $symbol"
-            return 1
-        fi
-
-        restart_bot "$bot_file" "$symbol"
-        return $?
-    elif [ $count -eq 1 ]; then
-        pid="${pids[0]}"
-        if ps -p "$pid" > /dev/null 2>&1; then
-            return 0
-        else
-            log_msg "ALERT: $symbol crashed (PID $pid)"
+    case "$status" in
+        0)
+            log_msg "ALERT: $symbol is not running"
 
             if ! validate_env; then
                 log_msg "SKIP RESTART: .env validation failed for $symbol"
@@ -101,12 +97,29 @@ monitor_bot() {
 
             restart_bot "$bot_file" "$symbol"
             return $?
-        fi
-    else
-        log_msg "CRITICAL: Multiple $symbol processes detected: ${pids[*]}"
-        log_msg "CRITICAL: Manual review required - no restart attempted"
-        return 1
-    fi
+            ;;
+        1)
+            if ps -p "$pid" > /dev/null 2>&1; then
+                return 0
+            else
+                log_msg "ALERT: $symbol crashed (PID $pid)"
+
+                if ! validate_env; then
+                    log_msg "SKIP RESTART: .env validation failed for $symbol"
+                    return 1
+                fi
+
+                restart_bot "$bot_file" "$symbol"
+                return $?
+            fi
+            ;;
+        2)
+            log_msg "CRITICAL: Multiple $symbol processes detected - manual review required"
+            return 1
+            ;;
+    esac
+
+    return 1
 }
 
 run_cycle() {

@@ -91,8 +91,8 @@ validate_env() {
 }
 
 validate_process() {
-    local pid="$1" bot_file="$2" expected_script_dir="$3"
-    local exe cmdline cwd
+    local pid="$1" bot_file="$2" expected_script_dir="$3" expected_uid="$4" expected_username="$5"
+    local exe cmdline cwd proc_uid proc_user cmdline_arg
 
     if ! ps -p "$pid" > /dev/null 2>&1; then
         return 1
@@ -103,13 +103,11 @@ validate_process() {
         return 1
     fi
 
-    IFS=$'\0' read -rd '' -a cmdline_arr < "/proc/$pid/cmdline" 2>/dev/null || return 1
-
-    if [ -z "${cmdline_arr[1]:-}" ]; then
+    cmdline_arg=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | awk '{print $2}')
+    if [ -z "$cmdline_arg" ]; then
         return 1
     fi
 
-    local cmdline_arg="${cmdline_arr[1]}"
     if [[ "$cmdline_arg" != "$expected_script_dir/$bot_file" ]]; then
         if [[ "$cmdline_arg" == /* ]]; then
             return 1
@@ -117,7 +115,7 @@ validate_process() {
         if [ "${cmdline_arg##*/}" != "$bot_file" ]; then
             return 1
         fi
-        if [ "$(cd "$(dirname "$cmdline_arg")" && pwd)" != "$expected_script_dir" ]; then
+        if [ "$(cd "$(dirname "$cmdline_arg")" 2>/dev/null && pwd)" != "$expected_script_dir" ]; then
             return 1
         fi
     fi
@@ -127,36 +125,63 @@ validate_process() {
         return 1
     fi
 
+    if [ -n "$expected_uid" ]; then
+        proc_uid=$(stat -c '%u' "/proc/$pid" 2>/dev/null || echo "")
+        if [ "$proc_uid" != "$expected_uid" ]; then
+            return 1
+        fi
+    fi
+
+    if [ -n "$expected_username" ]; then
+        proc_user=$(stat -c '%U' "/proc/$pid" 2>/dev/null || echo "")
+        if [ "$proc_user" != "$expected_username" ]; then
+            return 1
+        fi
+    fi
+
     return 0
 }
 
-find_all_processes() {
+find_process() {
     local bot_file="$1" expected_script_dir="$2"
     local pid found_pids=()
 
     while IFS= read -r pid; do
-        if [ -n "$pid" ] && validate_process "$pid" "$bot_file" "$expected_script_dir"; then
+        if [ -n "$pid" ] && validate_process "$pid" "$bot_file" "$expected_script_dir" "" ""; then
             found_pids+=("$pid")
         fi
     done < <(pgrep -f "python3" 2>/dev/null || true)
 
-    if [ ${#found_pids[@]} -eq 0 ]; then
+    local count=${#found_pids[@]}
+    if [ $count -eq 0 ]; then
         return 0
+    elif [ $count -eq 1 ]; then
+        echo "${found_pids[0]}"
+        return 1
+    else
+        return 2
     fi
-
-    for pid in "${found_pids[@]}"; do
-        echo "$pid"
-    done
-    return 0
 }
 
 check_prohibited_processes() {
-    local item
+    local item pid
+
     for item in "${PROHIBITED_PROCESSES[@]}"; do
-        if pgrep -f "$item" >/dev/null 2>&1; then
-            return 1
-        fi
+        while IFS= read -r pid; do
+            if [ -z "$pid" ]; then
+                continue
+            fi
+            if ps -p "$pid" > /dev/null 2>&1; then
+                if grep -q "$item" "/proc/$pid/cmdline" 2>/dev/null; then
+                    local exe=$(readlink "/proc/$pid/exe" 2>/dev/null || echo "")
+                    if [[ "$exe" =~ /usr/bin/python ]]; then
+                        return 1
+                    fi
+                fi
+            fi
+        done < <(pgrep -f "python" 2>/dev/null || true)
     done
+
     return 0
 }
 
@@ -176,17 +201,23 @@ check_health() {
 
     if [ -f "$log_file" ]; then
         start_size=$(stat -c '%s' "$log_file" 2>/dev/null || echo 0)
+    else
+        start_size=0
     fi
 
     while [ $elapsed -lt $timeout ]; do
         if ! ps -p "$pid" > /dev/null 2>&1; then
+            echo "FAILED"
             return 1
         fi
 
         if [ -f "$log_file" ]; then
             local current_size=$(stat -c '%s' "$log_file" 2>/dev/null || echo 0)
             if [ "$current_size" -gt "$start_size" ]; then
-                if tail -n +1 "$log_file" | grep -q "Error\|ERROR\|Traceback\|Exception"; then
+                local new_content
+                new_content=$(tail -c +$((start_size + 1)) "$log_file" 2>/dev/null || echo "")
+                if echo "$new_content" | grep -q "Error\|ERROR\|Traceback\|Exception"; then
+                    echo "FAILED"
                     return 1
                 fi
             fi
@@ -197,8 +228,10 @@ check_health() {
     done
 
     if ps -p "$pid" > /dev/null 2>&1; then
+        echo "ALIVE_UNVERIFIED"
         return 0
     fi
 
+    echo "FAILED"
     return 1
 }

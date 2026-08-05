@@ -10,6 +10,7 @@ This document describes the signal-only trading bot infrastructure, which sends 
 - **No Broker Execution**: UNVERIFIED — requires read-only reconciliation with authoritative DigitalOcean bot files
 - **Manual Order Placement**: Traders receive signals and manually place orders on their broker
 - **Scanner Protection**: The Nifty 100 equity scanner (`scanner_bot.py`) operates independently in observe-only mode
+- **Activation Status**: NOT APPROVED FOR PRODUCTION — implementation revised, tests reported locally, awaiting CTO GitHub review
 
 ### Managed Bots (6 Total)
 
