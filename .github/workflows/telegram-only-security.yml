@@ -25,7 +25,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install test dependencies
-        run: pip install requests
+        run: pip install requests pandas yfinance python-dotenv nse-holidays
 
       - name: Compile all modified Python files
         run: |
