@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 from unittest.mock import patch, MagicMock
 
-os.environ.setdefault("BOT_EXECUTION_MODE", "test")
+os.environ.setdefault("BOT_EXECUTION_MODE", "signal_only")
 telegram_bot_dir = os.path.join(os.path.dirname(__file__))
 if telegram_bot_dir not in sys.path:
     sys.path.insert(0, telegram_bot_dir)
@@ -25,36 +25,41 @@ class TestTelegramConfigModule(unittest.TestCase):
         self.config = telegram_config
 
     def test_01_validator_rejects_missing_token(self):
-        """Requirement 1: validator rejects missing token."""
-        with self.assertRaises(RuntimeError) as cm:
-            self.config.validate_telegram_config("", "test_chat")
-        self.assertIn("TELEGRAM_BOT_TOKEN", str(cm.exception))
-        self.assertNotIn("test_chat", str(cm.exception))
+        """Requirement 1: validator rejects missing token in production mode."""
+        with patch.dict(os.environ, {"BOT_EXECUTION_MODE": "production"}):
+            with self.assertRaises(RuntimeError) as cm:
+                self.config.validate_telegram_config("", "test_chat")
+            self.assertIn("TELEGRAM_BOT_TOKEN", str(cm.exception))
+            self.assertNotIn("test_chat", str(cm.exception))
 
     def test_02_validator_rejects_missing_chat_id(self):
-        """Requirement 2: validator rejects missing chat_id."""
-        with self.assertRaises(RuntimeError) as cm:
-            self.config.validate_telegram_config("test_token", "")
-        self.assertIn("TELEGRAM_CHAT_ID", str(cm.exception))
-        self.assertNotIn("test_token", str(cm.exception))
+        """Requirement 2: validator rejects missing chat_id in production mode."""
+        with patch.dict(os.environ, {"BOT_EXECUTION_MODE": "production"}):
+            with self.assertRaises(RuntimeError) as cm:
+                self.config.validate_telegram_config("test_token", "")
+            self.assertIn("TELEGRAM_CHAT_ID", str(cm.exception))
+            self.assertNotIn("test_token", str(cm.exception))
 
     def test_03_validator_rejects_whitespace_only_token(self):
-        """Requirement 3: validator rejects whitespace-only token."""
-        with self.assertRaises(RuntimeError):
-            self.config.validate_telegram_config("   ", "test_chat")
+        """Requirement 3: validator rejects whitespace-only token in production mode."""
+        with patch.dict(os.environ, {"BOT_EXECUTION_MODE": "production"}):
+            with self.assertRaises(RuntimeError):
+                self.config.validate_telegram_config("   ", "test_chat")
 
     def test_04_validator_rejects_whitespace_only_chat(self):
-        """Requirement 4: validator rejects whitespace-only chat_id."""
-        with self.assertRaises(RuntimeError):
-            self.config.validate_telegram_config("test_token", "   ")
+        """Requirement 4: validator rejects whitespace-only chat_id in production mode."""
+        with patch.dict(os.environ, {"BOT_EXECUTION_MODE": "production"}):
+            with self.assertRaises(RuntimeError):
+                self.config.validate_telegram_config("test_token", "   ")
 
     def test_05_validator_error_reveals_no_values(self):
-        """Requirement 5: validator errors reveal no values."""
-        with self.assertRaises(RuntimeError) as cm:
-            self.config.validate_telegram_config("secret123", "")
-        error_msg = str(cm.exception)
-        self.assertNotIn("secret123", error_msg)
-        self.assertNotIn("secret", error_msg)
+        """Requirement 5: validator errors reveal no values in production mode."""
+        with patch.dict(os.environ, {"BOT_EXECUTION_MODE": "production"}):
+            with self.assertRaises(RuntimeError) as cm:
+                self.config.validate_telegram_config("secret123", "")
+            error_msg = str(cm.exception)
+            self.assertNotIn("secret123", error_msg)
+            self.assertNotIn("secret", error_msg)
 
     def test_06_validator_returns_trimmed_values(self):
         """Requirement 6: validator trims whitespace."""

@@ -45,13 +45,11 @@ class TestDryRunModeSemanticsAndDefaults(unittest.TestCase):
             self.assertFalse(is_dry_run_mode())
 
     def test_dry_run_false_on_typo(self):
-        """Test: Typos like 'dryrun', 'dry-run' return False (safe default)"""
+        """Test: Typos like 'dryrun', 'dry-run' raise RuntimeError (fail-closed)"""
         for mode in ["dryrun", "dry-run", "dry_run_mode", "test", "debug"]:
             with patch.dict(os.environ, {"BOT_EXECUTION_MODE": mode}):
-                result = is_dry_run_mode()
-                # Only "dry_run" (exact) returns True
-                expected = (mode == "dry_run")
-                self.assertEqual(result, expected, f"Failed for mode={mode}")
+                with self.assertRaises(RuntimeError, msg=f"Failed for mode={mode}"):
+                    is_dry_run_mode()
 
 
 class TestBTCBotDryRunGuards(unittest.TestCase):
