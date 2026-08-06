@@ -33,15 +33,14 @@ import pandas as pd
 import yfinance as yf
 import pytz
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 from nse_holidays import is_nse_holiday
+from telegram_config import validate_telegram_config
 
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN") or os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -100,11 +99,6 @@ def tg_send(text):
             log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    try:
-        wapp_send(text)
-        email_send("Trading Signal: Options Scalper", text)
-    except Exception:
-        pass
 
 
 # ── market hours ─────────────────────────────────────────────────────────────
@@ -292,7 +286,7 @@ def check_symbol(name, cfg):
     log.info("%s %s %d%s exp=%s spot=%.1f adx=%.1f", name, opt, strike, opt, expiry, spot, adx_val)
 
     tg_send(
-        f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>OPTIONS SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"[OPTIONS SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>OPTIONS SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📈 <b>Signal    :</b> {side}\n"
         f"📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
         f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
@@ -314,13 +308,13 @@ def check_symbol(name, cfg):
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    if not TELEGRAM_TOKEN:
-        raise SystemExit("STOCX_BOT_TOKEN / ELITE_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     log.info("Options Scalper started | %s | ST(%d,%.1f) + 1H trend + ADX>=%d",
              ", ".join(INSTRUMENTS), ST_PERIOD, ST_MULTIPLIER, ADX_MIN)
     tg_send(
-        f"⚡ <b>Options Scalper Online</b>\n"
+        f"[OPTIONS SCALPER] ⚡ <b>Online</b>\n"
         f"📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
         f"📊 Supertrend({ST_PERIOD},{ST_MULTIPLIER}) + 1H trend + ADX(≥{ADX_MIN}) | 15min\n"
         f"🎯 NIFTY + BANKNIFTY  •  ATM weekly options\n"
