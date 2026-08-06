@@ -16,7 +16,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from telegram_config import validate_telegram_config, is_dry_run_mode
+from telegram_config import validate_telegram_config, order_execution_enabled
 
 try:
     from trade_executor import queue_trade
@@ -174,7 +174,7 @@ def check_signal():
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
         record_signal("BUY", entry, sl, tp)
-        if not is_dry_run_mode():
+        if order_execution_enabled():
             queue_trade("BTCUSD", "BUY", sl, tp, source="BTCUSD_1H")
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if trend == 1: log.info("SKIP SELL BTCUSD — daily trend bullish"); return
@@ -188,7 +188,7 @@ def check_signal():
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross confirmed\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
         record_signal("SELL", entry, sl, tp)
-        if not is_dry_run_mode():
+        if order_execution_enabled():
             queue_trade("BTCUSD", "SELL", sl, tp, source="BTCUSD_1H")
 
 def main():

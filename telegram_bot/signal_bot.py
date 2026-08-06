@@ -16,7 +16,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from telegram_config import validate_telegram_config, is_dry_run_mode
+from telegram_config import validate_telegram_config, order_execution_enabled
 
 try:
     from trade_executor import queue_trade
@@ -273,7 +273,7 @@ def check_signal() -> None:
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("BUY", entry, sl, tp)
-        if not is_dry_run_mode():
+        if order_execution_enabled():
             queue_trade(SYMBOL_NAME, "BUY", sl, tp, source=f"{SYMBOL_NAME}_1H")
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
@@ -302,7 +302,7 @@ def check_signal() -> None:
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("SELL", entry, sl, tp)
-        if not is_dry_run_mode():
+        if order_execution_enabled():
             queue_trade(SYMBOL_NAME, "SELL", sl, tp, source=f"{SYMBOL_NAME}_1H")
 
 # ── Entry point ───────────────────────────────────────────────────────────────
