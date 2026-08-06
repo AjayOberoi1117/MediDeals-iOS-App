@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # start_bots.sh — Launch trading signal bots independently (skip already-running)
-# NEW: Checks each bot independently. Does NOT abort if one bot is running.
+# SAFETY: Forces signal-only mode. Verifies execution gate before any bot starts.
+# Preserves: scanner_bot.py, india_scalper.py (unmanaged, untouched)
 
 cd "$(dirname "$0")"
 set -a; source .env; set +a
 mkdir -p logs
+
+# CRITICAL SAFETY: Force signal-only mode (no live trading)
+export BOT_EXECUTION_MODE="signal_only"
+unset LIVE_TRADING_CONFIRMED
 
 # Use venv python if available, fall back to system python3
 PYTHON="${BOTENV_PYTHON:-/root/botenv/bin/python3}"
@@ -45,19 +50,58 @@ start_bot() {
   $python_path "$bot_file" >> "$log_file" 2>&1 &
   local pid=$!
 
-  if [ $? -eq 0 ]; then
+  # Wait 2 seconds for bot to initialize
+  sleep 2
+
+  # Verify bot is still running (did not crash during startup)
+  if kill -0 "$pid" 2>/dev/null; then
     echo "START: $display_name (PID $pid)"
     STARTED+=("$display_name")
   else
-    echo "FAIL: $display_name could not start"
+    echo "FAIL: $display_name exited during startup"
     FAILED+=("$display_name")
+    echo "  Last 20 lines of log:"
+    tail -20 "$log_file" 2>/dev/null | sed 's/^/    /' || true
   fi
 }
 
 echo "Checking and starting 6 dedicated signal bots..."
 echo ""
 
-# Start each bot independently (do NOT preserve scanner_bot or india_scalper)
+# SAFETY GATE: Verify execution mode before starting ANY bot
+echo "Verifying execution gate..."
+"$PYTHON" - <<'PY'
+import sys
+sys.path.insert(0, '.')
+
+from telegram_config import get_execution_mode, order_execution_enabled
+
+mode = get_execution_mode()
+enabled = order_execution_enabled()
+
+print(f"BOT_EXECUTION_MODE={mode}")
+print(f"ORDER_EXECUTION_ENABLED={enabled}")
+
+if mode != "signal_only":
+    print("ERROR: Unsafe execution mode (expected signal_only)")
+    sys.exit(1)
+if enabled:
+    print("ERROR: Order execution must be disabled")
+    sys.exit(1)
+
+print("✓ Safety gate PASSED")
+PY
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "⚠️  SAFETY GATE FAILED - Aborting launcher"
+  exit 1
+fi
+
+echo ""
+
+# Start each managed bot independently.
+# scanner_bot.py and india_scalper.py are intentionally excluded and preserved.
 start_bot "$PYTHON" "btc_bot.py" "logs/btc.log" "BTC Bot"
 start_bot "$PYTHON" "gold_bot.py" "logs/gold.log" "GOLD Bot"
 start_bot "$PYTHON" "signal_bot.py" "logs/signal.log" "SIGNAL Bot"
@@ -104,4 +148,11 @@ else
 fi
 
 echo ""
+echo "==========================================="
+echo "  Safety Summary"
+echo "==========================================="
+echo "EXECUTION MODE: signal_only"
+echo "ORDER EXECUTION: BLOCKED"
+echo "SCANNER BOT: PRESERVED"
+echo "INDIA SCALPER: PRESERVED"
 echo "==========================================="
