@@ -308,25 +308,9 @@ def check_signal() -> None:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    global TELEGRAM_TOKEN, CHAT_ID
-    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
-    _load_seen_bars()
-    log.info("Starting | symbol=%s  yf=%s  ema=%d/%d  rsi=%d  poll=%ds  cache=%ds",
-             SYMBOL_NAME, YF_TICKER, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS, CACHE_TTL)
-    tg_send(
-        f"[SIGNAL BOT] 💱 <b>{SYMBOL_NAME} Online</b>\n"
-        f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n"
-        f"⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
-        f"🕙 Daily report at 10:00 PM IST"
+    raise SystemExit(
+        "SIGNAL BOT DISABLED: ownership consolidated into dedicated market bots."
     )
-    while True:
-        try:
-            maybe_send_daily_report()
-            check_signal()
-        except Exception as exc:
-            log.error("Unexpected error: %s", exc)
-        time.sleep(CHECK_SECS)
 
 if __name__ == "__main__":
     main()

@@ -65,7 +65,7 @@ start_bot() {
   fi
 }
 
-echo "Checking and starting 6 dedicated signal bots..."
+echo "Checking and starting 5 dedicated signal bots..."
 echo ""
 
 # SAFETY GATE: Verify execution mode before starting ANY bot
@@ -101,10 +101,9 @@ fi
 echo ""
 
 # Start each managed bot independently.
-# scanner_bot.py and india_scalper.py are intentionally excluded and preserved.
+# scanner_bot.py, india_scalper.py, and signal_bot.py are intentionally excluded and preserved.
 start_bot "$PYTHON" "btc_bot.py" "logs/btc.log" "BTC Bot"
 start_bot "$PYTHON" "gold_bot.py" "logs/gold.log" "GOLD Bot"
-start_bot "$PYTHON" "signal_bot.py" "logs/signal.log" "SIGNAL Bot"
 start_bot "$PYTHON" "forex_scalper.py" "logs/forex.log" "FOREX Scalper"
 start_bot "$PYTHON" "nifty_scalper.py" "logs/nifty.log" "NIFTY Scalper"
 start_bot "$PYTHON" "options_scalper.py" "logs/options.log" "OPTIONS Scalper"

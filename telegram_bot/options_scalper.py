@@ -22,6 +22,7 @@ Signals  : Telegram only — trade manually. Weekend + NSE-holiday aware.
 """
 
 import os
+import json
 import time
 import socket
 import logging
@@ -38,6 +39,16 @@ from telegram_config import validate_telegram_config
 
 load_dotenv()
 socket.setdefaulttimeout(30)
+
+# Upstream direction source: nifty_scalper's state file
+NIFTY_STATE_FILE = os.path.join(os.path.dirname(__file__), ".state_nifty_scalper.json")
+UPSTREAM_VALIDITY_SEC = 1800  # 30 minutes: aligned with nifty_scalper COOLDOWN
+FUTURE_TIMESTAMP_TOLERANCE_SEC = 5
+
+# Deduplication tracking
+PROCESSED_SIGNALS_FILE = os.path.join(os.path.dirname(__file__), ".processed_options_signals")
+DEDUP_RETENTION_LIMIT = 500
+_processed_signal_ids = set()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -87,6 +98,121 @@ def _load_seen():
 def _save_seen(name, bar_ts):
     with open(SEEN_FILE, "a") as f:
         f.write(f"{name}|{bar_ts}\n")
+
+
+# ── Upstream direction consumption ────────────────────────────────────────────
+
+def _load_processed():
+    """Load deduplication state from persistent file."""
+    global _processed_signal_ids
+    try:
+        with open(PROCESSED_SIGNALS_FILE) as f:
+            _processed_signal_ids = set(line.strip() for line in f if line.strip())
+    except FileNotFoundError:
+        pass
+
+def _mark_processed(signal_id):
+    """Mark signal as processed and persist atomically."""
+    global _processed_signal_ids
+    _processed_signal_ids.add(signal_id)
+
+    # Keep only recent signals (bounded retention)
+    if len(_processed_signal_ids) > DEDUP_RETENTION_LIMIT:
+        recent = sorted(list(_processed_signal_ids))[-DEDUP_RETENTION_LIMIT:]
+        _processed_signal_ids = set(recent)
+
+    # Atomic write: temp file + rename
+    try:
+        temp_file = PROCESSED_SIGNALS_FILE + ".tmp"
+        with open(temp_file, "w") as f:
+            for sig_id in sorted(_processed_signal_ids):
+                f.write(sig_id + "\n")
+        os.replace(temp_file, PROCESSED_SIGNALS_FILE)
+    except Exception as e:
+        log.warning(f"Failed to persist dedup state: {e}")
+
+def _read_upstream_direction(symbol):
+    """
+    Read and validate NIFTY/BANKNIFTY direction from nifty_scalper state.
+
+    Returns: (direction_int, timestamp) if valid, or (None, None) if invalid/stale/missing.
+      direction_int: 1 for BUY, -1 for SELL
+      timestamp: Unix timestamp of signal generation
+    """
+    try:
+        # File existence check
+        if not os.path.exists(NIFTY_STATE_FILE):
+            log.debug(f"No upstream state file for {symbol}")
+            return None, None
+
+        # Parse JSON
+        with open(NIFTY_STATE_FILE) as f:
+            state = json.load(f)
+
+        # Validate top-level: must be dict
+        if not isinstance(state, dict):
+            log.warning(f"Malformed upstream state: top-level is not dict")
+            return None, None
+
+        # Validate symbol entry exists
+        if symbol not in state:
+            log.debug(f"Upstream state has no entry for {symbol}")
+            return None, None
+
+        symbol_state = state[symbol]
+
+        # Validate symbol entry: must be dict
+        if not isinstance(symbol_state, dict):
+            log.warning(f"Malformed upstream state for {symbol}: entry is not dict")
+            return None, None
+
+        # Validate required fields
+        if "direction" not in symbol_state or "timestamp" not in symbol_state:
+            log.warning(f"Malformed upstream state for {symbol}: missing direction or timestamp")
+            return None, None
+
+        direction_str = symbol_state["direction"]
+        timestamp = symbol_state["timestamp"]
+
+        # Validate direction: must be exactly "BUY" or "SELL"
+        if direction_str not in ("BUY", "SELL"):
+            log.warning(f"Invalid upstream direction for {symbol}: {direction_str}")
+            return None, None
+
+        # Validate timestamp: numeric, not bool, finite, positive
+        if isinstance(timestamp, bool) or not isinstance(timestamp, (int, float)):
+            log.warning(f"Invalid timestamp type for {symbol}: {type(timestamp)}")
+            return None, None
+
+        if not (timestamp > 0 and timestamp < float('inf')):
+            log.warning(f"Invalid timestamp value for {symbol}: {timestamp}")
+            return None, None
+
+        # Validate freshness
+        now = time.time()
+        age = now - timestamp
+
+        # Reject future timestamps (allow small clock skew)
+        if age < -FUTURE_TIMESTAMP_TOLERANCE_SEC:
+            log.warning(f"Upstream {symbol} timestamp is in future by {-age:.1f}s")
+            return None, None
+
+        # Reject stale timestamps
+        if age > UPSTREAM_VALIDITY_SEC:
+            log.debug(f"Upstream {symbol} direction is stale ({age:.0f}s old, max {UPSTREAM_VALIDITY_SEC}s)")
+            return None, None
+
+        # Map direction string to integer
+        direction_int = 1 if direction_str == "BUY" else -1
+
+        return direction_int, timestamp
+
+    except json.JSONDecodeError:
+        log.warning(f"Malformed upstream JSON for {symbol}")
+        return None, None
+    except (IOError, KeyError, TypeError) as e:
+        log.debug(f"Error reading upstream state for {symbol}: {e}")
+        return None, None
 
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
@@ -239,70 +365,82 @@ def _last_thursday(year, month):
 # ── signal logic ──────────────────────────────────────────────────────────────
 
 def check_symbol(name, cfg):
+    """
+    Consume upstream NIFTY/BANKNIFTY direction from nifty_scalper.
+    Perform options-specific analysis only. No independent directional logic.
+    """
     ticker = cfg["yf"]; step = cfg["strike_step"]
+
+    # ── UPSTREAM DIRECTION VALIDATION (MANDATORY) ─────────────────────────────
+    # Do not generate independent direction. Consume only.
+    upstream_dir, upstream_ts = _read_upstream_direction(name)
+    if upstream_dir is None:
+        log.debug(f"SKIP {name} — no valid upstream direction from nifty_scalper")
+        return  # Fail closed: no signal without upstream
+
+    # Create deduplication key: symbol + direction + timestamp
+    upstream_direction_str = "BUY" if upstream_dir == 1 else "SELL"
+    dedup_key = f"{name}:{upstream_direction_str}:{upstream_ts}"
+
+    # Check if already processed
+    if dedup_key in _processed_signal_ids:
+        log.debug(f"SKIP {name} — already processed {dedup_key}")
+        return
+
+    log.debug(f"Valid upstream {name}: dir={upstream_direction_str} age={(time.time()-upstream_ts):.1f}s")
+
+    # ── FETCH MARKET DATA ──────────────────────────────────────────────────────
     df = fetch_15m(name, ticker)
     if df is None:
         return
-    now_ts = time.time()
-    if now_ts - _last_signal.get(name, 0) < COOLDOWN:
-        return
 
+    # ── OPTIONS-SPECIFIC ANALYSIS (NO INDEPENDENT DIRECTION DERIVATION) ────────
     high = df["high"].squeeze(); low = df["low"].squeeze(); close = df["close"].squeeze()
     adx = calc_adx(high, low, close, ADX_PERIOD)
-    df = calculate_supertrend(df, ST_PERIOD, ST_MULTIPLIER)
-    if len(df) < 4:
-        return
 
-    # signal on last CLOSED bar (-2), confirmed against (-3); spot ~ current price (-1)
-    bar_ts = str(df.index[-2])
-    if bar_ts in _seen_bars.get(name, set()):
-        return
-    st_now  = int(df["st_direction"].iloc[-2])
-    st_prev = int(df["st_direction"].iloc[-3])
-    _seen_bars.setdefault(name, set()).add(bar_ts); _save_seen(name, bar_ts)
-    if st_now == st_prev:
-        return   # no flip
-
+    # ADX as quality filter only (not directional)
     adx_val = float(adx.iloc[-2])
-    trend   = get_1h_trend(ticker)
-    spot    = float(df["close"].iloc[-1])
-    st_level = float(df["supertrend"].iloc[-2])
-
-    # ADX strength gate
     if adx_val < ADX_MIN:
-        log.info("SKIP %s — ADX %.1f < %d (choppy)", name, adx_val, ADX_MIN); return
+        log.debug(f"SKIP {name} — ADX {adx_val:.1f} < {ADX_MIN} (low strength)")
+        return  # Quality gate, not directional
 
-    if st_now == 1:                              # bullish flip -> Call
-        if trend != 1:
-            log.info("SKIP %s CALL — 1H trend not bullish", name); return
+    spot = float(df["close"].iloc[-1])
+
+    # ── MAP UPSTREAM DIRECTION TO OPTIONS SIDE ──────────────────────────────────
+    if upstream_dir == 1:  # BUY from upstream
         opt, side = "CE", "🟢 BUY CALL"
-    else:                                        # bearish flip -> Put
-        if trend != -1:
-            log.info("SKIP %s PUT — 1H trend not bearish", name); return
+    else:  # SELL from upstream
         opt, side = "PE", "🔴 BUY PUT"
 
+    # ── OPTIONS-SPECIFIC SELECTIONS ────────────────────────────────────────────
     strike = atm_strike(spot, step)
     expiry, exp_type = nearest_weekly_expiry(name)
-    log.info("%s %s %d%s exp=%s spot=%.1f adx=%.1f", name, opt, strike, opt, expiry, spot, adx_val)
 
+    log.info("OPTIONS FOLLOW-UP %s: %s side, ATM strike %d, expiry %s, spot %.1f, ADX %.1f",
+             name, side, strike, expiry, spot, adx_val)
+
+    # ── SEND DOWNSTREAM TELEGRAM ALERT ─────────────────────────────────────────
     tg_send(
-        f"[OPTIONS SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>OPTIONS SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📈 <b>Signal    :</b> {side}\n"
-        f"📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"⏱ <b>Timeframe :</b> 15 Minutes\n\n"
-        f"🎯 <b>Buy       :</b> <code>{name} {strike} {opt}</code>\n"
-        f"🗓 <b>Expiry    :</b> {expiry.strftime('%d %b %Y')} ({exp_type})\n"
-        f"📍 <b>Spot      :</b> <code>{spot:.1f}</code>  (ATM strike {strike})\n\n"
-        f"🛑 <b>Stop Loss :</b> exit if premium falls ~{SL_PREMIUM_PCT}%\n"
-        f"🎯 <b>Target    :</b> book ~{TP_PREMIUM_PCT}% gain (1:2)\n"
-        f"🧭 <b>Invalidate:</b> index closing back beyond ST ₹{st_level:.0f}\n\n"
-        f"📊 <b>ADX(14)   :</b> {adx_val:.1f}   (≥ {ADX_MIN} = trend confirmed)\n"
-        f"📊 <b>1H Trend  :</b> {'Bullish' if trend == 1 else 'Bearish'}\n\n"
-        f"💡 Supertrend flip + 1H trend + ADX aligned\n"
-        f"🏦 <i>Buy ATM {opt} — confirm nearest strike/expiry in broker</i>\n"
+        f"[OPTIONS FOLLOW-UP] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>NIFTY SCALPER → OPTIONS {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📊 <b>Direction Source:</b> Nifty Scalper\n"
+        f"📈 <b>{name} Direction:</b> {upstream_direction_str}\n"
+        f"⏱ <b>Signal Age:</b> {(time.time()-upstream_ts):.0f}s\n\n"
+        f"🎯 <b>Options Action :</b> {side}\n"
+        f"📅 <b>Time          :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n\n"
+        f"💰 <b>Strike        :</b> <code>{name} {strike} {opt}</code>\n"
+        f"🗓 <b>Expiry        :</b> {expiry.strftime('%d %b %Y')} ({exp_type})\n"
+        f"📍 <b>Spot Price    :</b> {spot:.1f}\n\n"
+        f"🛑 <b>Stop Loss     :</b> exit if premium falls ~{SL_PREMIUM_PCT}%\n"
+        f"🎯 <b>Target        :</b> book ~{TP_PREMIUM_PCT}% gain (1:2)\n\n"
+        f"📊 <b>ADX(14)       :</b> {adx_val:.1f} (≥ {ADX_MIN} = sufficient strength)\n"
+        f"🔗 <b>Coupling      :</b> Upstream NIFTY direction + options ATM selection\n\n"
+        f"💡 This is an options follow-up, not an independent index direction.\n"
+        f"🏦 <i>Confirm strike/expiry availability in broker before executing</i>\n"
         f"⚠️ <i>Options decay with time — square off by 3:20 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
     )
-    _last_signal[name] = now_ts
+
+    # Mark as processed ONLY after successful Telegram send
+    _mark_processed(dedup_key)
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -311,15 +449,16 @@ def main():
     global TELEGRAM_TOKEN, CHAT_ID
     TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
-    log.info("Options Scalper started | %s | ST(%d,%.1f) + 1H trend + ADX>=%d",
-             ", ".join(INSTRUMENTS), ST_PERIOD, ST_MULTIPLIER, ADX_MIN)
+    _load_processed()
+    log.info("Options Scalper started | Consumes NIFTY/BANKNIFTY from nifty_scalper | ADX>=%d as quality filter",
+             ADX_MIN)
     tg_send(
-        f"[OPTIONS SCALPER] ⚡ <b>Online</b>\n"
+        f"[OPTIONS FOLLOW-UP] ⚡ <b>Online</b>\n"
         f"📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 Supertrend({ST_PERIOD},{ST_MULTIPLIER}) + 1H trend + ADX(≥{ADX_MIN}) | 15min\n"
-        f"🎯 NIFTY + BANKNIFTY  •  ATM weekly options\n"
-        f"🟢 Bull flip → Buy Call   🔴 Bear flip → Buy Put\n"
-        f"🛡 Defined risk (premium only) — buy options, don't sell\n"
+        f"📊 Downstream options consumer\n"
+        f"🎯 Consumes NIFTY + BANKNIFTY direction from Nifty Scalper\n"
+        f"💰 ATM weekly options selection (CE/PE based on upstream)\n"
+        f"🛡 ADX(≥{ADX_MIN}) quality filter • Defined risk • Premium only\n"
         f"⏰ Active 9:15 AM – 3:10 PM IST (square off by 3:20)"
     )
     while True:
