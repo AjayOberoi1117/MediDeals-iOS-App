@@ -23,7 +23,7 @@ import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from nse_holidays import is_nse_holiday
-from telegram_config import validate_telegram_config
+from telegram_config import validate_telegram_config, is_dry_run_mode
 
 load_dotenv()
 socket.setdefaulttimeout(30)
@@ -396,7 +396,8 @@ def check_symbol(name):
             f"⚠️ <i>Set SL immediately! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal(name, "BUY", entry, sl, tp)
-        upstox_place_order(name, "BUY")
+        if not is_dry_run_mode():
+            upstox_place_order(name, "BUY")
         _last_signal[name] = now_ts
     # SELL signals disabled — Indian equity shorting via MIS is unreliable/meaningless for this strategy
 

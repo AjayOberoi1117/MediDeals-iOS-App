@@ -16,7 +16,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from telegram_config import validate_telegram_config
+from telegram_config import validate_telegram_config, is_dry_run_mode
 
 try:
     from trade_executor import queue_trade
@@ -177,7 +177,9 @@ def check_signal():
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
-        record_signal("BUY", entry, sl, tp); queue_trade("XAUUSD", "BUY", sl, tp, source="XAUUSD_1H")
+        record_signal("BUY", entry, sl, tp)
+        if not is_dry_run_mode():
+            queue_trade("XAUUSD", "BUY", sl, tp, source="XAUUSD_1H")
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if get_daily_trend() == 1: log.info("SKIP SELL XAUUSD — daily trend bullish"); return
         entry = round(price, 2); sl = round(entry + ATR_SL_MULT * atr_val, 2); tp = round(entry - ATR_TP_MULT * atr_val, 2)
@@ -189,7 +191,9 @@ def check_signal():
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross confirmed\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
-        record_signal("SELL", entry, sl, tp); queue_trade("XAUUSD", "SELL", sl, tp, source="XAUUSD_1H")
+        record_signal("SELL", entry, sl, tp)
+        if not is_dry_run_mode():
+            queue_trade("XAUUSD", "SELL", sl, tp, source="XAUUSD_1H")
 
 def main():
     global TELEGRAM_TOKEN, CHAT_ID

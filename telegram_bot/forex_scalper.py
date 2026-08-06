@@ -22,7 +22,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from telegram_config import validate_telegram_config
+from telegram_config import validate_telegram_config, is_dry_run_mode
 
 try:
     from mac_trade_writer import queue_trade          # Mac: direct MT5 file write
@@ -215,7 +215,9 @@ def check_symbol(name):
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {pfx}{atr_val:.{dec}f}\n📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 15min\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
-        record_signal(name, "BUY", entry, sl, tp); queue_trade(name, "BUY", sl, tp, source=f"{name}_15m")
+        record_signal(name, "BUY", entry, sl, tp)
+        if not is_dry_run_mode():
+            queue_trade(name, "BUY", sl, tp, source=f"{name}_15m")
         _last_signal[name] = now_ts
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if get_1h_trend(name) == 1: log.info("SKIP SELL %s — 1H trend bullish", name); return
@@ -228,7 +230,9 @@ def check_symbol(name):
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {pfx}{atr_val:.{dec}f}\n📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 15min\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
-        record_signal(name, "SELL", entry, sl, tp); queue_trade(name, "SELL", sl, tp, source=f"{name}_15m")
+        record_signal(name, "SELL", entry, sl, tp)
+        if not is_dry_run_mode():
+            queue_trade(name, "SELL", sl, tp, source=f"{name}_15m")
         _last_signal[name] = now_ts
 
 def main():
