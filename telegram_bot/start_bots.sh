@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# start_bots.sh — Launch all 9 trading signal bots + MT5 auto-trader (runs 24/7)
+# start_bots.sh — Launch trading signal bots independently (skip already-running)
+# NEW: Checks each bot independently. Does NOT abort if one bot is running.
 
 cd "$(dirname "$0")"
 set -a; source .env; set +a
@@ -9,58 +10,98 @@ mkdir -p logs
 PYTHON="${BOTENV_PYTHON:-/root/botenv/bin/python3}"
 [ -x "$PYTHON" ] || PYTHON=python3
 
-CHAT_ID="${SIGNAL_CHAT_ID:-1994067941}"
-
-# Start MT5 bridge first (Xvfb + MT5 terminal + wine_server.py)
-bash start_mt5_bridge.sh
-
-# Create named symlinks so watchdog can identify each process uniquely
-ln -sf signal_bot.py eurusd_bot.py
-ln -sf signal_bot.py gbpusd_bot.py
-ln -sf signal_bot.py usdjpy_bot.py
-
 echo "==========================================="
-echo "  Starting All Trading Signal Bots"
+echo "  Independent Bot Launcher"
+echo "  (Skips already-running bots)"
 echo "==========================================="
+echo ""
 
-SIGNAL_SYMBOL="EURUSD=X" SIGNAL_NAME="EURUSD" \
-SIGNAL_TOKEN="$ELITE_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-$PYTHON eurusd_bot.py >> logs/eurusd.log 2>&1 &
-echo "  [1] EURUSD    started  (PID $!)"
+# Tracking arrays
+declare -a STARTED
+declare -a SKIPPED
+declare -a FAILED
 
-SIGNAL_SYMBOL="GBPUSD=X" SIGNAL_NAME="GBPUSD" \
-SIGNAL_TOKEN="$STOCX_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-$PYTHON gbpusd_bot.py >> logs/gbpusd.log 2>&1 &
-echo "  [2] GBPUSD    started  (PID $!)"
+# Function to check if a bot is already running
+is_running() {
+  local bot_name=$1
+  pgrep -f "$bot_name" > /dev/null 2>&1
+  return $?
+}
 
-SIGNAL_SYMBOL="USDJPY=X" SIGNAL_NAME="USDJPY" \
-SIGNAL_TOKEN="$STOCX_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-$PYTHON usdjpy_bot.py >> logs/usdjpy.log 2>&1 &
-echo "  [3] USDJPY    started  (PID $!)"
+# Function to start a bot safely
+start_bot() {
+  local python_path=$1
+  local bot_file=$2
+  local log_file=$3
+  local display_name=$4
 
-$PYTHON gold_bot.py >> logs/gold.log 2>&1 &
-echo "  [4] XAUUSD    started  (PID $!)"
+  if is_running "$bot_file"; then
+    echo "SKIP: $display_name ($bot_file) already running"
+    SKIPPED+=("$display_name")
+    return 0
+  fi
 
-$PYTHON nifty_scalper.py >> logs/nifty.log 2>&1 &
-echo "  [5] Nifty     started  (PID $!)"
+  # Start the bot
+  $python_path "$bot_file" >> "$log_file" 2>&1 &
+  local pid=$!
 
-$PYTHON scanner_bot.py >> logs/scanner.log 2>&1 &
-echo "  [6] Scanner   started  (PID $!)"
+  if [ $? -eq 0 ]; then
+    echo "START: $display_name (PID $pid)"
+    STARTED+=("$display_name")
+  else
+    echo "FAIL: $display_name could not start"
+    FAILED+=("$display_name")
+  fi
+}
 
-$PYTHON forex_scalper.py >> logs/scalper.log 2>&1 &
-echo "  [7] Scalper   started  (PID $!)"
+echo "Checking and starting 6 dedicated signal bots..."
+echo ""
 
-$PYTHON token_updater_bot.py >> logs/token_updater.log 2>&1 &
-echo "  [8] TokenBot  started  (PID $!)"
-
-$PYTHON btc_bot.py >> logs/btc.log 2>&1 &
-echo "  [9] BTCUSD    started  (PID $!)"
-
-$PYTHON trader.py >> logs/trader.log 2>&1 &
-echo " [10] MT5Trader started  (PID $!)"
+# Start each bot independently (do NOT preserve scanner_bot or india_scalper)
+start_bot "$PYTHON" "btc_bot.py" "logs/btc.log" "BTC Bot"
+start_bot "$PYTHON" "gold_bot.py" "logs/gold.log" "GOLD Bot"
+start_bot "$PYTHON" "signal_bot.py" "logs/signal.log" "SIGNAL Bot"
+start_bot "$PYTHON" "forex_scalper.py" "logs/forex.log" "FOREX Scalper"
+start_bot "$PYTHON" "nifty_scalper.py" "logs/nifty.log" "NIFTY Scalper"
+start_bot "$PYTHON" "options_scalper.py" "logs/options.log" "OPTIONS Scalper"
 
 echo ""
-echo "All 10 processes running 24/7. Watchdog checks every 5 minutes."
-echo "Send /upstox <token> to Elite bot to refresh Upstox token."
-echo "Set META_API_TOKEN in .env to activate MT5 auto-trading."
+echo "==========================================="
+echo "  Summary"
+echo "==========================================="
+
+if [ ${#STARTED[@]} -gt 0 ]; then
+  echo "STARTED:"
+  for bot in "${STARTED[@]}"; do
+    echo "  - $bot"
+  done
+else
+  echo "STARTED: (none)"
+fi
+
+echo ""
+
+if [ ${#SKIPPED[@]} -gt 0 ]; then
+  echo "SKIPPED:"
+  for bot in "${SKIPPED[@]}"; do
+    echo "  - $bot"
+  done
+else
+  echo "SKIPPED: (none)"
+fi
+
+echo ""
+
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo "FAILED:"
+  for bot in "${FAILED[@]}"; do
+    echo "  - $bot"
+  done
+  echo ""
+  echo "⚠️  Review logs/ directory for error details"
+else
+  echo "FAILED: (none)"
+fi
+
+echo ""
 echo "==========================================="
