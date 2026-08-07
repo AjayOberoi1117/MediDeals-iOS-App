@@ -1,0 +1,52 @@
+[Unit]
+Description=MediDeals MT5 Wine Bridge (Vantage DEMO)
+Documentation=file:///home/medideals/DIGITALOCEAN_DEPLOYMENT.md
+After=network-online.target
+Wants=network-online.target
+PartOf=medideals-bots.target
+
+[Service]
+Type=simple
+User=medideals
+Group=medideals
+WorkingDirectory=/home/medideals/MediDeals-iOS-App/telegram_bot
+
+# Load environment variables from secure config file
+EnvironmentFile=/etc/medideals/telegram.env
+
+# Wine prefix for MT5
+Environment="WINEPREFIX=/home/medideals/.wine_mt5"
+Environment="WINEARCH=win64"
+Environment="DISPLAY=:99"
+Environment="WINEDEBUG=-all"
+
+# Start Xvfb virtual display if not running (dependency)
+ExecStartPre=/usr/bin/bash -c 'pgrep -x Xvfb > /dev/null || Xvfb :99 -screen 0 1024x768x24 &'
+ExecStartPre=/bin/sleep 2
+
+# Start Wine bridge server
+ExecStart=/usr/bin/bash -c 'wine python wine_server.py'
+
+# Restart on failure with exponential backoff
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=3
+
+# Process management
+KillMode=process
+SendSigKill=yes
+SyslogIdentifier=medideals-mt5-bridge
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/medideals/.wine_mt5 /var/log/medideals /tmp
+
+# Resource limits
+MemoryMax=1G
+CPUQuota=50%
+
+[Install]
+WantedBy=medideals-bots.target

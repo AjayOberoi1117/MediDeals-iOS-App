@@ -1,0 +1,13 @@
+[Unit]
+Description=MediDeals Trading Bots Suite
+Documentation=file:///home/medideals/DIGITALOCEAN_DEPLOYMENT.md
+Wants=medideals-mt5-bridge.service
+Wants=medideals-gold-bot.service
+Wants=medideals-forex-scalper.service
+Wants=medideals-btc-bot.service
+Wants=medideals-nifty-scalper.service
+Wants=medideals-options-scalper.service
+Wants=medideals-india-scalper.service
+
+[Install]
+WantedBy=multi-user.target
