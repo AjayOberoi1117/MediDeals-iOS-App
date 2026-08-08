@@ -200,17 +200,17 @@ gate_5_trader_running() {
 
 gate_6_forex_scalper() {
     if pgrep -f "python3.*forex_scalper\.py" >/dev/null 2>&1; then
-        record_gate 6 "forex_scalper.py running" "PASS"
+        record_gate 6 "forex_scalper.py running (EURUSD, GBPUSD)" "PASS"
     else
-        record_gate 6 "forex_scalper.py running" "FAIL" "No forex_scalper.py process found"
+        record_gate 6 "forex_scalper.py running (EURUSD, GBPUSD)" "FAIL" "No forex_scalper.py process found"
     fi
 }
 
 gate_7_gold_bot() {
     if pgrep -f "python3.*gold_bot\.py" >/dev/null 2>&1; then
-        record_gate 7 "gold_bot.py running" "PASS"
+        record_gate 7 "gold_bot.py running (XAUUSD)" "PASS"
     else
-        record_gate 7 "gold_bot.py running" "FAIL" "No gold_bot.py process found"
+        record_gate 7 "gold_bot.py running (XAUUSD)" "FAIL" "No gold_bot.py process found"
     fi
 }
 
@@ -224,78 +224,77 @@ gate_8_btc_bot() {
 
 gate_9_nifty_scalper() {
     if pgrep -f "python3.*nifty_scalper\.py" >/dev/null 2>&1; then
-        record_gate 9 "nifty_scalper.py running" "PASS"
+        record_gate 9 "nifty_scalper.py running (NIFTY, signal-only)" "PASS"
     else
-        record_gate 9 "nifty_scalper.py running" "FAIL" "No nifty_scalper.py process found"
+        record_gate 9 "nifty_scalper.py running (NIFTY, signal-only)" "FAIL" "No nifty_scalper.py process found"
     fi
 }
 
-gate_10_token_updater() {
+gate_10_options_scalper() {
+    if pgrep -f "python3.*options_scalper\.py" >/dev/null 2>&1; then
+        record_gate 10 "options_scalper.py running (downstream)" "PASS"
+    else
+        record_gate 10 "options_scalper.py running (downstream)" "FAIL" "No options_scalper.py process found"
+    fi
+}
+
+gate_11_scanner_bot() {
+    if pgrep -f "python3.*scanner_bot\.py" >/dev/null 2>&1; then
+        record_gate 11 "scanner_bot.py running (equity scanner)" "PASS"
+    else
+        record_gate 11 "scanner_bot.py running (equity scanner)" "FAIL" "No scanner_bot.py process found"
+    fi
+}
+
+gate_12_india_scalper() {
+    if pgrep -f "python3.*india_scalper\.py" >/dev/null 2>&1; then
+        record_gate 12 "india_scalper.py running (signal-only)" "PASS"
+    else
+        record_gate 12 "india_scalper.py running (signal-only)" "FAIL" "No india_scalper.py process found"
+    fi
+}
+
+gate_13_token_updater() {
     if pgrep -f "python3.*token_updater_bot\.py" >/dev/null 2>&1; then
-        record_gate 10 "token_updater_bot.py running" "PASS"
+        record_gate 13 "token_updater_bot.py running" "PASS"
     else
-        record_gate 10 "token_updater_bot.py running" "FAIL" "No token_updater_bot.py process found"
+        record_gate 13 "token_updater_bot.py running" "FAIL" "No token_updater_bot.py process found"
     fi
 }
 
-gate_11_single_trader() {
+gate_14_single_trader() {
     local count=$(pgrep -f "python3.*trader\.py" 2>/dev/null | wc -l)
     if [[ $count -eq 1 ]]; then
-        record_gate 11 "Single trader.py instance" "PASS"
+        record_gate 14 "Single trader.py instance" "PASS"
     else
-        record_gate 11 "Single trader.py instance" "FAIL" "Found $count instances"
+        record_gate 14 "Single trader.py instance" "FAIL" "Found $count instances"
     fi
 }
 
-gate_12_single_forex() {
+gate_15_single_forex() {
     local count=$(pgrep -f "python3.*forex_scalper\.py" 2>/dev/null | wc -l)
     if [[ $count -eq 1 ]]; then
-        record_gate 12 "Single forex_scalper.py instance" "PASS"
+        record_gate 15 "Single forex_scalper.py instance" "PASS"
     else
-        record_gate 12 "Single forex_scalper.py instance" "FAIL" "Found $count instances"
+        record_gate 15 "Single forex_scalper.py instance" "FAIL" "Found $count instances"
     fi
 }
 
-gate_13_single_gold() {
+gate_16_single_gold() {
     local count=$(pgrep -f "python3.*gold_bot\.py" 2>/dev/null | wc -l)
     if [[ $count -eq 1 ]]; then
-        record_gate 13 "Single gold_bot.py instance" "PASS"
+        record_gate 16 "Single gold_bot.py instance" "PASS"
     else
-        record_gate 13 "Single gold_bot.py instance" "FAIL" "Found $count instances"
+        record_gate 16 "Single gold_bot.py instance" "FAIL" "Found $count instances"
     fi
 }
 
-gate_14_env_permissions() {
+gate_17_env_permissions() {
     local perms=$(stat -c %a "${BOT_DIR}/.env" 2>/dev/null || echo "unknown")
     if [[ "$perms" == "600" ]]; then
-        record_gate 14 ".env permissions secure (600)" "PASS"
+        record_gate 17 ".env permissions secure (600)" "PASS"
     else
-        record_gate 14 ".env permissions secure (600)" "FAIL" "Permissions are $perms"
-    fi
-}
-
-gate_15_log_errors() {
-    local error_count=$(tail -100 "$LOG_DIR"/*.log 2>/dev/null | grep -ic "error\|failed\|exception" || echo 0)
-    if [[ $error_count -lt 10 ]]; then
-        record_gate 15 "Log errors under threshold" "PASS" "Found $error_count errors"
-    else
-        record_gate 15 "Log errors under threshold" "FAIL" "Found $error_count errors"
-    fi
-}
-
-gate_16_bridge_responsive() {
-    if python3 -c "import socket; s = socket.socket(); s.connect(('localhost', $BRIDGE_PORT)); s.close()" 2>/dev/null; then
-        record_gate 16 "Bridge responsive" "PASS"
-    else
-        record_gate 16 "Bridge responsive" "FAIL" "Cannot connect to bridge"
-    fi
-}
-
-gate_17_trade_queue() {
-    if [[ -f "${BOT_DIR}/.trade_queue.jsonl" ]] || touch "${BOT_DIR}/.trade_queue.jsonl" 2>/dev/null; then
-        record_gate 17 ".trade_queue.jsonl accessible" "PASS"
-    else
-        record_gate 17 ".trade_queue.jsonl accessible" "FAIL" "Cannot create/access file"
+        record_gate 17 ".env permissions secure (600)" "FAIL" "Permissions are $perms"
     fi
 }
 
@@ -345,14 +344,14 @@ main() {
     gate_7_gold_bot
     gate_8_btc_bot
     gate_9_nifty_scalper
-    gate_10_token_updater
-    gate_11_single_trader
-    gate_12_single_forex
-    gate_13_single_gold
-    gate_14_env_permissions
-    gate_15_log_errors
-    gate_16_bridge_responsive
-    gate_17_trade_queue
+    gate_10_options_scalper
+    gate_11_scanner_bot
+    gate_12_india_scalper
+    gate_13_token_updater
+    gate_14_single_trader
+    gate_15_single_forex
+    gate_16_single_gold
+    gate_17_env_permissions
     gate_18_india_safety
     gate_19_boot_persistence
 

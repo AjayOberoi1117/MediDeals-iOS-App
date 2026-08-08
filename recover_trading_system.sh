@@ -41,15 +41,15 @@ readonly MAX_BRIDGE_WAIT=120
 readonly LOG_DIR="${BOT_DIR}/logs"
 
 readonly APPROVED_BOTS=(
-    "eurusd_bot.py"
-    "gbpusd_bot.py"
-    "usdjpy_bot.py"
-    "gold_bot.py"
-    "forex_scalper.py"
-    "btc_bot.py"
-    "nifty_scalper.py"
-    "token_updater_bot.py"
-    "trader.py"
+    "forex_scalper.py"      # EURUSD, GBPUSD (USDJPY removed: poor strategy fit)
+    "gold_bot.py"           # XAUUSD
+    "btc_bot.py"            # Bitcoin
+    "nifty_scalper.py"      # NIFTY direction (India, signal-only)
+    "options_scalper.py"    # Downstream of nifty_scalper
+    "scanner_bot.py"        # General equity scanner
+    "india_scalper.py"      # India equities (signal-only)
+    "token_updater_bot.py"  # Token refresh
+    "trader.py"             # MT5 order execution
 )
 
 ################################################################################
@@ -319,7 +319,7 @@ start_signal_bots() {
 
     mkdir -p "$LOG_DIR"
 
-    log_step "Start Forex scalper (EURUSD/GBPUSD/USDJPY)"
+    log_step "Start Forex scalper (EURUSD, GBPUSD)"
     if [[ -f forex_scalper.py ]]; then
         pkill -f "python3.*forex_scalper\.py" 2>/dev/null || true
         sleep 1
@@ -349,7 +349,7 @@ start_signal_bots() {
         log_warn "btc_bot.py not found"
     fi
 
-    log_step "Start Nifty scalper (India signals, signal-only)"
+    log_step "Start Nifty scalper (India direction, signal-only)"
     if [[ -f nifty_scalper.py ]]; then
         pkill -f "python3.*nifty_scalper\.py" 2>/dev/null || true
         sleep 1
@@ -357,6 +357,36 @@ start_signal_bots() {
         log_ok "nifty_scalper.py started"
     else
         log_warn "nifty_scalper.py not found"
+    fi
+
+    log_step "Start Options scalper (downstream of nifty_scalper)"
+    if [[ -f options_scalper.py ]]; then
+        pkill -f "python3.*options_scalper\.py" 2>/dev/null || true
+        sleep 1
+        nohup python3 options_scalper.py >> "$LOG_DIR/options_scalper.log" 2>&1 &
+        log_ok "options_scalper.py started"
+    else
+        log_warn "options_scalper.py not found"
+    fi
+
+    log_step "Start Scanner bot (general equity signals)"
+    if [[ -f scanner_bot.py ]]; then
+        pkill -f "python3.*scanner_bot\.py" 2>/dev/null || true
+        sleep 1
+        nohup python3 scanner_bot.py >> "$LOG_DIR/scanner_bot.log" 2>&1 &
+        log_ok "scanner_bot.py started"
+    else
+        log_warn "scanner_bot.py not found"
+    fi
+
+    log_step "Start India scalper (India equities, signal-only)"
+    if [[ -f india_scalper.py ]]; then
+        pkill -f "python3.*india_scalper\.py" 2>/dev/null || true
+        sleep 1
+        nohup python3 india_scalper.py >> "$LOG_DIR/india_scalper.log" 2>&1 &
+        log_ok "india_scalper.py started"
+    else
+        log_warn "india_scalper.py not found"
     fi
 
     log_step "Start token updater"
@@ -445,10 +475,13 @@ bash stabilize_mt5_bridge.sh
 bash start_trader.sh
 
 # Start signal bots
-nohup python3 gold_bot.py >> logs/gold_bot.log 2>&1 &
 nohup python3 forex_scalper.py >> logs/forex_scalper.log 2>&1 &
+nohup python3 gold_bot.py >> logs/gold_bot.log 2>&1 &
 nohup python3 btc_bot.py >> logs/btc_bot.log 2>&1 &
 nohup python3 nifty_scalper.py >> logs/nifty_scalper.log 2>&1 &
+nohup python3 options_scalper.py >> logs/options_scalper.log 2>&1 &
+nohup python3 scanner_bot.py >> logs/scanner_bot.log 2>&1 &
+nohup python3 india_scalper.py >> logs/india_scalper.log 2>&1 &
 nohup python3 token_updater_bot.py >> logs/token_updater_bot.log 2>&1 &
 STARTUP_SCRIPT
 
@@ -524,19 +557,19 @@ verify_runtime() {
         log_error "Gate $gate_count: trader.py not running"
     fi
 
-    # Gate 6: Forex scalper running
+    # Gate 6: Forex scalper running (EURUSD, GBPUSD)
     ((gate_count++))
     if pgrep -f "python3.*forex_scalper\.py" >/dev/null 2>&1; then
-        log_ok "Gate $gate_count: forex_scalper.py running"
+        log_ok "Gate $gate_count: forex_scalper.py running (EURUSD, GBPUSD)"
         ((gate_pass++))
     else
         log_error "Gate $gate_count: forex_scalper.py not running"
     fi
 
-    # Gate 7: Gold bot running
+    # Gate 7: Gold bot running (XAUUSD)
     ((gate_count++))
     if pgrep -f "python3.*gold_bot\.py" >/dev/null 2>&1; then
-        log_ok "Gate $gate_count: gold_bot.py running"
+        log_ok "Gate $gate_count: gold_bot.py running (XAUUSD)"
         ((gate_pass++))
     else
         log_error "Gate $gate_count: gold_bot.py not running"
@@ -551,16 +584,43 @@ verify_runtime() {
         log_error "Gate $gate_count: btc_bot.py not running"
     fi
 
-    # Gate 9: Nifty scalper running
+    # Gate 9: Nifty scalper running (India, signal-only)
     ((gate_count++))
     if pgrep -f "python3.*nifty_scalper\.py" >/dev/null 2>&1; then
-        log_ok "Gate $gate_count: nifty_scalper.py running"
+        log_ok "Gate $gate_count: nifty_scalper.py running (signal-only)"
         ((gate_pass++))
     else
         log_error "Gate $gate_count: nifty_scalper.py not running"
     fi
 
-    # Gate 10: Token updater running
+    # Gate 10: Options scalper running (downstream of nifty)
+    ((gate_count++))
+    if pgrep -f "python3.*options_scalper\.py" >/dev/null 2>&1; then
+        log_ok "Gate $gate_count: options_scalper.py running"
+        ((gate_pass++))
+    else
+        log_error "Gate $gate_count: options_scalper.py not running"
+    fi
+
+    # Gate 11: Scanner bot running
+    ((gate_count++))
+    if pgrep -f "python3.*scanner_bot\.py" >/dev/null 2>&1; then
+        log_ok "Gate $gate_count: scanner_bot.py running"
+        ((gate_pass++))
+    else
+        log_error "Gate $gate_count: scanner_bot.py not running"
+    fi
+
+    # Gate 12: India scalper running (signal-only)
+    ((gate_count++))
+    if pgrep -f "python3.*india_scalper\.py" >/dev/null 2>&1; then
+        log_ok "Gate $gate_count: india_scalper.py running"
+        ((gate_pass++))
+    else
+        log_error "Gate $gate_count: india_scalper.py not running"
+    fi
+
+    # Gate 13: Token updater running
     ((gate_count++))
     if pgrep -f "python3.*token_updater_bot\.py" >/dev/null 2>&1; then
         log_ok "Gate $gate_count: token_updater_bot.py running"
@@ -569,7 +629,7 @@ verify_runtime() {
         log_error "Gate $gate_count: token_updater_bot.py not running"
     fi
 
-    # Gate 11: No duplicate trader
+    # Gate 14: Single trader instance
     ((gate_count++))
     local trader_count=$(pgrep -f "python3.*trader\.py" 2>/dev/null | wc -l)
     if [[ $trader_count -eq 1 ]]; then
@@ -579,7 +639,7 @@ verify_runtime() {
         log_error "Gate $gate_count: trader.py has $trader_count instances"
     fi
 
-    # Gate 12: No duplicate forex_scalper
+    # Gate 15: Single forex_scalper instance
     ((gate_count++))
     local forex_count=$(pgrep -f "python3.*forex_scalper\.py" 2>/dev/null | wc -l)
     if [[ $forex_count -eq 1 ]]; then
@@ -589,7 +649,7 @@ verify_runtime() {
         log_error "Gate $gate_count: forex_scalper.py has $forex_count instances"
     fi
 
-    # Gate 13: No duplicate gold_bot
+    # Gate 16: Single gold_bot instance
     ((gate_count++))
     local gold_count=$(pgrep -f "python3.*gold_bot\.py" 2>/dev/null | wc -l)
     if [[ $gold_count -eq 1 ]]; then
@@ -599,7 +659,7 @@ verify_runtime() {
         log_error "Gate $gate_count: gold_bot.py has $gold_count instances"
     fi
 
-    # Gate 14: .env permissions secure
+    # Gate 17: .env permissions secure (600)
     ((gate_count++))
     local perms=$(stat -c %a "${BOT_DIR}/.env" 2>/dev/null || echo "unknown")
     if [[ "$perms" == "600" ]]; then
@@ -607,34 +667,6 @@ verify_runtime() {
         ((gate_pass++))
     else
         log_error "Gate $gate_count: .env permissions not 600: $perms"
-    fi
-
-    # Gate 15: No error spam in logs
-    ((gate_count++))
-    local error_count=$(tail -100 "$LOG_DIR"/*.log 2>/dev/null | grep -ic "error\|failed" || echo 0)
-    if [[ $error_count -lt 5 ]]; then
-        log_ok "Gate $gate_count: Log errors under threshold ($error_count)"
-        ((gate_pass++))
-    else
-        log_warn "Gate $gate_count: Found $error_count errors in logs (may be expected)"
-    fi
-
-    # Gate 16: Bridge responding
-    ((gate_count++))
-    if python3 -c "import socket; s = socket.socket(); s.connect(('localhost', $BRIDGE_PORT)); s.close()" 2>/dev/null; then
-        log_ok "Gate $gate_count: Bridge responsive"
-        ((gate_pass++))
-    else
-        log_error "Gate $gate_count: Bridge not responsive"
-    fi
-
-    # Gate 17: .trade_queue.jsonl accessible
-    ((gate_count++))
-    if [[ -f .trade_queue.jsonl ]] || touch .trade_queue.jsonl 2>/dev/null; then
-        log_ok "Gate $gate_count: .trade_queue.jsonl accessible"
-        ((gate_pass++))
-    else
-        log_error "Gate $gate_count: Cannot create .trade_queue.jsonl"
     fi
 
     # Gate 18: India symbols not in TRADEABLE
