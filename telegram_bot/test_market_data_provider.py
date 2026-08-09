@@ -368,11 +368,12 @@ class TestTimezoneAwareness(unittest.TestCase):
 
     def test_twelve_data_utc_parsing(self):
         """Test that Twelve Data timestamps are parsed as UTC-aware."""
+        current_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         mock_response = {
             "status": "ok",
             "values": [
                 {
-                    "datetime": "2026-08-09 06:55:00",  # UTC
+                    "datetime": current_utc,  # UTC
                     "open": "65000.00",
                     "high": "65100.00",
                     "low": "64900.00",
@@ -553,11 +554,12 @@ class TestTimezoneAwareness(unittest.TestCase):
 
     def test_ohlc_data_preserved_during_tz_conversion(self):
         """Test that OHLC values are not altered during timezone conversion."""
+        current_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         mock_response = {
             "status": "ok",
             "values": [
                 {
-                    "datetime": "2026-08-09 06:55:00",
+                    "datetime": current_utc,
                     "open": "65000.50",
                     "high": "65100.75",
                     "low": "64899.25",
