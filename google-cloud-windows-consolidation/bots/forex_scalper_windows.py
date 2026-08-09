@@ -1,0 +1,347 @@
+"""
+Forex 15-Minute Scalper Bot (Windows Native)
+Strategy : EMA(9/21) crossover + RSI(14) + ADX(14) on 15-minute bars
+Symbols  : EURUSD, GBPUSD
+Data     : Twelve Data (primary) + yfinance (fallback)
+Signals  : Entry, SL, TP (ATR-based 1:3 RR) via Telegram
+Report   : Daily summary at 10:00 PM IST
+
+Windows Consolidation Version
+- All paths use C:\TradingBots\
+- No Linux/bash dependencies
+- Logs to C:\TradingBots\logs\forex_scalper.log
+- State files in C:\TradingBots\state\
+"""
+
+import os
+import sys
+import time
+import socket
+import logging
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import requests
+from dotenv import load_dotenv
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from market_data.market_data_provider_windows import fetch_ohlc
+from config.telegram_config_windows import validate_telegram_config, order_execution_enabled
+
+try:
+    from config.trade_executor_windows import queue_trade
+except ImportError:
+    def queue_trade(*args, **kwargs): pass
+
+# Windows-specific paths
+TRADING_BOTS_ROOT = Path("C:\\TradingBots")
+LOGS_DIR = TRADING_BOTS_ROOT / "logs"
+STATE_DIR = TRADING_BOTS_ROOT / "state"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Configure logging
+log_file = LOGS_DIR / "forex_scalper.log"
+logging.basicConfig(
+    format="%(asctime)s | SCALPER  | %(levelname)s | %(message)s",
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler(log_file, encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+log = logging.getLogger(__name__)
+
+load_dotenv()
+socket.setdefaulttimeout(30)
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
+FAST_EMA       = 9
+SLOW_EMA       = 21
+RSI_PERIOD     = 14
+RSI_BUY_MAX    = 60
+RSI_SELL_MIN   = 40
+ATR_PERIOD     = 14
+ATR_SL_MULT    = 1.5
+ATR_TP_MULT    = 3.0
+ADX_PERIOD     = 14
+ADX_MIN        = 20
+COOLDOWN_SECS  = 1800
+SCAN_INTERVAL  = 60
+CACHE_TTL      = 240
+
+SYMBOLS = {
+    "EURUSD": "EURUSD=X",
+    "GBPUSD": "GBPUSD=X",
+}
+
+_last_signal      = {}
+_seen_bars        = {}
+_daily_signals    = []
+_report_sent_date = None
+_cache            = {}
+
+SEEN_FILE = STATE_DIR / ".seen_scalper"
+
+def _load_seen():
+    """Load previously seen bars per symbol."""
+    try:
+        if SEEN_FILE.exists():
+            with open(SEEN_FILE, encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split("|")
+                    if len(parts) == 2:
+                        name, bar = parts
+                        _seen_bars.setdefault(name, set()).add(bar)
+    except Exception as e:
+        log.warning("Error loading seen bars: %s", e)
+
+def _save_seen(name, bar_ts):
+    """Append seen bar to file."""
+    try:
+        with open(SEEN_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{name}|{bar_ts}\n")
+    except Exception as e:
+        log.warning("Error saving seen bar: %s", e)
+
+def tg_send(text):
+    """Send Telegram notification."""
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    try:
+        r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
+        if not r.json().get("ok"):
+            log.warning("Telegram failed: %s", r.text[:120])
+    except Exception as exc:
+        log.warning("Telegram error: %s", exc)
+
+def record_signal(name, direction, price, sl, tp):
+    """Record signal for daily report."""
+    _daily_signals.append({
+        "name": name,
+        "direction": direction,
+        "price": price,
+        "sl": sl,
+        "tp": tp,
+        "time": datetime.now().strftime("%I:%M %p")
+    })
+
+def send_daily_report():
+    """Send daily trading summary report."""
+    today = datetime.now().strftime("%d %b %Y")
+    n = len(_daily_signals)
+    lines = [
+        f"[FOREX SCALPER] 📊 <b>Daily Scalper Report — {today}</b>",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        f"<b>Forex Scalper</b>  |  Signals Today: <b>{n}</b>",
+        ""
+    ]
+    if n == 0:
+        lines.append("No signals were generated today.")
+    else:
+        for i, s in enumerate(_daily_signals, 1):
+            em = "🟢" if s["direction"] == "BUY" else "🔴"
+            rr = round(abs(s["tp"] - s["price"]) / max(abs(s["sl"] - s["price"]), 0.00001), 1)
+            lines.append(f"{i}. {em} <b>{s['name']}</b> {s['direction']}  @  {s['time']}\n"
+                        f"   Entry {s['price']:.5f}  •  SL {s['sl']:.5f}  •  TP {s['tp']:.5f}  •  RR 1:{rr}")
+    lines += ["", "━━━━━━━━━━━━━━━━━━━━━━", "📌 <i>Check your broker for actual P&L</i>"]
+    tg_send("\n".join(lines))
+    log.info("Daily report sent — %d signals", n)
+
+def maybe_send_daily_report():
+    """Send daily report at 10:00 PM IST, reset at midnight."""
+    global _report_sent_date, _daily_signals
+    now = datetime.now()
+    today = now.date()
+    if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
+        _report_sent_date = today
+        send_daily_report()
+    if now.hour == 0 and now.minute < 2 and _daily_signals:
+        _daily_signals.clear()
+
+def calc_rsi(close, period):
+    """Calculate RSI indicator."""
+    delta = close.diff()
+    ag = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    al = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    return 100 - 100 / (1 + ag / al)
+
+def calc_atr(high, low, close, period):
+    """Calculate ATR indicator."""
+    pc = close.shift(1)
+    tr = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
+    return tr.ewm(span=period, adjust=False).mean()
+
+def calc_adx(high, low, close, period):
+    """Calculate ADX indicator for trend strength."""
+    up_move   = high.diff()
+    down_move = -low.diff()
+    plus_dm   = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm  = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    pc  = close.shift(1)
+    tr  = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    plus_di  = 100 * (plus_dm.ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr)
+    minus_di = 100 * (minus_dm.ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+    return dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+
+def fetch_data(name):
+    """Fetch 15M OHLC data with caching."""
+    ticker = SYMBOLS[name]
+    cache_key = f"{ticker}_15m"
+    now = time.time()
+    cached = _cache.get(cache_key)
+    if cached and now - cached[0] < CACHE_TTL:
+        return cached[1]
+    df = fetch_ohlc(ticker, "5d", "15m")
+    if df is None or len(df) < SLOW_EMA + 5:
+        return None
+    _cache[cache_key] = (now, df)
+    return df
+
+def get_1h_trend(name):
+    """Get 1H trend for confirmation filter."""
+    ticker = SYMBOLS[name]
+    cache_key = f"{ticker}_1h_trend"
+    now = time.time()
+    cached = _cache.get(cache_key)
+    if cached and now - cached[0] < 3600:
+        return cached[1]
+    df = fetch_ohlc(ticker, "30d", "1h")
+    if df is None or len(df) < 52:
+        return 0
+    close = df["Close"].squeeze()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    trend = 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
+    _cache[cache_key] = (now, trend)
+    return trend
+
+def check_symbol(name):
+    """Check for BUY/SELL signals on a symbol."""
+    df = fetch_data(name)
+    if df is None:
+        return
+    now_ts = time.time()
+    if now_ts - _last_signal.get(name, 0) < COOLDOWN_SECS:
+        return
+
+    close = df["Close"].squeeze()
+    high = df["High"].squeeze()
+    low = df["Low"].squeeze()
+    if isinstance(close, pd.DataFrame):
+        close = close.iloc[:, 0]
+    if isinstance(high, pd.DataFrame):
+        high = high.iloc[:, 0]
+    if isinstance(low, pd.DataFrame):
+        low = low.iloc[:, 0]
+
+    fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
+    slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
+    rsi = calc_rsi(close, RSI_PERIOD)
+    atr = calc_atr(high, low, close, ATR_PERIOD)
+    adx = calc_adx(high, low, close, ADX_PERIOD)
+
+    i = -2
+    bar_ts = str(df.index[i])
+    if bar_ts in _seen_bars.get(name, set()):
+        return
+
+    bull_cross = (fast_ema.iloc[i-1] > slow_ema.iloc[i-1]) and \
+                 (fast_ema.iloc[i-2] <= slow_ema.iloc[i-2]) and \
+                 (fast_ema.iloc[i] > slow_ema.iloc[i])
+    bear_cross = (fast_ema.iloc[i-1] < slow_ema.iloc[i-1]) and \
+                 (fast_ema.iloc[i-2] >= slow_ema.iloc[i-2]) and \
+                 (fast_ema.iloc[i] < slow_ema.iloc[i])
+
+    rsi_val = float(rsi.iloc[i])
+    price = float(close.iloc[i])
+    atr_val = float(atr.iloc[i])
+    adx_val = float(adx.iloc[i])
+
+    atr_min = {"EURUSD": 0.00100, "GBPUSD": 0.00120}
+    atr_val = max(atr_val, atr_min.get(name, atr_val))
+
+    _seen_bars.setdefault(name, set()).add(bar_ts)
+    _save_seen(name, bar_ts)
+
+    if (bull_cross or bear_cross) and adx_val < ADX_MIN:
+        log.info("SKIP %s — ADX %.1f < %d, market too choppy", name, adx_val, ADX_MIN)
+        return
+
+    rr = round(ATR_TP_MULT / ATR_SL_MULT, 1)
+
+    if bull_cross and rsi_val < RSI_BUY_MAX:
+        if get_1h_trend(name) == -1:
+            log.info("SKIP BUY %s — 1H trend bearish", name)
+            return
+        entry = round(price, 5)
+        sl = round(entry - ATR_SL_MULT * atr_val, 5)
+        tp = round(entry + ATR_TP_MULT * atr_val, 5)
+        log.info("BUY %s  entry=%.5f  sl=%.5f  tp=%.5f", name, entry, sl, tp)
+        tg_send(f"[FOREX SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> <code>{entry:.5f}</code>\n"
+                f"🛑 <b>Stop Loss :</b> <code>{sl:.5f}</code>\n🎯 <b>Target    :</b> <code>{tp:.5f}</code>\n\n"
+                f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {atr_val:.5f}\n📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
+                f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 15min\n"
+                f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+        record_signal(name, "BUY", entry, sl, tp)
+        if order_execution_enabled():
+            queue_trade(name, "BUY", sl, tp, source=f"{name}_15m")
+        _last_signal[name] = now_ts
+
+    elif bear_cross and rsi_val > RSI_SELL_MIN:
+        if get_1h_trend(name) == 1:
+            log.info("SKIP SELL %s — 1H trend bullish", name)
+            return
+        entry = round(price, 5)
+        sl = round(entry + ATR_SL_MULT * atr_val, 5)
+        tp = round(entry - ATR_TP_MULT * atr_val, 5)
+        log.info("SELL %s  entry=%.5f  sl=%.5f  tp=%.5f", name, entry, sl, tp)
+        tg_send(f"[FOREX SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> <code>{entry:.5f}</code>\n"
+                f"🛑 <b>Stop Loss :</b> <code>{sl:.5f}</code>\n🎯 <b>Target    :</b> <code>{tp:.5f}</code>\n\n"
+                f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {atr_val:.5f}\n📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
+                f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 15min\n"
+                f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+        record_signal(name, "SELL", entry, sl, tp)
+        if order_execution_enabled():
+            queue_trade(name, "SELL", sl, tp, source=f"{name}_15m")
+        _last_signal[name] = now_ts
+
+def main():
+    """Main bot loop."""
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
+    _load_seen()
+    log.info("Forex Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
+            len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)
+    tg_send(f"[FOREX SCALPER] ⚡ <b>Online</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+            f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
+            f"💱 EURUSD  •  GBPUSD\n"
+            f"⚖️ SL = 1.5x ATR  |  TP = 3x ATR\n🕙 Daily report at 10:00 PM IST")
+    while True:
+        try:
+            maybe_send_daily_report()
+            if datetime.now().weekday() >= 5:
+                log.debug("Weekend — forex market closed, skipping scan")
+            else:
+                for name in SYMBOLS:
+                    try:
+                        check_symbol(name)
+                    except Exception as exc:
+                        log.debug("Error on %s: %s", name, exc)
+                    time.sleep(3)
+        except Exception as exc:
+            log.error("Unexpected error: %s", exc)
+        time.sleep(SCAN_INTERVAL)
+
+if __name__ == "__main__":
+    main()
