@@ -13,10 +13,10 @@ import logging
 from datetime import datetime
 
 import pandas as pd
-import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from telegram_config import validate_telegram_config, order_execution_enabled
+from market_data_provider import fetch_ohlc
 
 try:
     from trade_executor import queue_trade
@@ -104,24 +104,13 @@ def calc_atr(high, low, close, period):
     tr = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
     return tr.ewm(span=period, adjust=False).mean()
 
-def _yf_download(ticker, period, interval):
-    for attempt in range(3):
-        try:
-            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
-            if df is not None and not df.empty: return df
-        except Exception as exc:
-            log.warning("yfinance attempt %d failed: %s", attempt + 1, exc)
-        if attempt < 2: time.sleep(5 * (2 ** attempt))
-    return None
-
 def fetch_ohlcv():
     now = time.time()
     cached = _cache.get("1h")
     if cached and now - cached[0] < CACHE_TTL: return cached[1]
-    df = _yf_download(SYMBOL, "60d", "1h")
+    df = fetch_ohlc(SYMBOL, "60d", "1h")
     if df is None or len(df) < SLOW_EMA + 10:
         log.warning("Not enough bars. Will retry."); return None
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
     _cache["1h"] = (now, df)
     log.info("Fetched %d 1H bars for BTC", len(df))
     return df
@@ -130,9 +119,8 @@ def get_daily_trend():
     now = time.time()
     cached = _cache.get("1d")
     if cached and now - cached[0] < 3600: return cached[1]
-    df = _yf_download(SYMBOL, "3mo", "1d")
+    df = fetch_ohlc(SYMBOL, "3mo", "1d")
     if df is None or len(df) < 22: return 0
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
     close = df["Close"].squeeze()
     ema20 = close.ewm(span=20, adjust=False).mean()
     trend = 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1

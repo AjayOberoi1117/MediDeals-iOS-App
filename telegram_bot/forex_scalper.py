@@ -19,10 +19,10 @@ import pytz
 IST = pytz.timezone("Asia/Kolkata")
 
 import pandas as pd
-import yfinance as yf
 import requests
 from dotenv import load_dotenv
 from telegram_config import validate_telegram_config, order_execution_enabled
+from market_data_provider import fetch_ohlc
 
 try:
     from mac_trade_writer import queue_trade          # Mac: direct MT5 file write
@@ -141,25 +141,14 @@ def calc_adx(high, low, close, period):
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
     return dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
 
-def _yf_download(ticker, period, interval):
-    for attempt in range(3):
-        try:
-            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
-            if df is not None and not df.empty: return df
-        except Exception as exc:
-            log.debug("yfinance attempt %d failed for %s: %s", attempt + 1, ticker, exc)
-        if attempt < 2: time.sleep(5 * (2 ** attempt))
-    return None
-
 def fetch_data(name):
     ticker = SYMBOLS[name]
     cache_key = f"{ticker}_15m"
     now = time.time()
     cached = _cache.get(cache_key)
     if cached and now - cached[0] < CACHE_TTL: return cached[1]
-    df = _yf_download(ticker, "5d", "15m")
+    df = fetch_ohlc(ticker, "5d", "15m")
     if df is None or len(df) < SLOW_EMA + 5: return None
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
     _cache[cache_key] = (now, df)
     return df
 
@@ -169,9 +158,8 @@ def get_1h_trend(name) -> int:
     now = time.time()
     cached = _cache.get(cache_key)
     if cached and now - cached[0] < 3600: return cached[1]
-    df = _yf_download(ticker, "30d", "1h")
+    df = fetch_ohlc(ticker, "30d", "1h")
     if df is None or len(df) < 52: return 0
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
     close = df["Close"].squeeze()
     ema50 = close.ewm(span=50, adjust=False).mean()
     trend = 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
