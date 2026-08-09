@@ -116,9 +116,9 @@ class TestMarketDataProvider(unittest.TestCase):
 
     def test_yfinance_fallback_success(self):
         """Test yfinance fallback when Twelve Data is unavailable."""
-        # Create mock DataFrame with recent dates
-        now = datetime.now()
-        dates = pd.date_range(now - timedelta(hours=5), periods=5, freq="1h")
+        # Create mock DataFrame with recent UTC-aware dates
+        now_utc = datetime.now(timezone.utc)
+        dates = pd.date_range(now_utc - timedelta(hours=5), periods=5, freq="1h", tz="UTC")
         mock_df = pd.DataFrame({
             "Open": [65000, 65100, 65200, 65300, 65400],
             "High": [65100, 65200, 65300, 65400, 65500],
@@ -139,8 +139,8 @@ class TestMarketDataProvider(unittest.TestCase):
 
     def test_yfinance_retry_on_failure(self):
         """Test yfinance retries on transient failure."""
-        now = datetime.now()
-        dates = pd.date_range(now - timedelta(hours=2), periods=2, freq="1h")
+        now_utc = datetime.now(timezone.utc)
+        dates = pd.date_range(now_utc - timedelta(hours=2), periods=2, freq="1h", tz="UTC")
         mock_df = pd.DataFrame({
             "Open": [65000, 65100],
             "High": [65100, 65200],
@@ -199,8 +199,8 @@ class TestMarketDataProvider(unittest.TestCase):
 
     def test_caching(self):
         """Test that data is cached correctly."""
-        now = datetime.now()
-        dates = pd.date_range(now - timedelta(hours=2), periods=2, freq="1h")
+        now_utc = datetime.now(timezone.utc)
+        dates = pd.date_range(now_utc - timedelta(hours=2), periods=2, freq="1h", tz="UTC")
         mock_df = pd.DataFrame({
             "Open": [65000, 65100],
             "High": [65100, 65200],
@@ -274,8 +274,8 @@ class TestMarketDataProvider(unittest.TestCase):
 
     def test_fallback_when_twelve_data_unavailable(self):
         """Test fallback to yfinance when Twelve Data is unavailable."""
-        now = datetime.now()
-        dates = pd.date_range(now - timedelta(hours=2), periods=2, freq="1h")
+        now_utc = datetime.now(timezone.utc)
+        dates = pd.date_range(now_utc - timedelta(hours=2), periods=2, freq="1h", tz="UTC")
         mock_yf_df = pd.DataFrame({
             "Open": [65000, 65100],
             "High": [65100, 65200],
@@ -344,8 +344,8 @@ class TestMarketDataProviderIntegration(unittest.TestCase):
 
     def test_fetch_ohlc_function(self):
         """Test the convenience function fetch_ohlc."""
-        now = datetime.now()
-        dates = pd.date_range(now - timedelta(hours=2), periods=2, freq="1h")
+        now_utc = datetime.now(timezone.utc)
+        dates = pd.date_range(now_utc - timedelta(hours=2), periods=2, freq="1h", tz="UTC")
         mock_df = pd.DataFrame({
             "Open": [65000, 65100],
             "High": [65100, 65200],
