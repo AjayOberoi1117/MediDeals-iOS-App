@@ -23,7 +23,10 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+import pytz
 from dotenv import load_dotenv
+
+IST = pytz.timezone("Asia/Kolkata")
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -133,7 +136,7 @@ def record_signal(name, direction, price, sl, tp):
 
 def send_daily_report():
     """Send daily trading summary report."""
-    today = datetime.now().strftime("%d %b %Y")
+    today = datetime.now(IST).strftime("%d %b %Y")
     n = len(_daily_signals)
     lines = [
         f"[FOREX SCALPER] 📊 <b>Daily Scalper Report — {today}</b>",
@@ -156,7 +159,7 @@ def send_daily_report():
 def maybe_send_daily_report():
     """Send daily report at 10:00 PM IST, reset at midnight."""
     global _report_sent_date, _daily_signals
-    now = datetime.now()
+    now = datetime.now(IST)
     today = now.date()
     if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
         _report_sent_date = today
@@ -330,7 +333,7 @@ def main():
     while True:
         try:
             maybe_send_daily_report()
-            if datetime.now().weekday() >= 5:
+            if datetime.now(IST).weekday() >= 5:
                 log.debug("Weekend — forex market closed, skipping scan")
             else:
                 for name in SYMBOLS:
