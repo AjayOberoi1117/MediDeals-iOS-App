@@ -10,7 +10,7 @@ import time
 import json
 import unittest
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import requests
@@ -39,21 +39,24 @@ class TestMarketDataProvider(unittest.TestCase):
         self.assertEqual(self.provider.INTERVAL_MAP["1d"], "1day")
 
     def test_twelve_data_success_path(self):
-        """Test successful Twelve Data fetch."""
-        # Mock successful Twelve Data response
+        """Test successful Twelve Data fetch with UTC-aware timestamps."""
+        # Mock successful Twelve Data response (recent times to avoid stale rejection)
+        now = datetime.now(timezone.utc)
+        recent_time = (now - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+
         mock_response = {
             "status": "ok",
             "meta": {"symbol": "BTC/USD", "interval": "1h"},
             "values": [
                 {
-                    "datetime": "2026-08-09 03:00:00",
+                    "datetime": recent_time,
                     "open": "65000.00",
                     "high": "65500.00",
                     "low": "64800.00",
                     "close": "65400.00",
                 },
                 {
-                    "datetime": "2026-08-09 04:00:00",
+                    "datetime": (now - timedelta(minutes=60)).strftime("%Y-%m-%d %H:%M:%S"),
                     "open": "65400.00",
                     "high": "65800.00",
                     "low": "65300.00",
@@ -74,8 +77,12 @@ class TestMarketDataProvider(unittest.TestCase):
 
             self.assertIsNotNone(df)
             self.assertEqual(len(df), 2)
-            self.assertEqual(df.iloc[-1]["Close"], 65700.00)
+            # After sorting by datetime, the most recent bar is last
+            self.assertEqual(df.iloc[-1]["Close"], 65400.00)  # 30 min old
+            self.assertEqual(df.iloc[0]["Close"], 65700.00)   # 60 min old
             self.assertEqual(list(df.columns), ["Open", "High", "Low", "Close"])
+            # Verify UTC-aware index
+            self.assertIsNotNone(df.index.tz)
 
     def test_twelve_data_api_error(self):
         """Test Twelve Data API error response."""
@@ -158,9 +165,9 @@ class TestMarketDataProvider(unittest.TestCase):
 
     def test_stale_data_rejection_intraday(self):
         """Test that stale intraday data is rejected."""
-        # Create old data (6 minutes old for 15m bars)
-        old_time = datetime.now() - timedelta(minutes=6)
-        dates = [old_time]
+        # Create old data (25 minutes old for 15m bars, beyond 15m + 5m grace)
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=25)
+        dates = pd.DatetimeIndex([old_time], tz="UTC")
         mock_df = pd.DataFrame({
             "Open": [65000],
             "High": [65100],
@@ -169,15 +176,15 @@ class TestMarketDataProvider(unittest.TestCase):
         }, index=dates)
 
         provider = MarketDataProvider()
-        is_stale = provider._is_stale(mock_df)
+        is_stale = provider._is_stale(mock_df, "15min")
 
         self.assertTrue(is_stale)
 
     def test_fresh_data_accepted_intraday(self):
         """Test that fresh intraday data is accepted."""
-        # Create fresh data (1 minute old)
-        fresh_time = datetime.now() - timedelta(minutes=1)
-        dates = [fresh_time]
+        # Create fresh data (5 minutes old for 15m bar)
+        fresh_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        dates = pd.DatetimeIndex([fresh_time], tz="UTC")
         mock_df = pd.DataFrame({
             "Open": [65000],
             "High": [65100],
@@ -186,7 +193,7 @@ class TestMarketDataProvider(unittest.TestCase):
         }, index=dates)
 
         provider = MarketDataProvider()
-        is_stale = provider._is_stale(mock_df)
+        is_stale = provider._is_stale(mock_df, "15min")
 
         self.assertFalse(is_stale)
 
@@ -292,18 +299,22 @@ class TestMarketDataProvider(unittest.TestCase):
 
     def test_datetime_sorting(self):
         """Test that returned data has sorted datetime index."""
+        now = datetime.now(timezone.utc)
+        newer_time = (now - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+        older_time = (now - timedelta(minutes=90)).strftime("%Y-%m-%d %H:%M:%S")
+
         mock_response = {
             "status": "ok",
             "values": [
                 {
-                    "datetime": "2026-08-09 04:00:00",
+                    "datetime": newer_time,
                     "open": "65400.00",
                     "high": "65800.00",
                     "low": "65300.00",
                     "close": "65700.00",
                 },
                 {
-                    "datetime": "2026-08-09 03:00:00",
+                    "datetime": older_time,
                     "open": "65000.00",
                     "high": "65500.00",
                     "low": "64800.00",
@@ -324,6 +335,8 @@ class TestMarketDataProvider(unittest.TestCase):
             self.assertIsNotNone(df)
             # Check that index is sorted ascending
             self.assertTrue(df.index.is_monotonic_increasing)
+            # Check that index is UTC-aware
+            self.assertIsNotNone(df.index.tz)
 
 
 class TestMarketDataProviderIntegration(unittest.TestCase):
@@ -348,6 +361,226 @@ class TestMarketDataProviderIntegration(unittest.TestCase):
 
             self.assertIsNotNone(df)
             self.assertEqual(len(df), 2)
+
+
+class TestTimezoneAwareness(unittest.TestCase):
+    """Test UTC-aware timestamp handling and interval-aware freshness."""
+
+    def test_twelve_data_utc_parsing(self):
+        """Test that Twelve Data timestamps are parsed as UTC-aware."""
+        mock_response = {
+            "status": "ok",
+            "values": [
+                {
+                    "datetime": "2026-08-09 06:55:00",  # UTC
+                    "open": "65000.00",
+                    "high": "65100.00",
+                    "low": "64900.00",
+                    "close": "65050.00",
+                },
+            ],
+        }
+
+        with patch.object(requests, "get") as mock_get:
+            mock_get.return_value.json.return_value = mock_response
+            mock_get.return_value.raise_for_status.return_value = None
+
+            os.environ["TWELVE_DATA_KEY"] = "test_key"
+            provider = MarketDataProvider()
+
+            df = provider._fetch_twelve_data("BTC-USD", "1h")
+
+            self.assertIsNotNone(df)
+            # Check that index is timezone-aware UTC
+            self.assertIsNotNone(df.index.tz)
+            self.assertEqual(str(df.index.tz), "UTC")
+
+    def test_future_timestamp_rejection(self):
+        """Test that future timestamps are rejected."""
+        # Create a bar 2 hours in the future
+        future_time = datetime.now(timezone.utc) + timedelta(hours=2)
+        dates = [future_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        has_future = provider._has_future_bars(mock_df)
+
+        self.assertTrue(has_future)
+
+    def test_small_clock_skew_accepted(self):
+        """Test that small clock skew (< 60s) is accepted."""
+        # Create a bar 30 seconds in the future
+        skewed_time = datetime.now(timezone.utc) + timedelta(seconds=30)
+        dates = [skewed_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        has_future = provider._has_future_bars(mock_df)
+
+        self.assertFalse(has_future)
+
+    def test_interval_aware_freshness_1m(self):
+        """Test 1-minute interval freshness: allow up to 2 minutes old."""
+        # Create bar 1 minute old
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=1)
+        dates = [old_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "1min")
+
+        self.assertFalse(is_stale)
+
+    def test_interval_aware_freshness_1m_too_old(self):
+        """Test 1-minute interval: reject if >2 minutes old."""
+        # Create bar 3 minutes old
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=3)
+        dates = [old_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "1min")
+
+        self.assertTrue(is_stale)
+
+    def test_interval_aware_freshness_15m(self):
+        """Test 15-minute interval: accept legitimate completed bar."""
+        # Create bar 15 minutes old (legitimate completed bar)
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=15)
+        dates = [old_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "15min")
+
+        # Should be fresh (15m + 5m grace = 20m max, bar is only 15m old)
+        self.assertFalse(is_stale)
+
+    def test_interval_aware_freshness_15m_too_old(self):
+        """Test 15-minute interval: reject if >20 minutes old."""
+        # Create bar 25 minutes old (beyond 15m + 5m grace)
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=25)
+        dates = [old_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "15min")
+
+        self.assertTrue(is_stale)
+
+    def test_interval_aware_freshness_1h(self):
+        """Test 1-hour interval: accept legitimate completed bar."""
+        # Create bar 1 hour old
+        old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        dates = [old_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "1h")
+
+        # Should be fresh (1h + 10m grace = 70m max, bar is only 60m old)
+        self.assertFalse(is_stale)
+
+    def test_interval_aware_freshness_1d(self):
+        """Test 1-day interval: accept bar up to 2 days old."""
+        # Create bar 1.5 days old
+        old_time = datetime.now(timezone.utc) - timedelta(days=1.5)
+        dates = [old_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=pd.DatetimeIndex(dates, tz="UTC"))
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "1day")
+
+        self.assertFalse(is_stale)
+
+    def test_naive_timestamp_rejected(self):
+        """Test that naive (non-UTC-aware) timestamps are rejected."""
+        # Create bar with naive datetime (no timezone)
+        naive_time = datetime.now() - timedelta(hours=1)
+        dates = [naive_time]
+        mock_df = pd.DataFrame({
+            "Open": [65000],
+            "High": [65100],
+            "Low": [64900],
+            "Close": [65050],
+        }, index=dates)
+
+        provider = MarketDataProvider()
+        is_stale = provider._is_stale(mock_df, "1h")
+
+        # Should reject because timestamp is naive
+        self.assertTrue(is_stale)
+
+    def test_ohlc_data_preserved_during_tz_conversion(self):
+        """Test that OHLC values are not altered during timezone conversion."""
+        mock_response = {
+            "status": "ok",
+            "values": [
+                {
+                    "datetime": "2026-08-09 06:55:00",
+                    "open": "65000.50",
+                    "high": "65100.75",
+                    "low": "64899.25",
+                    "close": "65050.00",
+                },
+            ],
+        }
+
+        with patch.object(requests, "get") as mock_get:
+            mock_get.return_value.json.return_value = mock_response
+            mock_get.return_value.raise_for_status.return_value = None
+
+            os.environ["TWELVE_DATA_KEY"] = "test_key"
+            provider = MarketDataProvider()
+
+            df = provider._fetch_twelve_data("BTC-USD", "1h")
+
+            self.assertIsNotNone(df)
+            # Verify OHLC values are exact
+            self.assertAlmostEqual(df.iloc[0]["Open"], 65000.50)
+            self.assertAlmostEqual(df.iloc[0]["High"], 65100.75)
+            self.assertAlmostEqual(df.iloc[0]["Low"], 64899.25)
+            self.assertAlmostEqual(df.iloc[0]["Close"], 65050.00)
 
 
 if __name__ == "__main__":

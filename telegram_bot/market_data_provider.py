@@ -4,13 +4,14 @@ Market Data Provider — Twelve Data Primary + Yahoo Finance Fallback
 Provides normalized OHLC data from either Twelve Data (primary) or yfinance (fallback).
 Handles symbol/interval normalization, caching, timeout, and stale-data detection.
 
+All timestamps are UTC-aware. Freshness checks are interval-aware.
 Never logs API keys or credentials.
 """
 
 import os
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import requests
@@ -120,12 +121,13 @@ class MarketDataProvider:
             # Calculate how many bars we need
             bar_count = self._calculate_bar_count(interval)
 
-            # Twelve Data time_series endpoint
+            # Twelve Data time_series endpoint — request UTC timezone
             url = "https://api.twelvedata.com/time_series"
             params = {
                 "symbol": twelve_data_symbol,
                 "interval": twelve_data_interval,
                 "outputsize": bar_count,
+                "timezone": "UTC",  # Explicit UTC request
                 "apikey": self.twelve_data_key,  # Will not log this param
             }
 
@@ -143,12 +145,14 @@ class MarketDataProvider:
                 log.warning(f"Twelve Data returned no values for {twelve_data_symbol}")
                 return None
 
-            # Parse response
-            df = self._parse_twelve_data_response(data, twelve_data_symbol)
+            # Parse response (pass interval for freshness checking)
+            df = self._parse_twelve_data_response(data, twelve_data_symbol, twelve_data_interval)
             if df is not None and not df.empty:
+                latest_utc = df.index[-1]
+                age_seconds = (datetime.now(timezone.utc) - latest_utc).total_seconds()
                 log.info(
-                    f"Fetched {len(df)} bars from TwelveData: {yf_symbol} {interval} "
-                    f"(latest: {df.index[-1]})"
+                    f"Fetched {len(df)} bars from TwelveData: symbol={yf_symbol} "
+                    f"interval={interval} latest_utc={latest_utc} age={age_seconds:.0f}s"
                 )
                 return df
 
@@ -164,8 +168,8 @@ class MarketDataProvider:
             log.error(f"Twelve Data parsing error for {yf_symbol}: {e}")
             return None
 
-    def _parse_twelve_data_response(self, data, symbol):
-        """Parse Twelve Data API response into DataFrame."""
+    def _parse_twelve_data_response(self, data, symbol, interval):
+        """Parse Twelve Data API response into DataFrame with UTC-aware timestamps."""
         try:
             values = data.get("values", [])
             if not values:
@@ -189,7 +193,8 @@ class MarketDataProvider:
                 return None
 
             df = pd.DataFrame(records)
-            df["datetime"] = pd.to_datetime(df["datetime"])
+            # Parse as UTC-aware datetime
+            df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
             df.set_index("datetime", inplace=True)
             df.sort_index(inplace=True)
 
@@ -201,9 +206,14 @@ class MarketDataProvider:
                 "close": "Close",
             }, inplace=True)
 
-            # Check for stale data
-            if self._is_stale(df):
-                log.warning(f"Data is stale for {symbol}, rejecting")
+            # Reject future/impossible timestamps
+            if self._has_future_bars(df):
+                log.warning(f"Data contains future bars for {symbol}, rejecting")
+                return None
+
+            # Check for stale data using interval-aware freshness
+            if self._is_stale(df, interval):
+                log.warning(f"Data is stale for {symbol} {interval}, rejecting")
                 return None
 
             return df[["Open", "High", "Low", "Close"]]
@@ -222,7 +232,7 @@ class MarketDataProvider:
             interval: Interval (e.g., "1h", "1d")
 
         Returns:
-            DataFrame or None
+            DataFrame with UTC-aware index or None
         """
         for attempt in range(3):
             try:
@@ -239,16 +249,33 @@ class MarketDataProvider:
                     if isinstance(df.columns, pd.MultiIndex):
                         df.columns = [col[0] for col in df.columns]
 
-                    # Check for stale data
-                    if self._is_stale(df):
-                        log.warning(f"YahooFallback data is stale for {yf_symbol}, retrying")
+                    # Ensure index is UTC-aware
+                    if df.index.tz is None:
+                        # Assume yfinance returns US/Eastern or UTC; convert to UTC
+                        # yfinance typically returns naive UTC for most symbols
+                        df.index = df.index.tz_localize("UTC", ambiguous="NaT", nonexistent="NaT")
+                    elif str(df.index.tz) != "UTC":
+                        df.index = df.index.tz_convert("UTC")
+
+                    # Reject future/impossible timestamps
+                    if self._has_future_bars(df):
+                        log.warning(f"YahooFallback contains future bars for {yf_symbol}, retrying")
                         if attempt < 2:
                             time.sleep(5 * (2 ** attempt))
                         continue
 
+                    # Check for stale data using interval-aware freshness
+                    if self._is_stale(df, interval):
+                        log.warning(f"YahooFallback data is stale for {yf_symbol} {interval}, retrying")
+                        if attempt < 2:
+                            time.sleep(5 * (2 ** attempt))
+                        continue
+
+                    latest_utc = df.index[-1]
+                    age_seconds = (datetime.now(timezone.utc) - latest_utc).total_seconds()
                     log.info(
-                        f"Fetched {len(df)} bars from YahooFallback: {yf_symbol} {interval} "
-                        f"(latest: {df.index[-1]})"
+                        f"Fetched {len(df)} bars from YahooFallback: symbol={yf_symbol} "
+                        f"interval={interval} latest_utc={latest_utc} age={age_seconds:.0f}s"
                     )
                     return df
 
@@ -264,30 +291,55 @@ class MarketDataProvider:
 
         return None
 
-    def _is_stale(self, df):
-        """Check if DataFrame's latest bar is too old."""
+    def _has_future_bars(self, df):
+        """Reject any bars with future timestamps (clock skew tolerance: 60 seconds)."""
+        if df is None or df.empty:
+            return False
+
+        latest_timestamp = df.index[-1]
+        now_utc = datetime.now(timezone.utc)
+        clock_skew_tolerance = timedelta(seconds=60)
+
+        if latest_timestamp > now_utc + clock_skew_tolerance:
+            age = (latest_timestamp - now_utc).total_seconds()
+            log.warning(f"Future bar detected: {age:.0f}s in future (tolerance: 60s)")
+            return True
+
+        return False
+
+    def _is_stale(self, df, interval):
+        """Check if DataFrame's latest bar is too old, using interval-aware freshness rules."""
         if df is None or df.empty:
             return True
 
         latest_timestamp = df.index[-1]
+        now_utc = datetime.now(timezone.utc)
 
-        # Handle both datetime and Timestamp
-        if hasattr(latest_timestamp, "to_pydatetime"):
-            latest_timestamp = latest_timestamp.to_pydatetime()
+        # Ensure we're comparing UTC-aware datetimes
+        if latest_timestamp.tzinfo is None:
+            log.warning("Timestamp is naive, cannot validate freshness reliably")
+            return True
 
-        # Allow up to 2 hours staleness for daily data, 5 minutes for intraday
-        now = datetime.now(latest_timestamp.tzinfo) if latest_timestamp.tzinfo else datetime.now()
-        age = now - latest_timestamp
+        age = now_utc - latest_timestamp
 
-        # If intraday (bars < 1 hour), allow max 5 minutes staleness
-        # If daily+, allow max 2 days staleness
-        if age < timedelta(hours=1):
-            max_age = timedelta(minutes=5)
-        else:
-            max_age = timedelta(days=2)
+        # Interval-aware maximum age thresholds
+        # Allow bars to be as old as their interval + small grace period
+        interval_max_ages = {
+            "1min": timedelta(minutes=2),      # 1m + 1m grace
+            "5min": timedelta(minutes=7),      # 5m + 2m grace
+            "15min": timedelta(minutes=20),    # 15m + 5m grace
+            "30min": timedelta(minutes=35),    # 30m + 5m grace
+            "1h": timedelta(hours=1, minutes=10),     # 1h + 10m grace
+            "1day": timedelta(days=2),         # 1d + 1d grace
+        }
+
+        max_age = interval_max_ages.get(interval, timedelta(minutes=5))
 
         if age > max_age:
-            log.warning(f"Data is stale: {age} old (max {max_age})")
+            log.warning(
+                f"Data too old for {interval}: {age.total_seconds():.0f}s "
+                f"(max {max_age.total_seconds():.0f}s)"
+            )
             return True
 
         return False
