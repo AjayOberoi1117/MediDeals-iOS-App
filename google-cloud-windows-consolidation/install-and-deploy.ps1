@@ -3,6 +3,12 @@
 # Compatibility: Windows PowerShell 5.1+ (ASCII-only, no Unicode)
 # Usage: .\install-and-deploy.ps1
 
+param(
+    [switch]$EnableSignalBots,
+    [switch]$EnableExecutor,
+    [switch]$InstallStartupTask
+)
+
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
 
@@ -16,6 +22,7 @@ $LOG_DIR = "$TRADING_ROOT\logs"
 $STATE_DIR = "$TRADING_ROOT\state"
 $QUEUE_FILE = "$STATE_DIR\.trade_queue.jsonl"
 $DEPLOY_LOG = "$LOG_DIR\install-deploy.log"
+. "$PSScriptRoot\scripts\mt5_paths.ps1"
 
 # Utility Functions
 function Write-Header {
@@ -217,11 +224,11 @@ Write-Header "STEP 4: REPOSITORY CLONE"
 $temp_repo = "$env:TEMP\MediDeals-$(Get-Date -Format 'yyyyMMddHHmmss')"
 
 if (Test-Path "$TRADING_ROOT\$PACKAGE_NAME") {
-    Write-Status "Package" "PASS" "Already deployed"
+    Write-Status "Package" "INFO" "Existing deployment will be updated; .env, logs, and state are preserved"
 }
-else {
-    Write-Status "Cloning" "INFO" "Repository from GitHub"
-    try {
+
+Write-Status "Cloning" "INFO" "Repository from GitHub"
+try {
         git clone --branch $REPO_BRANCH --depth 1 $REPO_URL $temp_repo 2>&1 | Out-Null
 
         if ($LASTEXITCODE -ne 0) {
@@ -252,10 +259,9 @@ else {
         Write-Status "Package Deployment" "PASS" "Deployed to $TRADING_ROOT"
 
         Remove-Item -Path $temp_repo -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    catch {
-        Write-Fatal "Repository operations failed: $_"
-    }
+}
+catch {
+    Write-Fatal "Repository operations failed: $_"
 }
 
 Write-Host ""
@@ -361,6 +367,17 @@ else {
     Write-Status ".env" "PASS" "Created from template"
 }
 
+# Fail closed on every installation. Connectivity never opts in to execution.
+$env_content = Get-Content -Path $env_file -ErrorAction SilentlyContinue
+if ($env_content -notmatch '^BOT_EXECUTION_MODE=') {
+    Add-Content -Path $env_file -Value "BOT_EXECUTION_MODE=signal_only"
+    Write-Status "Execution Mode" "PASS" "Added signal_only default"
+}
+if ($env_content -notmatch '^LIVE_TRADING_CONFIRMED=') {
+    Add-Content -Path $env_file -Value "LIVE_TRADING_CONFIRMED=NO"
+    Write-Status "Live Trading Gate" "PASS" "Added NO default"
+}
+
 # Check required variables
 $required_vars = @(
     "TWELVE_DATA_KEY",
@@ -400,10 +417,10 @@ Write-Host ""
 # Step 9: MetaTrader 5 Check
 Write-Header "STEP 8: METATRADER 5 CHECK"
 
-$mt5_path = "C:\Program Files\MetaTrader 5\terminal64.exe"
+$mt5_path = Find-MT5Terminal
 
-if (Test-Path $mt5_path) {
-    Write-Status "MT5 Installation" "PASS" "Found"
+if ($mt5_path) {
+    Write-Status "MT5 Installation" "PASS" "Found at $mt5_path"
 
     $mt5_proc = Get-Process terminal64 -ErrorAction SilentlyContinue
     if ($null -ne $mt5_proc) {
@@ -426,7 +443,8 @@ else {
     Write-Host ""
     pause
 
-    if ((Test-Path $mt5_path) -eq $false) {
+    $mt5_path = Find-MT5Terminal
+    if (-not $mt5_path) {
         Write-Fatal "MT5 still not found. Installation required."
     }
 
@@ -441,9 +459,7 @@ Write-Header "STEP 9: MT5 VERIFICATION"
 $executor_dir = "$TRADING_ROOT\executor"
 
 $verify_scripts = @(
-    @{Name = "MT5 Connection"; Script = "verify_mt5_connection.py"},
-    @{Name = "Symbol Specs"; Script = "verify_symbol_specs.py"},
-    @{Name = "Order Check"; Script = "verify_order_check.py"}
+    @{Name = "MT5 Read-Only Connection"; Script = "verify_mt5_connection.py"}
 )
 
 foreach ($test in $verify_scripts) {
@@ -458,6 +474,7 @@ foreach ($test in $verify_scripts) {
 
     try {
         $output = python $script_path 2>&1
+        $output | Out-Host
         if ($LASTEXITCODE -eq 0) {
             Write-Status $test.Name "PASS"
         }
@@ -480,6 +497,11 @@ $bots = @{
     "BTC Bot" = "btc_bot_windows.py";
     "GOLD Bot" = "gold_bot_windows.py";
     "Forex Scalper" = "forex_scalper_windows.py"
+}
+
+if (-not $EnableSignalBots) {
+    Write-Status "Signal Bots" "SKIP" "Not started (use -EnableSignalBots to opt in)"
+    $bots = @{}
 }
 
 foreach ($bot_name in $bots.Keys) {
@@ -530,39 +552,43 @@ Write-Header "STEP 11: MT5 EXECUTOR"
 
 $executor_script = "$executor_dir\windows_mt5_executor.py"
 
-if ((Test-Path $executor_script) -eq $false) {
+if (-not $EnableExecutor) {
+    Write-Status "Executor" "SKIP" "Not started (use -EnableExecutor to opt in)"
+}
+elseif ((Test-Path $executor_script) -eq $false) {
     Write-Fatal "Executor not found: $executor_script"
 }
-
-# Check if already running
-$running = Get-Process python -ErrorAction SilentlyContinue | Where-Object {
-    $_.CommandLine -like "*windows_mt5_executor.py*"
-}
-
-if ($null -ne $running) {
-    Write-Status "Executor" "PASS" "Already running"
-}
 else {
-    Write-Status "Starting" "INFO" "MT5 Executor"
-
-    try {
-        $process = Start-Process -FilePath "python.exe" `
-            -ArgumentList "-u `"$executor_script`"" `
-            -WorkingDirectory $TRADING_ROOT `
-            -WindowStyle Hidden `
-            -PassThru
-
-        Start-Sleep -Seconds 3
-
-        if ($null -ne $process -and $process.HasExited -eq $false) {
-            Write-Status "Executor" "PASS" "Started"
-        }
-        else {
-            Write-Status "Executor" "FAIL" "Process exited"
-        }
+    # Check if already running
+    $running = Get-Process python -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -like "*windows_mt5_executor.py*"
     }
-    catch {
-        Write-Status "Executor" "FAIL" $_
+
+    if ($null -ne $running) {
+        Write-Status "Executor" "PASS" "Already running"
+    }
+    else {
+        Write-Status "Starting" "INFO" "MT5 Executor"
+
+        try {
+            $process = Start-Process -FilePath "python.exe" `
+                -ArgumentList "-u `"$executor_script`"" `
+                -WorkingDirectory $TRADING_ROOT `
+                -WindowStyle Hidden `
+                -PassThru
+
+            Start-Sleep -Seconds 3
+
+            if ($null -ne $process -and $process.HasExited -eq $false) {
+                Write-Status "Executor" "PASS" "Started"
+            }
+            else {
+                Write-Status "Executor" "FAIL" "Process exited"
+            }
+        }
+        catch {
+            Write-Status "Executor" "FAIL" $_
+        }
     }
 }
 
@@ -589,7 +615,10 @@ Write-Header "STEP 13: WINDOWS TASK SCHEDULER"
 $scripts_dir = "$TRADING_ROOT\scripts"
 $scheduler_script = "$scripts_dir\install_scheduled_tasks.ps1"
 
-if (Test-Path $scheduler_script) {
+if (-not $InstallStartupTask) {
+    Write-Status "Task Scheduler Setup" "SKIP" "Not installed (use -InstallStartupTask to opt in)"
+}
+elseif (Test-Path $scheduler_script) {
     Write-Status "Task Scheduler Setup" "INFO" "Installing auto-recovery task"
 
     try {

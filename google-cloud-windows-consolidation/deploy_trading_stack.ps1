@@ -249,8 +249,9 @@ function Stage-CheckMT5 {
     Write-Header "STAGE 4: METATRADER 5"
 
     # Check if MT5 is installed
-    $mt5_path = "C:\Program Files\MetaTrader 5\terminal64.exe"
-    if (Test-Path $mt5_path) {
+    . "$PSScriptRoot\scripts\mt5_paths.ps1"
+    $mt5_path = Find-MT5Terminal
+    if ($mt5_path) {
         Write-Status "MT5 Installation" "PASS" "Found at $mt5_path"
 
         $mt5_proc = Get-Process terminal64 -ErrorAction SilentlyContinue
@@ -496,9 +497,7 @@ function Stage-MT5Verification {
 
     $executor_dir = "$TRADING_ROOT\executor"
     $verify_scripts = @(
-        "$executor_dir\verify_mt5_connection.py",
-        "$executor_dir\verify_symbol_specs.py",
-        "$executor_dir\verify_order_check.py"
+        "$executor_dir\verify_mt5_connection.py"
     )
 
     foreach ($script in $verify_scripts) {
@@ -513,7 +512,7 @@ function Stage-MT5Verification {
             if ($LASTEXITCODE -eq 0) {
                 Write-Status "$(Split-Path $script -Leaf)" "PASS"
                 # Parse and show key results
-                $output | Where-Object { $_ -match "✓|✅|PASS|Account|Balance|DEMO" } | ForEach-Object {
+                $output | Where-Object { $_ -match "terminal executable|initialize:|last_error:|account login:|server:|company:|trade_mode:|terminal connected:|trade_allowed:|symbols_total:" } | ForEach-Object {
                     Write-Host "    $_" -ForegroundColor Gray
                 }
             } else {

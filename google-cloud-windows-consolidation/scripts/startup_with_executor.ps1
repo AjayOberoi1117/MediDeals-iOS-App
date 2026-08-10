@@ -13,8 +13,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 param(
-    [string]$MT5TerminalPath = "C:\Program Files\MetaTrader 5\terminal64.exe"
+    [string]$MT5TerminalPath = ""
 )
+
+. "$PSScriptRoot\mt5_paths.ps1"
+if (-not $MT5TerminalPath) { $MT5TerminalPath = Find-MT5Terminal }
 
 $ErrorActionPreference = "Continue"
 
@@ -88,9 +91,9 @@ function Stop-DuplicateProcesses {
 function Start-MT5Terminal {
     Write-Log "Starting MetaTrader 5 terminal..."
 
-    if (-not (Test-Path $MT5TerminalPath)) {
+    if (-not $MT5TerminalPath -or -not (Test-Path -LiteralPath $MT5TerminalPath)) {
         Write-Log "MT5 terminal not found at: $MT5TerminalPath" "ERROR"
-        Write-Log "Expected path: $MT5TerminalPath" "INFO"
+        Write-Log "Checked configured, VIG Group, and standard MetaTrader paths" "INFO"
         Write-Log "If MT5 is installed elsewhere, pass path: .\startup_with_executor.ps1 'C:\Path\To\terminal64.exe'" "INFO"
         return $false
     }

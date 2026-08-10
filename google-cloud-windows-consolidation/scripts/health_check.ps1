@@ -14,6 +14,7 @@ $LOGS_DIR = Join-Path $TRADING_BOTS_ROOT "logs"
 $STATE_DIR = Join-Path $TRADING_BOTS_ROOT "state"
 $QUEUE_FILE = Join-Path $STATE_DIR ".trade_queue.jsonl"
 $HISTORY_FILE = Join-Path $STATE_DIR ".trade_history.jsonl"
+. "$PSScriptRoot\mt5_paths.ps1"
 
 # ─── Formatting ────────────────────────────────────────────────────────────
 function Write-Status {
@@ -200,6 +201,8 @@ function Main {
 
     # ─── MT5 Status ────────────────────────────────────────────────────────
     Write-Host "MT5 TERMINAL" -ForegroundColor Cyan
+    $mt5_path = Find-MT5Terminal
+    Write-Status "Executable" $(if ($mt5_path) { "PASS" } else { "FAIL" }) $(if ($mt5_path) { $mt5_path } else { "Not found" }) $(if ($mt5_path) { "Green" } else { "Red" })
     $mt5_status = Get-ProcessStatus "terminal64"
     Write-Status "Process" $mt5_status "" $(if ($mt5_status -eq "RUNNING") { "Green" } else { "Red" })
 
@@ -208,6 +211,7 @@ function Main {
     $verify_script = Join-Path $executor_dir "verify_mt5_connection.py"
     if (Test-Path $verify_script) {
         $verify_result = & python $verify_script 2>&1
+        $verify_result | Out-Host
         if ($LASTEXITCODE -eq 0) {
             Write-Status "Connection" "PASS" "" "Green"
             Write-Status "Account" "ACCESSIBLE" "" "Green"

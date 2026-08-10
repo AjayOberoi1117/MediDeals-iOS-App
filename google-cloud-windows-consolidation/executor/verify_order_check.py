@@ -8,6 +8,7 @@ import os
 import sys
 import logging
 from dotenv import load_dotenv
+from mt5_connection import initialize_mt5
 
 try:
     import MetaTrader5 as mt5
@@ -117,7 +118,11 @@ def main():
     log.info("")
 
     # Initialize MT5
-    if not mt5.initialize(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
+    initialized, terminal_path = initialize_mt5(
+        mt5, login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER
+    )
+    log.info("Terminal executable: %s", terminal_path or "NOT FOUND")
+    if not initialized:
         log.error("MT5 initialization failed: %s", mt5.last_error())
         sys.exit(1)
 

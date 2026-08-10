@@ -1,4 +1,4 @@
-"""
+r"""
 Windows MT5 Trade Executor (Windows Consolidation)
 Reads signals from C:\TradingBots\state\.trade_queue.jsonl
 Executes via MetaTrader5 Python API with fail-closed safety gates.
@@ -20,6 +20,8 @@ except ImportError:
     print("ERROR: MetaTrader5 package not installed.")
     print("Run: pip install MetaTrader5")
     sys.exit(1)
+
+from mt5_connection import initialize_mt5
 
 import requests
 
@@ -311,7 +313,11 @@ def main():
     validate_config()
 
     log.info("Initializing MT5 | login=%d | server=%s", MT5_LOGIN, MT5_SERVER)
-    if not mt5.initialize(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
+    initialized, terminal_path = initialize_mt5(
+        mt5, login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER
+    )
+    log.info("MT5 terminal executable: %s", terminal_path or "NOT FOUND")
+    if not initialized:
         log.error("MT5 initialization failed: %s", mt5.last_error())
         sys.exit(1)
 
@@ -320,7 +326,7 @@ def main():
              acc.name, acc.balance, acc.currency)
 
     # CRITICAL SAFETY GATE: Verify DEMO account
-    if acc.trade_mode != 0:  # 0 = DEMO, 1 = REAL (via MetaTrader5.ACCOUNT_TRADE_MODE_DEMO/REAL)
+    if acc.trade_mode != mt5.ACCOUNT_TRADE_MODE_DEMO:
         log.error("FATAL: Account is NOT DEMO (mode=%d). Refusing to proceed.", acc.trade_mode)
         log.error("This executor only accepts DEMO accounts for safety.")
         mt5.shutdown()

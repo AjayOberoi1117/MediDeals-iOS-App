@@ -48,7 +48,7 @@ cd MediDeals-iOS-App\google-cloud-windows-consolidation
 **Skip with**: `-SkipGit` (if already installed)
 
 ### Stage 4: MetaTrader 5
-- Checks if MT5 is installed at `C:\Program Files\MetaTrader 5\terminal64.exe`
+- Discovers MT5 via `MT5_TERMINAL_PATH`, the VIG Group installation, or standard MetaTrader paths. The preferred Vantage path is `C:\Program Files\VIG Group MT5 Terminal\terminal64.exe`.
 - **If not found**: Script will guide you to manual installation
   - Download from: https://www.metatrader5.com/download
   - Choose **Vantage** as broker (not default)

@@ -16,6 +16,7 @@ except ImportError:
     sys.exit(1)
 
 from dotenv import load_dotenv
+from mt5_connection import initialize_mt5
 
 load_dotenv()
 
@@ -42,7 +43,11 @@ def discover_symbols():
 
     # Initialize MT5
     print(f"Connecting to MT5: login={MT5_LOGIN}, server={MT5_SERVER}")
-    if not mt5.initialize(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER):
+    initialized, terminal_path = initialize_mt5(
+        mt5, login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER
+    )
+    print(f"Terminal: {terminal_path or 'NOT FOUND'}")
+    if not initialized:
         print(f"❌ MT5 initialization failed: {mt5.last_error()}")
         sys.exit(1)
 
