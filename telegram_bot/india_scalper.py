@@ -22,15 +22,14 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 from nse_holidays import is_nse_holiday
+from telegram_config import validate_telegram_config, order_execution_enabled
 
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN    = os.getenv("STOCX_BOT_TOKEN") or os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID           = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN    = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID           = os.getenv("TELEGRAM_CHAT_ID", "")
 UPSTOX_TOKEN      = os.getenv("UPSTOX_TOKEN", "")
 UPSTOX_DATA_TOKEN = os.getenv("UPSTOX_DATA_TOKEN", "")
 
@@ -111,11 +110,6 @@ def tg_send(text):
             log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    try:
-        wapp_send(text)
-        email_send("Trading Signal: India Scalper", text)
-    except Exception:
-        pass
 
 
 # ── market hours ─────────────────────────────────────────────────────────────
@@ -208,7 +202,7 @@ def send_daily_report():
     today = datetime.now(IST).strftime("%d %b %Y")
     n = len(_daily_signals)
     lines = [
-        f"📊 <b>Daily India Scalper Report — {today}</b>",
+        f"[INDIA SCALPER] 📊 <b>Daily India Scalper Report — {today}</b>",
         "━━━━━━━━━━━━━━━━━━━━━━",
         f"<b>Nifty 50 Scalper</b>  |  Signals Today: <b>{n}</b>", "",
     ]
@@ -388,7 +382,7 @@ def check_symbol(name):
         tp    = round(entry + ATR_TP_MULT * atr_val, 2)
         log.info("BUY  %s  entry=%.2f  sl=%.2f  tp=%.2f", name, entry, sl, tp)
         tg_send(
-            f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>INDIA SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"[INDIA SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>INDIA SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {now_ist}\n"
             f"⏱ <b>Timeframe :</b> 30 Minutes\n\n"
             f"📍 <b>Entry     :</b> ₹<code>{entry:.2f}</code>\n"
@@ -402,7 +396,8 @@ def check_symbol(name):
             f"⚠️ <i>Set SL immediately! Square off before 3:15 PM IST</i>\n━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal(name, "BUY", entry, sl, tp)
-        upstox_place_order(name, "BUY")
+        if order_execution_enabled():
+            upstox_place_order(name, "BUY")
         _last_signal[name] = now_ts
     # SELL signals disabled — Indian equity shorting via MIS is unreliable/meaningless for this strategy
 
@@ -410,14 +405,14 @@ def check_symbol(name):
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    if not TELEGRAM_TOKEN:
-        raise SystemExit("STOCX_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     load_instrument_keys()
     log.info("India Nifty 50 Scalper started | symbols=%d  ema=%d/%d  rsi=%d  cache=%ds",
              len(NIFTY50), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)
     tg_send(
-        f"⚡ <b>India Nifty 50 Scalper Online</b>\n"
+        f"[INDIA SCALPER] ⚡ <b>Online</b>\n"
         f"📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
         f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 30min\n"
         f"📈 {len(NIFTY50)} Nifty 50 stocks | Upstox MIS\n"

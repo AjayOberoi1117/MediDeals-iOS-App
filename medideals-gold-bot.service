@@ -1,0 +1,45 @@
+[Unit]
+Description=MediDeals Gold Trading Bot (MT5 Vantage DEMO)
+Documentation=file:///home/medideals/DIGITALOCEAN_DEPLOYMENT.md
+After=network-online.target medideals-mt5-bridge.service
+Wants=network-online.target
+Requires=medideals-mt5-bridge.service
+PartOf=medideals-bots.target
+
+[Service]
+Type=simple
+User=medideals
+Group=medideals
+WorkingDirectory=/home/medideals/MediDeals-iOS-App/telegram_bot
+
+# Load environment variables (tokens, MT5 creds, execution mode)
+EnvironmentFile=/etc/medideals/telegram.env
+
+# Python runtime
+ExecStart=/usr/bin/python3 gold_bot.py
+
+# Restart on failure with exponential backoff
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Process management
+KillMode=process
+SendSigKill=yes
+SyslogIdentifier=medideals-gold-bot
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/medideals/.cache /var/log/medideals /tmp
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=25%
+
+[Install]
+WantedBy=medideals-bots.target

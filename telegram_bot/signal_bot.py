@@ -16,8 +16,7 @@ import pandas as pd
 import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+from telegram_config import validate_telegram_config, order_execution_enabled
 
 try:
     from trade_executor import queue_trade
@@ -39,9 +38,9 @@ _YF_MAP = {
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-SYMBOL_NAME  = os.getenv("SIGNAL_NAME",     "EURUSD")
-BOT_TOKEN    = os.getenv("SIGNAL_TOKEN",    os.getenv("ELITE_BOT_TOKEN", ""))
-CHAT_ID      = os.getenv("SIGNAL_CHAT_ID",  "7093601171")
+SYMBOL_NAME    = os.getenv("SIGNAL_NAME",     "EURUSD")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 FAST_EMA     = int(os.getenv("FAST_EMA",    "9"))
 SLOW_EMA     = int(os.getenv("SLOW_EMA",    "21"))
 RSI_PERIOD   = int(os.getenv("RSI_PERIOD",  "14"))
@@ -87,7 +86,7 @@ def _save_seen_bar(bar_ts):
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 def tg_send(text: str) -> None:
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
         r = requests.post(url,
                           data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"},
@@ -96,8 +95,6 @@ def tg_send(text: str) -> None:
             log.warning("Telegram send failed: %s", r.text[:120])
     except Exception as exc:
         log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send(f"Trading Signal: {SYMBOL_NAME}", text)
 
 # ── Daily report ──────────────────────────────────────────────────────────────
 
@@ -115,9 +112,9 @@ def send_daily_report():
     n     = len(_daily_signals)
     dec   = 3 if "JPY" in SYMBOL_NAME else 5
     lines = [
-        f"📊 <b>Daily Signal Report — {today}</b>",
+        f"[SIGNAL BOT] 📊 <b>Daily Signal Report — {today}</b>",
         "━━━━━━━━━━━━━━━━━━━━━━",
-        f"<b>{SYMBOL_NAME} Bot</b>  |  Signals Today: <b>{n}</b>",
+        f"<b>{SYMBOL_NAME}</b>  |  Signals Today: <b>{n}</b>",
         "",
     ]
     if n == 0:
@@ -276,7 +273,8 @@ def check_signal() -> None:
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("BUY", entry, sl, tp)
-        queue_trade(SYMBOL_NAME, "BUY", sl, tp, source=f"{SYMBOL_NAME}_1H")
+        if order_execution_enabled():
+            queue_trade(SYMBOL_NAME, "BUY", sl, tp, source=f"{SYMBOL_NAME}_1H")
 
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if get_daily_trend() == 1:
@@ -304,30 +302,15 @@ def check_signal() -> None:
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
         record_signal("SELL", entry, sl, tp)
-        queue_trade(SYMBOL_NAME, "SELL", sl, tp, source=f"{SYMBOL_NAME}_1H")
+        if order_execution_enabled():
+            queue_trade(SYMBOL_NAME, "SELL", sl, tp, source=f"{SYMBOL_NAME}_1H")
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    if not BOT_TOKEN:
-        raise SystemExit("Bot token not set. Check SIGNAL_TOKEN or ELITE_BOT_TOKEN in .env")
-    _load_seen_bars()
-    log.info("Starting | symbol=%s  yf=%s  ema=%d/%d  rsi=%d  poll=%ds  cache=%ds",
-             SYMBOL_NAME, YF_TICKER, FAST_EMA, SLOW_EMA, RSI_PERIOD, CHECK_SECS, CACHE_TTL)
-    tg_send(
-        f"💱 <b>{SYMBOL_NAME} Signal Bot Online</b>\n"
-        f"📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
-        f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n"
-        f"⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
-        f"🕙 Daily report at 10:00 PM IST"
+    raise SystemExit(
+        "SIGNAL BOT DISABLED: ownership consolidated into dedicated market bots."
     )
-    while True:
-        try:
-            maybe_send_daily_report()
-            check_signal()
-        except Exception as exc:
-            log.error("Unexpected error: %s", exc)
-        time.sleep(CHECK_SECS)
 
 if __name__ == "__main__":
     main()

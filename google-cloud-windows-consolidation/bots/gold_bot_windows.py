@@ -1,0 +1,294 @@
+"""
+Gold Trading Signal Bot — XAUUSD (Windows Native)
+Strategy : EMA(9/21) crossover + RSI(14) on 1-hour bars
+Data     : Twelve Data (primary) + yfinance (fallback)
+Signals  : Telegram via Vantage bot with Entry, SL, TP
+Report   : Daily P&L summary at 10:00 PM IST
+
+Windows Consolidation Version
+- All paths use C:\TradingBots\
+- No Linux/bash dependencies
+- Logs to C:\TradingBots\logs\gold_bot.log
+- State files in C:\TradingBots\state\
+"""
+
+import os
+import sys
+import time
+import socket
+import logging
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import requests
+from dotenv import load_dotenv
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from market_data.market_data_provider_windows import fetch_ohlc
+from config.telegram_config_windows import validate_telegram_config, order_execution_enabled
+
+try:
+    from config.trade_executor_windows import queue_trade
+except ImportError:
+    def queue_trade(*args, **kwargs): pass
+
+# Windows-specific paths
+TRADING_BOTS_ROOT = Path("C:\\TradingBots")
+LOGS_DIR = TRADING_BOTS_ROOT / "logs"
+STATE_DIR = TRADING_BOTS_ROOT / "state"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Configure logging
+log_file = LOGS_DIR / "gold_bot.log"
+logging.basicConfig(
+    format="%(asctime)s | XAUUSD   | %(levelname)s | %(message)s",
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler(log_file, encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+log = logging.getLogger(__name__)
+
+load_dotenv()
+socket.setdefaulttimeout(30)
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
+SYMBOL         = "GC=F"
+DISPLAY_NAME   = "XAUUSD"
+FAST_EMA       = 9
+SLOW_EMA       = 21
+RSI_PERIOD     = 14
+RSI_BUY_MAX    = 70
+RSI_SELL_MIN   = 30
+ATR_PERIOD     = 14
+ATR_SL_MULT    = 1.0
+ATR_TP_MULT    = 3.0
+CHECK_SECS     = 60
+CACHE_TTL      = 840   # 14 min cache
+
+_seen_bars        = set()
+_daily_signals    = []
+_report_sent_date = None
+_cache            = {}
+
+SEEN_FILE = STATE_DIR / ".seen_gold"
+
+def _load_seen_bars():
+    """Load previously seen bars to prevent duplicate signals."""
+    try:
+        if SEEN_FILE.exists():
+            with open(SEEN_FILE, encoding="utf-8") as f:
+                for line in f:
+                    _seen_bars.add(line.strip())
+    except Exception as e:
+        log.warning("Error loading seen bars: %s", e)
+
+def _save_seen_bar(bar_ts):
+    """Append bar timestamp to seen bars file."""
+    try:
+        with open(SEEN_FILE, "a", encoding="utf-8") as f:
+            f.write(bar_ts + "\n")
+    except Exception as e:
+        log.warning("Error saving seen bar: %s", e)
+
+def tg_send(text):
+    """Send Telegram notification."""
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    try:
+        r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
+        if not r.json().get("ok"):
+            log.warning("Telegram failed: %s", r.text[:120])
+    except Exception as exc:
+        log.warning("Telegram error: %s", exc)
+
+def record_signal(direction, price, sl, tp):
+    """Record signal for daily report."""
+    _daily_signals.append({
+        "direction": direction,
+        "price": price,
+        "sl": sl,
+        "tp": tp,
+        "time": datetime.now().strftime("%I:%M %p")
+    })
+
+def send_daily_report():
+    """Send daily trading summary report."""
+    today = datetime.now().strftime("%d %b %Y")
+    n = len(_daily_signals)
+    lines = [
+        f"[GOLD BOT] 📊 <b>Daily Signal Report — {today}</b>",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        f"<b>XAUUSD</b>  |  Signals Today: <b>{n}</b>",
+        ""
+    ]
+    if n == 0:
+        lines.append("No signals were generated today.")
+    else:
+        for i, s in enumerate(_daily_signals, 1):
+            em = "🟢" if s["direction"] == "BUY" else "🔴"
+            rr = round(abs(s["tp"] - s["price"]) / max(abs(s["sl"] - s["price"]), 0.01), 1)
+            lines.append(f"{i}. {em} <b>XAUUSD</b> {s['direction']}  @  {s['time']}\n"
+                        f"   Entry ${s['price']:.2f}  •  SL ${s['sl']:.2f}  •  TP ${s['tp']:.2f}  •  RR 1:{rr}")
+    lines += ["", "━━━━━━━━━━━━━━━━━━━━━━", "📌 <i>Check your broker for actual P&L</i>"]
+    tg_send("\n".join(lines))
+    log.info("Daily report sent.")
+
+def maybe_send_daily_report():
+    """Send daily report at 10:00 PM IST, reset at midnight."""
+    global _report_sent_date, _daily_signals
+    now = datetime.now()
+    today = now.date()
+    if now.hour == 22 and now.minute < 2 and _report_sent_date != today:
+        _report_sent_date = today
+        send_daily_report()
+    if now.hour == 0 and now.minute < 2 and _daily_signals:
+        _daily_signals.clear()
+
+def calc_rsi(close, period):
+    """Calculate RSI indicator."""
+    delta = close.diff()
+    ag = delta.clip(lower=0).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    al = (-delta.clip(upper=0)).ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    return 100 - 100 / (1 + ag / al)
+
+def calc_atr(high, low, close, period):
+    """Calculate ATR indicator."""
+    pc = close.shift(1)
+    tr = pd.concat([high-low, (high-pc).abs(), (low-pc).abs()], axis=1).max(axis=1)
+    return tr.ewm(span=period, adjust=False).mean()
+
+def fetch_ohlcv():
+    """Fetch 1H OHLC data with caching."""
+    now = time.time()
+    cached = _cache.get("1h")
+    if cached and now - cached[0] < CACHE_TTL:
+        return cached[1]
+    df = fetch_ohlc(SYMBOL, "60d", "1h")
+    if df is None or len(df) < SLOW_EMA + 10:
+        log.warning("Not enough bars. Will retry.")
+        return None
+    _cache["1h"] = (now, df)
+    log.info("Fetched %d 1H bars for XAUUSD", len(df))
+    return df
+
+def get_daily_trend():
+    """Get daily trend for confirmation filter."""
+    now = time.time()
+    cached = _cache.get("1d")
+    if cached and now - cached[0] < 3600:
+        return cached[1]
+    df = fetch_ohlc(SYMBOL, "3mo", "1d")
+    if df is None or len(df) < 22:
+        return 0
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+    close = df["Close"].squeeze()
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    trend = 1 if float(close.iloc[-1]) > float(ema20.iloc[-1]) else -1
+    _cache["1d"] = (now, trend)
+    return trend
+
+def check_signal():
+    """Check for BUY/SELL signals."""
+    df = fetch_ohlcv()
+    if df is None:
+        return
+    close = df["Close"].squeeze()
+    if isinstance(close, pd.DataFrame):
+        close = close.iloc[:, 0]
+    high = df["High"].squeeze()
+    low = df["Low"].squeeze()
+    if isinstance(high, pd.DataFrame):
+        high = high.iloc[:, 0]
+    if isinstance(low, pd.DataFrame):
+        low = low.iloc[:, 0]
+    close = close.dropna()
+
+    fast_ema = close.ewm(span=FAST_EMA, adjust=False).mean()
+    slow_ema = close.ewm(span=SLOW_EMA, adjust=False).mean()
+    rsi = calc_rsi(close, RSI_PERIOD)
+    atr = calc_atr(high, low, close, ATR_PERIOD)
+
+    i = -2
+    bar_ts = str(df.index[i])
+    if bar_ts in _seen_bars:
+        return
+    bull_cross = (fast_ema.iloc[i] > slow_ema.iloc[i]) and (fast_ema.iloc[i-1] <= slow_ema.iloc[i-1])
+    bear_cross = (fast_ema.iloc[i] < slow_ema.iloc[i]) and (fast_ema.iloc[i-1] >= slow_ema.iloc[i-1])
+    rsi_val = float(rsi.iloc[i])
+    price = float(close.iloc[i])
+    atr_val = max(float(atr.iloc[i]), 3.0)
+    _seen_bars.add(bar_ts)
+    _save_seen_bar(bar_ts)
+    if len(_seen_bars) > 500:
+        _seen_bars.clear()
+    log.info("Bar %s  price=$%.2f  rsi=%.1f  atr=%.2f  bull=%s  bear=%s",
+            bar_ts, price, rsi_val, atr_val, bull_cross, bear_cross)
+    rr = round(ATR_TP_MULT / ATR_SL_MULT, 1)
+
+    if bull_cross and rsi_val < RSI_BUY_MAX:
+        if get_daily_trend() == -1:
+            log.info("SKIP BUY XAUUSD — daily trend bearish")
+            return
+        entry = round(price, 2)
+        sl = round(entry - ATR_SL_MULT * atr_val, 2)
+        tp = round(entry + ATR_TP_MULT * atr_val, 2)
+        log.info(">>> BUY SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
+        tg_send(f"[GOLD BOT] ━━━━━━━━━━━━━━━━━━━━━━\n🥇 <b>XAUUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:.2f}</code>\n"
+                f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
+                f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
+                f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross confirmed\n"
+                f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+        record_signal("BUY", entry, sl, tp)
+        if order_execution_enabled():
+            queue_trade("XAUUSD", "BUY", sl, tp, source="XAUUSD_1H")
+
+    elif bear_cross and rsi_val > RSI_SELL_MIN:
+        if get_daily_trend() == 1:
+            log.info("SKIP SELL XAUUSD — daily trend bullish")
+            return
+        entry = round(price, 2)
+        sl = round(entry + ATR_SL_MULT * atr_val, 2)
+        tp = round(entry - ATR_TP_MULT * atr_val, 2)
+        log.info(">>> SELL SIGNAL <<<  Entry=$%.2f  SL=$%.2f  TP=$%.2f", entry, sl, tp)
+        tg_send(f"[GOLD BOT] ━━━━━━━━━━━━━━━━━━━━━━\n🥇 <b>XAUUSD</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+                f"⏱ <b>Timeframe :</b> 1 Hour\n\n📍 <b>Entry     :</b> $<code>{entry:.2f}</code>\n"
+                f"🛑 <b>Stop Loss :</b> $<code>{sl:.2f}</code>\n🎯 <b>Target    :</b> $<code>{tp:.2f}</code>\n\n"
+                f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> ${atr_val:.2f}\n"
+                f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross confirmed\n"
+                f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
+        record_signal("SELL", entry, sl, tp)
+        if order_execution_enabled():
+            queue_trade("XAUUSD", "SELL", sl, tp, source="XAUUSD_1H")
+
+def main():
+    """Main bot loop."""
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
+    _load_seen_bars()
+    log.info("Gold Bot started | ema=%d/%d  rsi=%d  cache=%ds  poll=%ds",
+            FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL, CHECK_SECS)
+    tg_send(f"[GOLD BOT] 🥇 <b>Online — XAUUSD</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+            f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 1H\n⚖️ SL = 1x ATR  |  TP = 3x ATR\n"
+            "🕙 Daily report at 10:00 PM IST")
+    while True:
+        try:
+            maybe_send_daily_report()
+            check_signal()
+        except Exception as exc:
+            log.error("Unexpected error: %s", exc)
+        time.sleep(CHECK_SECS)
+
+if __name__ == "__main__":
+    main()

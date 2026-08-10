@@ -1,0 +1,32 @@
+[Unit]
+Description=MediDeals Bitcoin Trading Bot (Yahoo Finance)
+Documentation=file:///home/medideals/DIGITALOCEAN_DEPLOYMENT.md
+After=network-online.target
+Wants=network-online.target
+PartOf=medideals-bots.target
+
+[Service]
+Type=simple
+User=medideals
+Group=medideals
+WorkingDirectory=/home/medideals/MediDeals-iOS-App/telegram_bot
+EnvironmentFile=/etc/medideals/telegram.env
+ExecStart=/usr/bin/python3 btc_bot.py
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+KillMode=process
+SendSigKill=yes
+SyslogIdentifier=medideals-btc-bot
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/medideals/.cache /var/log/medideals /tmp
+MemoryMax=512M
+CPUQuota=25%
+
+[Install]
+WantedBy=medideals-bots.target

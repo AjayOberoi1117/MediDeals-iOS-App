@@ -19,11 +19,10 @@ import pytz
 IST = pytz.timezone("Asia/Kolkata")
 
 import pandas as pd
-import yfinance as yf
 import requests
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
+from telegram_config import validate_telegram_config, order_execution_enabled
+from market_data_provider import fetch_ohlc
 
 try:
     from mac_trade_writer import queue_trade          # Mac: direct MT5 file write
@@ -36,8 +35,8 @@ except ImportError:
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("ELITE_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 FAST_EMA       = 9
 SLOW_EMA       = 21
 RSI_PERIOD     = 14
@@ -91,8 +90,6 @@ def tg_send(text):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
         if not r.json().get("ok"): log.warning("Telegram failed: %s", r.text[:120])
     except Exception as exc: log.warning("Telegram error: %s", exc)
-    wapp_send(text)
-    email_send("Trading Signal: Forex Scalper", text)
 
 def record_signal(name, direction, price, sl, tp):
     _daily_signals.append({"name": name, "direction": direction, "price": price,
@@ -100,7 +97,7 @@ def record_signal(name, direction, price, sl, tp):
 
 def send_daily_report():
     today = datetime.now(IST).strftime("%d %b %Y"); n = len(_daily_signals)
-    lines = [f"📊 <b>Daily Scalper Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
+    lines = [f"[FOREX SCALPER] 📊 <b>Daily Scalper Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
              f"<b>Forex Scalper</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0: lines.append("No signals were generated today.")
     else:
@@ -144,25 +141,14 @@ def calc_adx(high, low, close, period):
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
     return dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
 
-def _yf_download(ticker, period, interval):
-    for attempt in range(3):
-        try:
-            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
-            if df is not None and not df.empty: return df
-        except Exception as exc:
-            log.debug("yfinance attempt %d failed for %s: %s", attempt + 1, ticker, exc)
-        if attempt < 2: time.sleep(5 * (2 ** attempt))
-    return None
-
 def fetch_data(name):
     ticker = SYMBOLS[name]
     cache_key = f"{ticker}_15m"
     now = time.time()
     cached = _cache.get(cache_key)
     if cached and now - cached[0] < CACHE_TTL: return cached[1]
-    df = _yf_download(ticker, "5d", "15m")
+    df = fetch_ohlc(ticker, "5d", "15m")
     if df is None or len(df) < SLOW_EMA + 5: return None
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
     _cache[cache_key] = (now, df)
     return df
 
@@ -172,9 +158,8 @@ def get_1h_trend(name) -> int:
     now = time.time()
     cached = _cache.get(cache_key)
     if cached and now - cached[0] < 3600: return cached[1]
-    df = _yf_download(ticker, "30d", "1h")
+    df = fetch_ohlc(ticker, "30d", "1h")
     if df is None or len(df) < 52: return 0
-    if isinstance(df.columns, pd.MultiIndex): df.columns = [col[0] for col in df.columns]
     close = df["Close"].squeeze()
     ema50 = close.ewm(span=50, adjust=False).mean()
     trend = 1 if float(close.iloc[-1]) > float(ema50.iloc[-1]) else -1
@@ -211,35 +196,40 @@ def check_symbol(name):
         if get_1h_trend(name) == -1: log.info("SKIP BUY  %s — 1H trend bearish", name); return
         entry = round(price, dec); sl = round(entry - ATR_SL_MULT * atr_val, dec); tp = round(entry + ATR_TP_MULT * atr_val, dec)
         log.info("BUY  %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
-        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        tg_send(f"[FOREX SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"📈 <b>Signal    :</b> 🟢 BUY\n📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {pfx}{atr_val:.{dec}f}\n📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bullish cross — 15min\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
-        record_signal(name, "BUY", entry, sl, tp); queue_trade(name, "BUY", sl, tp, source=f"{name}_15m")
+        record_signal(name, "BUY", entry, sl, tp)
+        if order_execution_enabled():
+            queue_trade(name, "BUY", sl, tp, source=f"{name}_15m")
         _last_signal[name] = now_ts
     elif bear_cross and rsi_val > RSI_SELL_MIN:
         if get_1h_trend(name) == 1: log.info("SKIP SELL %s — 1H trend bullish", name); return
         entry = round(price, dec); sl = round(entry + ATR_SL_MULT * atr_val, dec); tp = round(entry - ATR_TP_MULT * atr_val, dec)
         log.info("SELL %s  entry=%.*f  sl=%.*f  tp=%.*f", name, dec, entry, dec, sl, dec, tp)
-        tg_send(f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        tg_send(f"[FOREX SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SCALPER — {name}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"📉 <b>Signal    :</b> 🔴 SELL\n📅 <b>Time      :</b> {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
                 f"⏱ <b>Timeframe :</b> 15 Minutes\n\n📍 <b>Entry     :</b> {pfx}<code>{entry:.{dec}f}</code>\n"
                 f"🛑 <b>Stop Loss :</b> {pfx}<code>{sl:.{dec}f}</code>\n🎯 <b>Target    :</b> {pfx}<code>{tp:.{dec}f}</code>\n\n"
                 f"📊 <b>RSI(14)   :</b> {rsi_val:.1f}\n📊 <b>ATR(14)   :</b> {pfx}{atr_val:.{dec}f}\n📊 <b>ADX(14)   :</b> {adx_val:.1f}\n"
                 f"⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n💡 EMA({FAST_EMA}/{SLOW_EMA}) bearish cross — 15min\n"
                 f"⚠️ <i>Set SL immediately after opening the trade!</i>\n━━━━━━━━━━━━━━━━━━━━━━")
-        record_signal(name, "SELL", entry, sl, tp); queue_trade(name, "SELL", sl, tp, source=f"{name}_15m")
+        record_signal(name, "SELL", entry, sl, tp)
+        if order_execution_enabled():
+            queue_trade(name, "SELL", sl, tp, source=f"{name}_15m")
         _last_signal[name] = now_ts
 
 def main():
-    if not TELEGRAM_TOKEN: raise SystemExit("ELITE_BOT_TOKEN not set in .env")
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_seen()
     log.info("Forex Scalper started | pairs=%d  ema=%d/%d  rsi=%d  cache=%ds",
              len(SYMBOLS), FAST_EMA, SLOW_EMA, RSI_PERIOD, CACHE_TTL)
-    tg_send(f"⚡ <b>Forex Scalper Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
+    tg_send(f"[FOREX SCALPER] ⚡ <b>Online</b>\n📅 {datetime.now(IST).strftime('%d %b %Y %I:%M %p IST')}\n"
             f"📊 EMA({FAST_EMA}/{SLOW_EMA}) + RSI({RSI_PERIOD}) | 15min\n"
             f"💱 EURUSD  •  GBPUSD\n"
             f"⚖️ SL = 1x ATR  |  TP = 2x ATR\n🕙 Daily report at 10:00 PM IST")

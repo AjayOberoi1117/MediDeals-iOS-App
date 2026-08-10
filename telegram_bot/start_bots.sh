@@ -1,66 +1,157 @@
 #!/usr/bin/env bash
-# start_bots.sh — Launch all 9 trading signal bots + MT5 auto-trader (runs 24/7)
+# start_bots.sh — Launch trading signal bots independently (skip already-running)
+# SAFETY: Forces signal-only mode. Verifies execution gate before any bot starts.
+# Preserves: scanner_bot.py, india_scalper.py (unmanaged, untouched)
 
 cd "$(dirname "$0")"
 set -a; source .env; set +a
 mkdir -p logs
 
+# CRITICAL SAFETY: Force signal-only mode (no live trading)
+export BOT_EXECUTION_MODE="signal_only"
+unset LIVE_TRADING_CONFIRMED
+
 # Use venv python if available, fall back to system python3
 PYTHON="${BOTENV_PYTHON:-/root/botenv/bin/python3}"
 [ -x "$PYTHON" ] || PYTHON=python3
 
-CHAT_ID="${SIGNAL_CHAT_ID:-1994067941}"
-
-# Start MT5 bridge first (Xvfb + MT5 terminal + wine_server.py)
-bash start_mt5_bridge.sh
-
-# Create named symlinks so watchdog can identify each process uniquely
-ln -sf signal_bot.py eurusd_bot.py
-ln -sf signal_bot.py gbpusd_bot.py
-ln -sf signal_bot.py usdjpy_bot.py
-
 echo "==========================================="
-echo "  Starting All Trading Signal Bots"
+echo "  Independent Bot Launcher"
+echo "  (Skips already-running bots)"
 echo "==========================================="
+echo ""
 
-SIGNAL_SYMBOL="EURUSD=X" SIGNAL_NAME="EURUSD" \
-SIGNAL_TOKEN="$ELITE_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-$PYTHON eurusd_bot.py >> logs/eurusd.log 2>&1 &
-echo "  [1] EURUSD    started  (PID $!)"
+# Tracking arrays
+declare -a STARTED
+declare -a SKIPPED
+declare -a FAILED
 
-SIGNAL_SYMBOL="GBPUSD=X" SIGNAL_NAME="GBPUSD" \
-SIGNAL_TOKEN="$STOCX_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-$PYTHON gbpusd_bot.py >> logs/gbpusd.log 2>&1 &
-echo "  [2] GBPUSD    started  (PID $!)"
+# Function to check if a bot is already running
+is_running() {
+  local bot_name=$1
+  pgrep -f "$bot_name" > /dev/null 2>&1
+  return $?
+}
 
-SIGNAL_SYMBOL="USDJPY=X" SIGNAL_NAME="USDJPY" \
-SIGNAL_TOKEN="$STOCX_BOT_TOKEN" SIGNAL_CHAT_ID="$CHAT_ID" \
-$PYTHON usdjpy_bot.py >> logs/usdjpy.log 2>&1 &
-echo "  [3] USDJPY    started  (PID $!)"
+# Function to start a bot safely
+start_bot() {
+  local python_path=$1
+  local bot_file=$2
+  local log_file=$3
+  local display_name=$4
 
-$PYTHON gold_bot.py >> logs/gold.log 2>&1 &
-echo "  [4] XAUUSD    started  (PID $!)"
+  if is_running "$bot_file"; then
+    echo "SKIP: $display_name ($bot_file) already running"
+    SKIPPED+=("$display_name")
+    return 0
+  fi
 
-$PYTHON nifty_scalper.py >> logs/nifty.log 2>&1 &
-echo "  [5] Nifty     started  (PID $!)"
+  # Start the bot
+  $python_path "$bot_file" >> "$log_file" 2>&1 &
+  local pid=$!
 
-$PYTHON scanner_bot.py >> logs/scanner.log 2>&1 &
-echo "  [6] Scanner   started  (PID $!)"
+  # Wait 2 seconds for bot to initialize
+  sleep 2
 
-$PYTHON forex_scalper.py >> logs/scalper.log 2>&1 &
-echo "  [7] Scalper   started  (PID $!)"
+  # Verify bot is still running (did not crash during startup)
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "START: $display_name (PID $pid)"
+    STARTED+=("$display_name")
+  else
+    echo "FAIL: $display_name exited during startup"
+    FAILED+=("$display_name")
+    echo "  Last 20 lines of log:"
+    tail -20 "$log_file" 2>/dev/null | sed 's/^/    /' || true
+  fi
+}
 
-$PYTHON token_updater_bot.py >> logs/token_updater.log 2>&1 &
-echo "  [8] TokenBot  started  (PID $!)"
+echo "Checking and starting 5 dedicated signal bots..."
+echo ""
 
-$PYTHON btc_bot.py >> logs/btc.log 2>&1 &
-echo "  [9] BTCUSD    started  (PID $!)"
+# SAFETY GATE: Verify execution mode before starting ANY bot
+echo "Verifying execution gate..."
+"$PYTHON" - <<'PY'
+import sys
+sys.path.insert(0, '.')
 
-$PYTHON trader.py >> logs/trader.log 2>&1 &
-echo " [10] MT5Trader started  (PID $!)"
+from telegram_config import get_execution_mode, order_execution_enabled
+
+mode = get_execution_mode()
+enabled = order_execution_enabled()
+
+print(f"BOT_EXECUTION_MODE={mode}")
+print(f"ORDER_EXECUTION_ENABLED={enabled}")
+
+if mode != "signal_only":
+    print("ERROR: Unsafe execution mode (expected signal_only)")
+    sys.exit(1)
+if enabled:
+    print("ERROR: Order execution must be disabled")
+    sys.exit(1)
+
+print("✓ Safety gate PASSED")
+PY
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "⚠️  SAFETY GATE FAILED - Aborting launcher"
+  exit 1
+fi
 
 echo ""
-echo "All 10 processes running 24/7. Watchdog checks every 5 minutes."
-echo "Send /upstox <token> to Elite bot to refresh Upstox token."
-echo "Set META_API_TOKEN in .env to activate MT5 auto-trading."
+
+# Start each managed bot independently.
+# scanner_bot.py, india_scalper.py, and signal_bot.py are intentionally excluded and preserved.
+start_bot "$PYTHON" "btc_bot.py" "logs/btc.log" "BTC Bot"
+start_bot "$PYTHON" "gold_bot.py" "logs/gold.log" "GOLD Bot"
+start_bot "$PYTHON" "forex_scalper.py" "logs/forex.log" "FOREX Scalper"
+start_bot "$PYTHON" "nifty_scalper.py" "logs/nifty.log" "NIFTY Scalper"
+start_bot "$PYTHON" "options_scalper.py" "logs/options.log" "OPTIONS Scalper"
+
+echo ""
+echo "==========================================="
+echo "  Summary"
+echo "==========================================="
+
+if [ ${#STARTED[@]} -gt 0 ]; then
+  echo "STARTED:"
+  for bot in "${STARTED[@]}"; do
+    echo "  - $bot"
+  done
+else
+  echo "STARTED: (none)"
+fi
+
+echo ""
+
+if [ ${#SKIPPED[@]} -gt 0 ]; then
+  echo "SKIPPED:"
+  for bot in "${SKIPPED[@]}"; do
+    echo "  - $bot"
+  done
+else
+  echo "SKIPPED: (none)"
+fi
+
+echo ""
+
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo "FAILED:"
+  for bot in "${FAILED[@]}"; do
+    echo "  - $bot"
+  done
+  echo ""
+  echo "⚠️  Review logs/ directory for error details"
+else
+  echo "FAILED: (none)"
+fi
+
+echo ""
+echo "==========================================="
+echo "  Safety Summary"
+echo "==========================================="
+echo "EXECUTION MODE: signal_only"
+echo "ORDER EXECUTION: BLOCKED"
+echo "SCANNER BOT: PRESERVED"
+echo "INDIA SCALPER: PRESERVED"
 echo "==========================================="

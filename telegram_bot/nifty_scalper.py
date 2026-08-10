@@ -16,15 +16,14 @@ import socket
 import yfinance as yf
 from datetime import datetime
 from dotenv import load_dotenv
-from whatsapp import wapp_send
-from emailer import email_send
 from nse_holidays import is_nse_holiday
+from telegram_config import validate_telegram_config
 
 load_dotenv()
 socket.setdefaulttimeout(30)
 
-TELEGRAM_TOKEN = os.getenv("STOCX_BOT_TOKEN", "")
-CHAT_ID        = os.getenv("SIGNAL_CHAT_ID", "7093601171")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID        = os.getenv("TELEGRAM_CHAT_ID", "")
 
 INSTRUMENTS = {
     "NIFTY":     "^NSEI",
@@ -80,8 +79,6 @@ def send_telegram(msg):
         r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
         if r.status_code != 200: print(f"Telegram error: {r.status_code}")
     except Exception as e: print(f"Telegram exception: {e}")
-    wapp_send(msg)
-    email_send("Trading Signal: Nifty Scalper", msg)
 
 def record_signal(symbol, direction, price, sl, tp):
     _daily_signals.append({"symbol": symbol, "direction": direction, "price": price,
@@ -89,7 +86,7 @@ def record_signal(symbol, direction, price, sl, tp):
 
 def send_daily_report():
     today = datetime.now().strftime("%d %b %Y"); n = len(_daily_signals)
-    lines = [f"📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
+    lines = [f"[NIFTY SCALPER] 📊 <b>Daily Signal Report — {today}</b>", "━━━━━━━━━━━━━━━━━━━━━━",
              f"<b>Nifty Scalper</b>  |  Signals Today: <b>{n}</b>", ""]
     if n == 0: lines.append("No signals were generated today.")
     else:
@@ -196,7 +193,7 @@ def format_signal(symbol, direction, price, sl, tp):
     emoji = "🟢 BUY" if direction == "BUY" else "🔴 SELL"
     now_ist = datetime.now().strftime("%d %b %Y %I:%M %p IST")
     rr = round(abs(tp - price) / max(abs(sl - price), 0.01), 1)
-    return (f"━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>NIFTY SCALPER — {symbol}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    return (f"[NIFTY SCALPER] ━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>NIFTY SCALPER — {symbol}</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"📈 <b>Signal    :</b> {emoji}\n📅 <b>Time      :</b> {now_ist}\n⏱ <b>Timeframe :</b> 15 Minutes\n\n"
             f"📍 <b>Entry     :</b> ₹<code>{price:.2f}</code>\n🛑 <b>Stop Loss :</b> ₹<code>{sl:.2f}</code>\n"
             f"🎯 <b>Target    :</b> ₹<code>{tp:.2f}</code>\n\n⚖️ <b>Risk/Reward:</b> 1 : {rr}\n\n"
@@ -233,12 +230,14 @@ def run_scan():
         else: print("no signal")
 
 def main():
+    global TELEGRAM_TOKEN, CHAT_ID
+    TELEGRAM_TOKEN, CHAT_ID = validate_telegram_config(TELEGRAM_TOKEN, CHAT_ID)
     _load_state(); _load_seen()
     print("=" * 55)
     print("  Nifty/BankNifty Intraday Scalper")
     print(f"  Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15-min | MIS")
     print("=" * 55)
-    send_telegram(f"⚡ <b>Nifty Scalper Started</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
+    send_telegram(f"[NIFTY SCALPER] ⚡ <b>Online</b>\n📅 {datetime.now().strftime('%d %b %Y %I:%M %p IST')}\n"
                   f"📊 Supertrend({ST_PERIOD},{ST_MULTIPLIER}) | 15min\n🎯 NIFTY + BANKNIFTY\n"
                   "🕙 Daily report at 10:00 PM IST\n<i>Signals for Upstox MIS (Intraday)</i>")
     while True:
